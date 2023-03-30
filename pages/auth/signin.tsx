@@ -1,23 +1,20 @@
+import { GetServerSidePropsContext, InferGetServerSidePropsType } from "next";
+import { getServerSession } from "next-auth";
 import { getCsrfToken, getProviders, signIn } from "next-auth/react";
 import styles from "../../styles/Signin.module.css";
+import { authOptions } from "../api/auth/[...nextauth]";
 
-const Signin = ({ csrfToken, providers }: any) => {
+const Signin = ({
+  csrfToken,
+  providers,
+}: InferGetServerSidePropsType<typeof getServerSideProps>) => {
   return (
     <div style={{ overflow: "hidden", position: "relative" }}>
-      {/* <Header /> */}
       <div className={styles.wrapper} />
       <div className={styles.content}>
         <div className={styles.cardWrapper}>
-          {/* <Image
-            src="/katalog_full.svg"
-            width="196px"
-            height="64px"
-            alt="App Logo"
-            style={{ height: "85px", marginBottom: "20px" }}
-          /> */}
           <div className={styles.cardContent}>
             <input name="csrfToken" type="hidden" defaultValue={csrfToken} />
-            <input placeholder="Email (Not Setup - Please Use Github)" />
             <button className={styles.primaryBtn}>Submit</button>
             <hr />
             {providers &&
@@ -31,20 +28,18 @@ const Signin = ({ csrfToken, providers }: any) => {
           </div>
         </div>
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {/* <img
-        src="/login_pattern.svg"
-        alt="Pattern Background"
-        layout="fill"
-        className={styles.styledPattern}
-      /> */}
     </div>
   );
 };
 
 export default Signin;
 
-export async function getServerSideProps(context: any) {
+export async function getServerSideProps(context: GetServerSidePropsContext) {
+  const session = await getServerSession(context.req, context.res, authOptions);
+  if (session) {
+    return { redirect: { destination: "/dashboard" } };
+  }
+
   const providers = await getProviders();
   const csrfToken = await getCsrfToken(context);
   return {

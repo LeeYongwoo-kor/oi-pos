@@ -14,5 +14,5 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { redirect: { destination: "/dashboard" } };
   }
 
-  return { redirect: { destination: "/" } };
+  return { redirect: { destination: "/", permanent: true } };
 }

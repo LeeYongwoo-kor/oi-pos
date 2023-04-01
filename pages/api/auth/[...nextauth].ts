@@ -1,10 +1,10 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import LineProvider from "next-auth/providers/line";
-import EmailProvider from "next-auth/providers/email";
+import prisma from "@/lib/prismadb";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import sgMail from "@sendgrid/mail";
-import prisma from "../../../lib/prismadb";
+import NextAuth, { NextAuthOptions } from "next-auth";
+import EmailProvider from "next-auth/providers/email";
+import GoogleProvider from "next-auth/providers/google";
+import LineProvider from "next-auth/providers/line";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -52,7 +52,6 @@ export const authOptions: NextAuthOptions = {
         },
       },
       profile(profile) {
-        console.log(profile);
         return {
           id: profile.sub,
           name: profile.name,
@@ -70,20 +69,44 @@ export const authOptions: NextAuthOptions = {
     // Note: This option is ignored if using JSON Web Tokens
     updateAge: 60 * 60 * 24,
   },
-  // callbacks: {
-  //   async signIn({ user, account, profile, email, credentials }) {
-  //     return true;
-  //   },
-  //   async redirect({ url, baseUrl }) {
-  //     return baseUrl;
-  //   },
-  //   async session({ session, user, token }) {
-  //     return session;
-  //   },
-  //   async jwt({ token, user, account, profile, isNewUser }) {
-  //     return token;
-  //   },
-  // },
+  callbacks: {
+    async signIn({ user, account, profile, email, credentials }) {
+      try {
+        if (email && !email.verificationRequest) {
+          // TODO: Hash the URL to prevent direct access
+          return "/errors/email-already-in-use?allowAccess=true";
+        }
+
+        const response = await fetch(
+          `${process.env.NEXTAUTH_URL}/api/users/me`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email: user?.email }),
+          }
+        );
+
+        const userEmail = await response.json();
+
+        if (userEmail.exists) {
+          // TODO: Remove this code after development is complete.
+          if (!email) {
+            return true;
+          }
+          // TODO: Hash the URL to prevent direct access
+          return "/errors/email-already-in-use?allowAccess=true";
+        }
+
+        return "/unauthorized";
+      } catch (error) {
+        console.error("An error occurred while checking the account.", error);
+      }
+
+      return "/unauthorized";
+    },
+  },
   pages: {
     verifyRequest: "/auth/verify-request",
     signIn: "/auth/signin",

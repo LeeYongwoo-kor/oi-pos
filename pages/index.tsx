@@ -1,24 +1,25 @@
+import { useError } from "@/context/error-context";
+import { GetServerSidePropsContext } from "next";
+import { getServerSession } from "next-auth";
+import { signIn } from "next-auth/react";
 import Head from "next/head";
-import { signIn, signOut, useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
+import { authOptions } from "./api/auth/[...nextauth]";
 
 interface IEmail {
   email: string;
 }
 
 export default function Home() {
-  const { register, handleSubmit } = useForm<IEmail>();
-  const { data: session } = useSession();
+  const { error } = useError();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IEmail>();
   const onValid = ({ email }: IEmail) =>
-    signIn("email", { email, callbackUrl: "/" });
-  if (session) {
-    return (
-      <>
-        Signed in as {session?.user?.email} <br />
-        <button onClick={() => signOut()}>Sign out</button>
-      </>
-    );
-  }
+    signIn("email", { email, callbackUrl: "/dashboard" });
+
   return (
     <>
       <Head>
@@ -30,27 +31,43 @@ export default function Home() {
       <main className="flex items-center justify-center w-full h-screen bg-slate-300">
         <div className="flex items-center justify-center bg-white w-144 h-144">
           <div className="space-y-3">
-            Not signed in <br />
             <form onSubmit={handleSubmit(onValid)}>
               <div>
                 <input
                   {...register("email", {
                     required: "Write your email please",
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i,
+                      message: "Invalid email address",
+                    },
                   })}
                   type="email"
                   placeholder="Please input email address"
                   className="border border-blue-500"
                 />
                 <button className="bg-orange-400">Email Login</button>
+                {errors.email && (
+                  <p className="text-red-600">{errors.email.message}</p>
+                )}
+                {error === "email-already-in-use" && (
+                  <p className="text-red-600">
+                    Error: The email is already in use. Please use a different
+                    email.
+                  </p>
+                )}
               </div>
             </form>
             <div className="text-center bg-slate-400">
-              <button onClick={() => signIn("google", { callbackUrl: "/" })}>
+              <button
+                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+              >
                 Google in
               </button>
             </div>
             <div className="text-center bg-slate-400">
-              <button onClick={() => signIn("line", { callbackUrl: "/" })}>
+              <button
+                onClick={() => signIn("line", { callbackUrl: "/dashboard" })}
+              >
                 Line in
               </button>
             </div>
@@ -59,4 +76,20 @@ export default function Home() {
       </main>
     </>
   );
+}
+
+export async function getServerSideProps(context: GetServerSidePropsContext) {
+  const session = await getServerSession(context.req, context.res, authOptions);
+
+  if (session) {
+    return {
+      redirect: {
+        destination: "/dashboard",
+      },
+    };
+  }
+
+  return {
+    props: {},
+  };
 }

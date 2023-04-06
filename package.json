@@ -23,9 +23,11 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.43.8",
+    "react-modal": "^3.16.1",
     "typescript": "5.0.2"
   },
   "devDependencies": {
+    "@types/react-modal": "^3.13.1",
     "@typescript-eslint/eslint-plugin": "^5.56.0",
     "@typescript-eslint/parser": "^5.56.0",
     "autoprefixer": "^10.4.14",

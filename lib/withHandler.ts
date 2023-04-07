@@ -1,12 +1,11 @@
-import { NextApiResponse } from "next";
-import { NextApiRequest } from "next";
+import { NextApiRequest, NextApiResponse } from "next";
 
 export interface ResponseType {
   ok: boolean;
   [key: string]: any;
 }
 
-type method = "GET" | "POST" | "DELETE";
+type method = "GET" | "POST" | "DELETE" | "PATCH" | "PUT";
 
 interface ConfigType {
   methods: method[];
@@ -14,11 +13,7 @@ interface ConfigType {
   isPrivate?: boolean;
 }
 
-export default function withHandler({
-  methods,
-  handler,
-  isPrivate = true,
-}: ConfigType) {
+export default function withHandler({ methods, handler }: ConfigType) {
   return async function (
     req: NextApiRequest,
     res: NextApiResponse
@@ -26,9 +21,6 @@ export default function withHandler({
     if (req.method && !methods.includes(req.method as any)) {
       return res.status(405).end();
     }
-    // if (isPrivate && !req.session.user) {
-    //   return res.status(401).json({ ok: false });
-    // }
     try {
       await handler(req, res);
     } catch (error) {

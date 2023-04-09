@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useRouter } from "next/router";
 
-const Checkout = dynamic(() => import("@/components/checkout"), { ssr: false });
+const Checkout = dynamic(() => import("@/components/Checkout"), { ssr: false });
 
 export default function Plan() {
   const router = useRouter();

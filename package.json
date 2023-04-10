@@ -24,6 +24,7 @@
     "react-dom": "18.2.0",
     "react-hook-form": "^7.43.8",
     "react-modal": "^3.16.1",
+    "swr": "^2.1.2",
     "typescript": "5.0.2"
   },
   "devDependencies": {

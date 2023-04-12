@@ -64,45 +64,54 @@ export const authOptions: NextAuthOptions = {
   ],
   secret: process.env.NEXTAUTH_SECRET,
   session: {
-    // strategy: "jwt",
-    strategy: "database",
+    strategy: "jwt",
+    // strategy: "database",
     maxAge: 30 * 60 * 60 * 24, // 30 days
     // Note: This option is ignored if using JSON Web Tokens
     updateAge: 60 * 60 * 24, // 24 hours
   },
   callbacks: {
-    // async jwt({ token, user, account, profile, isNewUser }) {
-    //   console.log("this is jwt callback");
-    //   console.log("token");
-    //   console.log(token);
-    //   console.log("user");
-    //   console.log(user);
-    //   console.log("account");
-    //   console.log(account);
-    //   console.log("profile");
-    //   console.log(profile);
-    //   console.log("isNewUser");
-    //   console.log(isNewUser);
-    //   // Initial sign in
-    //   if (account) {
-    //     token.accessToken = account.access_token;
-    //   }
-    //   return token;
-    // },
-    async session({ session, user, token }: any) {
-      console.log("session");
-      console.log(session);
-      console.log("user");
-      console.log(user);
+    async jwt({ token, user, account, profile, isNewUser }: any) {
       console.log("token");
       console.log(token);
-      const [google] = await prisma.account.findMany({
-        where: { userId: user.id, provider: "google" },
-      });
-      console.log("google");
-      console.log(google);
-      if (google.expires_at && google.expires_at * 1000 < Date.now()) {
-        console.log("hello");
+      console.log("user");
+      console.log(user);
+      console.log("account");
+      console.log(account);
+      console.log("profile");
+      console.log(profile);
+      console.log("isNewUser");
+      console.log(isNewUser);
+      if (account) {
+        // If isNewUser, add a new record to the Restaurant and Restaurant Table.
+        if (isNewUser) {
+          // Create a new Restaurant for the new user
+          const restaurant = await prisma.restaurant.create({
+            data: {
+              userId: user.id,
+            },
+          });
+
+          // Create a new RestaurantTable for the new Restaurant
+          await prisma.restaurantTable.create({
+            data: {
+              restaurantId: restaurant.id,
+            },
+          });
+        }
+        // Save the access token and refresh token in the JWT on the initial login
+        return {
+          ...token,
+          access_token: account.access_token,
+          expires_at: Math.floor(
+            Date.now() / 1000 + (account.expires_in || 3599)
+          ),
+          refresh_token: account.refresh_token,
+        };
+      } else if (Date.now() < token.expires_at * 1000) {
+        // If the access token has not expired yet, return it
+        return token;
+      } else {
         // If the access token has expired, try to refresh it
         try {
           // https://accounts.google.com/.well-known/openid-configuration
@@ -113,7 +122,7 @@ export const authOptions: NextAuthOptions = {
               client_id: process.env.GOOGLE_CLIENT_ID,
               client_secret: process.env.GOOGLE_CLIENT_SECRET,
               grant_type: "refresh_token",
-              refresh_token: google.refresh_token,
+              refresh_token: token.refresh_token,
             } as any),
             method: "POST",
           });
@@ -123,31 +132,32 @@ export const authOptions: NextAuthOptions = {
 
           if (!response.ok) throw tokens;
 
-          await prisma.account.update({
-            data: {
-              access_token: tokens.access_token,
-              expires_at: Math.floor(
-                Date.now() / 1000 + (tokens.expires_in || 3599)
-              ),
-              refresh_token: tokens.refresh_token ?? google.refresh_token,
-            },
-            where: {
-              provider_providerAccountId: {
-                provider: "google",
-                providerAccountId: google.providerAccountId,
-              },
-            },
-          });
+          return {
+            ...token, // Keep the previous token properties
+            access_token: tokens.access_token,
+            expires_at: Math.floor(
+              Date.now() / 1000 + (tokens.expires_in || 3599)
+            ),
+            // Fall back to old refresh token, but note that
+            // many providers may only allow using a refresh token once.
+            refresh_token: tokens.refresh_token ?? token.refresh_token,
+          };
         } catch (error) {
           console.error("Error refreshing access token", error);
           // The error property will be used client-side to handle the refresh token error
-          session.error = "RefreshAccessTokenError";
+          return { ...token, error: "RefreshAccessTokenError" as const };
         }
       }
-      return {
-        ...session,
-        user: { ...session.user, id: user.id, role: user.role },
-      };
+    },
+    async session({ session, user, token }: any) {
+      console.log("session session");
+      console.log(session);
+      console.log("user user");
+      console.log(user);
+      console.log("token token");
+      console.log(token);
+      session.error = token.error;
+      return session;
     },
     async signIn({ user, account, profile, email, credentials }) {
       try {

@@ -1,4 +1,10 @@
-import prisma from "@/lib/prismadb";
+import prisma from "@/lib/server/prismadb";
+import {
+  createAccountByNewProvider,
+  getAccount,
+  getUserByEmail,
+} from "@/utils/database";
+import { createRestaurantAndTable } from "@/utils/database/transactions";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import sgMail from "@sendgrid/mail";
 import NextAuth, { NextAuthOptions, TokenSet } from "next-auth";
@@ -72,37 +78,28 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, account, profile, isNewUser }: any) {
-      console.log("token");
-      console.log(token);
-      console.log("user");
-      console.log(user);
-      console.log("account");
-      console.log(account);
-      console.log("profile");
-      console.log(profile);
-      console.log("isNewUser");
-      console.log(isNewUser);
+      // first login
       if (account) {
         // If isNewUser, add a new record to the Restaurant and Restaurant Table.
         if (isNewUser) {
-          // Create a new Restaurant for the new user
-          const restaurant = await prisma.restaurant.create({
-            data: {
-              userId: user.id,
-            },
-          });
-
-          // Create a new RestaurantTable for the new Restaurant
-          await prisma.restaurantTable.create({
-            data: {
-              restaurantId: restaurant.id,
-            },
-          });
+          try {
+            // Create a new Restaurant and new RestaurantTable
+            const result = await createRestaurantAndTable(user?.id);
+            console.log(result);
+          } catch (error) {
+            console.error(
+              "Error creating restaurant and restaurant table: ",
+              error
+            );
+            // The error property will be used client-side to handle the refresh token error
+            return { ...token, error: "CreateRestaurantInfoError" as const };
+          }
         }
         // Save the access token and refresh token in the JWT on the initial login
         return {
           ...token,
           access_token: account.access_token,
+          provider: account.provider,
           expires_at: Math.floor(
             Date.now() / 1000 + (account.expires_in || 3599)
           ),
@@ -114,22 +111,47 @@ export const authOptions: NextAuthOptions = {
       } else {
         // If the access token has expired, try to refresh it
         try {
-          // https://accounts.google.com/.well-known/openid-configuration
-          // We need the `token_endpoint`.
-          const response = await fetch("https://oauth2.googleapis.com/token", {
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              client_id: process.env.GOOGLE_CLIENT_ID,
-              client_secret: process.env.GOOGLE_CLIENT_SECRET,
-              grant_type: "refresh_token",
-              refresh_token: token.refresh_token,
-            } as any),
-            method: "POST",
-          });
+          let response: Response;
+
+          switch (token.provider) {
+            case "email":
+              // Email provider does not support refresh token
+              return token;
+            case "google":
+              // Refresh Google access token
+              response = await fetch("https://oauth2.googleapis.com/token", {
+                headers: {
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: new URLSearchParams({
+                  client_id: process.env.GOOGLE_CLIENT_ID,
+                  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                  grant_type: "refresh_token",
+                  refresh_token: token.refresh_token,
+                } as any),
+                method: "POST",
+              });
+              break;
+            case "line":
+              // Refresh Line access token
+              response = await fetch("https://api.line.me/oauth2/v2.1/token", {
+                headers: {
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: new URLSearchParams({
+                  client_id: process.env.LINE_CLIENT_ID,
+                  client_secret: process.env.LINE_CLIENT_SECRET,
+                  grant_type: "refresh_token",
+                  refresh_token: token.refresh_token,
+                } as any),
+                method: "POST",
+              });
+              break;
+            default:
+              throw new Error("Unsupported provider");
+          }
 
           const tokens: TokenSet = await response.json();
-          console.log(tokens);
-
           if (!response.ok) throw tokens;
 
           return {
@@ -150,57 +172,56 @@ export const authOptions: NextAuthOptions = {
       }
     },
     async session({ session, user, token }: any) {
-      console.log("session session");
-      console.log(session);
-      console.log("user user");
-      console.log(user);
-      console.log("token token");
-      console.log(token);
       session.error = token.error;
       return session;
     },
     async signIn({ user, account, profile, email, credentials }) {
+      console.log(user);
+      console.log(account);
+      console.log(profile);
+      console.log(email);
       try {
-        // Oauth only
-        if (!email) {
-          return true;
-        }
-
-        if (!email.verificationRequest) {
+        if (email && !email.verificationRequest) {
           // TODO: Hash the URL to prevent direct access
           return "/errors/email-already-in-use?allowAccess=true";
         }
 
-        const response = await fetch(
-          `${process.env.NEXTAUTH_URL}/api/v1/users/me`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ email: user?.email }),
+        const userByEmail = await getUserByEmail(user?.email);
+
+        if (userByEmail) {
+          if (email) {
+            return "/errors/email-already-in-use?allowAccess=true";
           }
-        );
 
-        const userEmail = await response.json();
+          const oauthAccount = await getAccount(
+            userByEmail.id,
+            account?.providerAccountId
+          );
 
-        if (userEmail.exists) {
-          // TODO: Hash the URL to prevent direct access
-          return "/errors/email-already-in-use?allowAccess=true";
+          if (!oauthAccount) {
+            const createAccount = await createAccountByNewProvider(
+              userByEmail.id,
+              account
+            );
+
+            if (!createAccount) {
+              return "/errors/prisma-error?name=CreateAccountError";
+            }
+          }
         }
 
         return true;
       } catch (error) {
-        console.error("An error occurred while checking the account.", error);
+        console.error("An error occurred while checking the account: ", error);
+        return `/errors/prisma-error?name=PrismaFetchError`;
       }
-
-      return true;
     },
   },
   pages: {
     verifyRequest: "/auth/verify-request",
-    // signIn: "/auth/signin",
-    newUser: "/auth/new-user",
+    signIn: "/auth/signin",
+    error: "/auth/error",
+    // newUser: "/auth/new-user",
   },
 };
 

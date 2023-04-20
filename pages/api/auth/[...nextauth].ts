@@ -17,7 +17,9 @@ export const authOptions: NextAuthOptions = {
   // Configure one or more authentication providers
   providers: [
     EmailProvider({
+      type: "email",
       name: "Email",
+      maxAge: 60 * 60, // 1 hour
       server: {
         host: process.env.EMAIL_SERVER_HOST,
         port: process.env.EMAIL_SERVER_PORT,
@@ -172,7 +174,10 @@ export const authOptions: NextAuthOptions = {
       }
     },
     async session({ session, user, token }: any) {
-      session.error = token.error;
+      const { error } = token;
+      if (error) {
+        session.error = error;
+      }
       return session;
     },
     async signIn({ user, account, profile, email, credentials }) {

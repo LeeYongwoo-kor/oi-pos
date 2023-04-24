@@ -1,4 +1,3 @@
-import { useError } from "@/context/error-context";
 import { GetServerSidePropsContext } from "next";
 import { getServerSession } from "next-auth";
 import { signIn } from "next-auth/react";
@@ -6,6 +5,8 @@ import Head from "next/head";
 import { useForm } from "react-hook-form";
 import { authOptions } from "../api/auth/[...nextauth]";
 import Image from "next/image";
+import useError from "@/hooks/useError";
+import { useState } from "react";
 
 interface IEmail {
   email: string;
@@ -29,69 +30,20 @@ const callbackErrors: { [key: string]: string } = {
 };
 
 const Signin = ({ callbackError }: any) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { error } = useError();
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<IEmail>();
-  const onValid = ({ email }: IEmail) =>
-    signIn("email", { email, callbackUrl: "/dashboard" });
 
-  // return (
+  const onValid = async ({ email }: IEmail) => {
+    setIsSubmitting(true);
+    await signIn("email", { email, callbackUrl: "/dashboard" });
+    setIsSubmitting(false);
+  };
 
-  //     <main className="flex items-center justify-center w-full h-screen bg-slate-300">
-  //       <div className="flex items-center justify-center bg-white w-144 h-144">
-  //         <div className="space-y-3">
-  //           <form onSubmit={handleSubmit(onValid)}>
-  //             <div>
-  //               <input
-  //                 {...register("email", {
-  //                   required: "Write your email please",
-  //                   pattern: {
-  //                     value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i,
-  //                     message: "Invalid email address",
-  //                   },
-  //                 })}
-  //                 type="email"
-  //                 placeholder="Please input email address"
-  //                 className="border border-blue-500"
-  //               />
-  //               <button className="bg-orange-400">Email Login</button>
-  //               {callbackError && (
-  //                 <p className="text-red-600">Error: {callbackError}</p>
-  //               )}
-  //               {errors.email && (
-  //                 <p className="text-red-600">{errors.email.message}</p>
-  //               )}
-
-  //               {error === "email-already-in-use" && (
-  //                 <p className="text-red-600">
-  //                   Error: The email is already in use. Please use a different
-  //                   email.
-  //                 </p>
-  //               )}
-  //             </div>
-  //           </form>
-  //           <div className="text-center bg-slate-400">
-  //             <button
-  //               onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-  //             >
-  //               Google in
-  //             </button>
-  //           </div>
-  //           <div className="text-center bg-slate-400">
-  //             <button
-  //               onClick={() => signIn("line", { callbackUrl: "/dashboard" })}
-  //             >
-  //               Line in
-  //             </button>
-  //           </div>
-  //         </div>
-  //       </div>
-  //     </main>
-  //   </>
-  // );
   return (
     <main>
       <Head>
@@ -117,6 +69,7 @@ const Signin = ({ callbackError }: any) => {
                 Email
               </label>
               <input
+                disabled={isSubmitting}
                 {...register("email", {
                   required: "Write your email please",
                   pattern: {
@@ -146,8 +99,11 @@ const Signin = ({ callbackError }: any) => {
               )}
             </div>
             <button
+              disabled={isSubmitting}
               type="submit"
-              className="w-full px-4 py-2 font-bold text-white bg-blue-500 rounded focus:outline-none focus:bg-blue-600"
+              className={`w-full px-4 py-2 font-bold text-white bg-blue-500 rounded focus:outline-none focus:bg-blue-600 ${
+                isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             >
               Email Login
             </button>

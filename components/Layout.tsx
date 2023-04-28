@@ -1,15 +1,37 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import Alarm from "./Alarm";
 import NavigationBar from "./NavigationBar";
+import { useToast } from "@/context/ToastContext";
+import ToastContainer from "./ui/Toast";
 
 export default function Layout({ children }: { children: ReactNode }) {
+  const [isAlarmVisible, setIsAlarmVisible] = useState(true);
+  const { toasts, dismissToast } = useToast();
+
+  const toggleAlarmVisibility = () => {
+    setIsAlarmVisible(!isAlarmVisible);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="bg-gray-100 ">
       <NavigationBar />
-      <main className="px-4 pt-16">{children}</main>
-      <div className="fixed top-0 right-0 h-screen">
-        <Alarm />
+      <div className="flex min-h-screen">
+        <main className="flex-grow px-4 pt-16">{children}</main>
+        {isAlarmVisible && (
+          <div className="w-64">
+            <Alarm onToggle={toggleAlarmVisibility} />
+          </div>
+        )}
+        {!isAlarmVisible && (
+          <button
+            onClick={toggleAlarmVisibility}
+            className="fixed right-0 p-2 bg-white border border-gray-300 shadow-md top-20 rounded-l-md"
+          >
+            &laquo;
+          </button>
+        )}
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

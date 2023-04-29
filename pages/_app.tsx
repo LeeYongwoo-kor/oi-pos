@@ -1,8 +1,26 @@
+import { AuthProvider } from "@/context/AuthContext";
+import { ErrorProvider } from "@/context/ErrorContext";
+import { NavigationProvider } from "@/context/NavigationContext";
+import { ToastProvider } from "@/context/ToastContext";
 import "@/styles/globals.css";
-import type { AppProps } from "next/app";
 import { SessionProvider } from "next-auth/react";
-import { ErrorProvider } from "@/context/error-context";
+import type { AppProps } from "next/app";
 import ReactModal from "react-modal";
+import { SWRConfig } from "swr";
+
+// type AuthComponentProps = {
+//   requireAuth?: boolean;
+// };
+
+// type AuthComponentType = NextComponentType<
+//   NextPageContext,
+//   any,
+//   AuthComponentProps
+// >;
+
+// interface MyAppProps extends AppProps {
+//   Component: AuthComponentType;
+// }
 
 ReactModal.setAppElement("#__next");
 
@@ -10,11 +28,23 @@ export default function App({
   Component,
   pageProps: { session, ...pageProps },
 }: AppProps) {
+  const requireAuth = Component?.requireAuth || false;
+
   return (
-    <ErrorProvider>
-      <SessionProvider session={session}>
-        <Component {...pageProps} />
-      </SessionProvider>
-    </ErrorProvider>
+    <SWRConfig
+      value={{ fetcher: (url: string) => fetch(url).then((res) => res.json()) }}
+    >
+      <ErrorProvider>
+        <SessionProvider session={session}>
+          {/* <AuthProvider requireAuth={requireAuth}> */}
+          <NavigationProvider>
+            <ToastProvider>
+              <Component {...pageProps} />
+            </ToastProvider>
+          </NavigationProvider>
+          {/* </AuthProvider> */}
+        </SessionProvider>
+      </ErrorProvider>
+    </SWRConfig>
   );
 }

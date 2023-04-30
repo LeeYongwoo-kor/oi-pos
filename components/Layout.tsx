@@ -1,12 +1,9 @@
 import { ReactNode, useState } from "react";
 import Alarm from "./Alarm";
 import NavigationBar from "./NavigationBar";
-import { useToast } from "@/context/ToastContext";
-import ToastContainer from "./ui/Toast";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [isAlarmVisible, setIsAlarmVisible] = useState(true);
-  const { toasts, dismissToast } = useToast();
 
   const toggleAlarmVisibility = () => {
     setIsAlarmVisible(!isAlarmVisible);
@@ -31,7 +28,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
         )}
       </div>
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

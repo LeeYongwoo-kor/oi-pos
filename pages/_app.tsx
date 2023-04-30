@@ -1,5 +1,7 @@
+import ToastContainer from "@/components/ui/Toast";
 import { AuthProvider } from "@/context/AuthContext";
 import { ErrorProvider } from "@/context/ErrorContext";
+import { MessageProvider } from "@/context/MessageContext";
 import { NavigationProvider } from "@/context/NavigationContext";
 import { ToastProvider } from "@/context/ToastContext";
 import "@/styles/globals.css";
@@ -39,7 +41,10 @@ export default function App({
           {/* <AuthProvider requireAuth={requireAuth}> */}
           <NavigationProvider>
             <ToastProvider>
-              <Component {...pageProps} />
+              <MessageProvider>
+                <Component {...pageProps} />
+              </MessageProvider>
+              <ToastContainer />
             </ToastProvider>
           </NavigationProvider>
           {/* </AuthProvider> */}

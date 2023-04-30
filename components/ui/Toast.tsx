@@ -1,3 +1,4 @@
+import useToast from "@/hooks/useToast";
 import { joinCls } from "@/lib/client/helper";
 import { useEffect } from "react";
 
@@ -11,14 +12,9 @@ interface ToastProps extends ToastType {
   onDismiss: (id: number) => void;
 }
 
-type ToastContainerProps = {
-  toasts: ToastType[];
-  onDismiss: (id: number) => void;
-};
-
 const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   useEffect(() => {
-    if (type === "error") {
+    if (type !== "preserve") {
       setTimeout(() => {
         onDismiss(id);
       }, 5000);
@@ -55,14 +51,13 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   );
 };
 
-export default function ToastContainer({
-  toasts,
-  onDismiss,
-}: ToastContainerProps) {
+export default function ToastContainer() {
+  const { toasts, dismissToast } = useToast();
+
   return (
     <div className="fixed z-10 flex flex-col-reverse bottom-8 right-8">
       {toasts.map((toast) => (
-        <Toast key={toast.id} {...toast} onDismiss={onDismiss} />
+        <Toast key={toast.id} {...toast} onDismiss={dismissToast} />
       ))}
     </div>
   );

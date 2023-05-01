@@ -1,4 +1,4 @@
-import { ToastType } from "@/components/ui/Toast";
+import Toast, { ToastType } from "@/components/ui/Toast";
 import { ReactNode, createContext, useState } from "react";
 
 export interface ToastContextType {
@@ -31,6 +31,11 @@ export function ToastProvider({ children }: ToastProviderProps) {
   return (
     <ToastContext.Provider value={{ toasts, addToast, dismissToast }}>
       {children}
+      <div className="fixed z-10 flex flex-col-reverse bottom-8 right-8">
+        {toasts.map((toast) => (
+          <Toast key={toast.id} {...toast} onDismiss={dismissToast} />
+        ))}
+      </div>
     </ToastContext.Provider>
   );
 }

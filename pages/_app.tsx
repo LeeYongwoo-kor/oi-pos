@@ -44,7 +44,6 @@ export default function App({
               <MessageProvider>
                 <Component {...pageProps} />
               </MessageProvider>
-              <ToastContainer />
             </ToastProvider>
           </NavigationProvider>
           {/* </AuthProvider> */}

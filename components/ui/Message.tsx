@@ -1,9 +1,12 @@
+import { joinCls } from "@/lib/client/helper";
 import React from "react";
 
 type MessageProps = {
   title: string;
   message: string;
-  isOpen: boolean;
+  loading: boolean;
+  type?: "alert" | "confirm";
+  isOpen?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -11,7 +14,9 @@ type MessageProps = {
 const Message = ({
   title,
   message,
+  type,
   isOpen,
+  loading,
   onConfirm,
   onCancel,
 }: MessageProps) => {
@@ -28,16 +33,25 @@ const Message = ({
         <div className="flex justify-end space-x-4">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+            disabled={loading}
+            className={joinCls(
+              "px-4 py-2 rounded",
+              type === "confirm"
+                ? "text-gray-700 bg-gray-300 hover:bg-gray-400"
+                : "text-white bg-blue-500 hover:bg-blue-600"
+            )}
           >
-            Cancel
+            {type === "confirm" ? "Cancel" : "Close"}
           </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
-          >
-            Confirm
-          </button>
+          {type === "confirm" && (
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
+            >
+              Confirm
+            </button>
+          )}
         </div>
       </div>
     </div>

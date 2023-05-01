@@ -2,7 +2,7 @@ import { MessageContext, MessageContextProps } from "@/context/MessageContext";
 import { useContext } from "react";
 
 export const useAlert = (): ((
-  config: Omit<MessageContextProps, "type" | "onConfirm">
+  config: Omit<MessageContextProps, "type" | "onConfirm" | "isOpen">
 ) => void) => {
   const showConfirm = useContext(MessageContext);
 
@@ -11,7 +11,7 @@ export const useAlert = (): ((
   }
 
   const showAlert = (
-    config: Omit<MessageContextProps, "type" | "onConfirm">
+    config: Omit<MessageContextProps, "type" | "onConfirm" | "isOpen">
   ) => {
     showConfirm({ ...config, type: "alert" });
   };

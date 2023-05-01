@@ -2,7 +2,7 @@ import { MessageContext, MessageContextProps } from "@/context/MessageContext";
 import { useContext } from "react";
 
 export const useConfirm = (): ((
-  config: Omit<MessageContextProps, "type">
+  config: Omit<MessageContextProps, "type" | "isOpen">
 ) => void) => {
   const showConfirm = useContext(MessageContext);
 
@@ -10,7 +10,9 @@ export const useConfirm = (): ((
     throw new Error("useConfirm must be used within a MessageProvider");
   }
 
-  const showConfirmWithType = (config: Omit<MessageContextProps, "type">) => {
+  const showConfirmWithType = (
+    config: Omit<MessageContextProps, "type" | "isOpen">
+  ) => {
     showConfirm({ ...config, type: "confirm" });
   };
 

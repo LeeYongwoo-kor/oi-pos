@@ -2,9 +2,9 @@ import Message from "@/components/ui/Message";
 import { ReactNode, createContext, useState } from "react";
 
 export type MessageContextProps = {
-  isOpen: boolean;
   title: string;
   message: string;
+  isOpen?: boolean;
   type?: "alert" | "confirm";
   onConfirm?: () => void;
   onCancel?: () => void;
@@ -19,10 +19,12 @@ interface MessageProviderProps {
 export const MessageContext = createContext<MessageContextType | null>(null);
 
 export function MessageProvider({ children }: MessageProviderProps) {
+  const [loading, setLoading] = useState(false);
   const [messageConfig, setMessageConfig] = useState<MessageContextProps>({
     isOpen: false,
     title: "",
     message: "",
+    type: "confirm",
   });
 
   const showConfirm = (config: MessageContextProps) => {
@@ -30,15 +32,25 @@ export function MessageProvider({ children }: MessageProviderProps) {
   };
 
   const handleConfirm = () => {
-    if (messageConfig.type === "confirm") {
-      messageConfig.onConfirm?.();
+    setLoading(true);
+    try {
+      if (messageConfig.type === "confirm") {
+        messageConfig.onConfirm?.();
+      }
+    } finally {
+      setLoading(false);
+      setMessageConfig({ ...messageConfig, isOpen: false });
     }
-    setMessageConfig({ ...messageConfig, isOpen: false });
   };
 
   const handleCancel = () => {
-    messageConfig.onCancel?.();
-    setMessageConfig({ ...messageConfig, isOpen: false });
+    setLoading(true);
+    try {
+      messageConfig.onCancel?.();
+    } finally {
+      setLoading(false);
+      setMessageConfig({ ...messageConfig, isOpen: false });
+    }
   };
 
   return (
@@ -48,6 +60,7 @@ export function MessageProvider({ children }: MessageProviderProps) {
         {...messageConfig}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
+        loading={loading}
       />
     </MessageContext.Provider>
   );

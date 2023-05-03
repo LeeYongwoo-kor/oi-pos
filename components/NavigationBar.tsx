@@ -1,24 +1,18 @@
-import Image from "next/image";
+import useConfirm from "@/hooks/useConfirm";
 import { signOut } from "next-auth/react";
+import Image from "next/image";
 import { useRouter } from "next/router";
-import { useState } from "react";
-import Confirm from "./Confirm";
 
-const NavigationBar = () => {
+export default function NavigationBar() {
   const router = useRouter();
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const showConfirm = useConfirm();
 
-  const handleOpenConfirm = () => {
-    setIsConfirmOpen(true);
-  };
-
-  const handleConfirm = () => {
-    setIsConfirmOpen(false);
-    signOut();
-  };
-
-  const handleCancel = () => {
-    setIsConfirmOpen(false);
+  const openConfirm = () => {
+    showConfirm({
+      title: "ログアウト",
+      message: "ログアウトしま～す。よろしいでしょうか？",
+      onConfirm: () => signOut(),
+    });
   };
 
   const handleSettings = () => {
@@ -64,22 +58,13 @@ const NavigationBar = () => {
             Settings
           </button>
           <button
-            onClick={handleOpenConfirm}
+            onClick={openConfirm}
             className="text-gray-600 hover:text-gray-800"
           >
             Logout
           </button>
         </div>
       </div>
-      <Confirm
-        title="ログアウト"
-        message="ログアウトしま～す。よろしいでしょうか？"
-        isOpen={isConfirmOpen}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
-      />
     </header>
   );
-};
-
-export default NavigationBar;
+}

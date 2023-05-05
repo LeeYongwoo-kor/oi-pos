@@ -1,3 +1,4 @@
+import useToast from "@/hooks/useToast";
 import { joinCls } from "@/lib/client/helper";
 import { useEffect } from "react";
 
@@ -50,4 +51,14 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   );
 };
 
-export default Toast;
+export default function ToastContainer() {
+  const { toasts, dismissToast } = useToast();
+
+  return (
+    <div className="fixed z-10 flex flex-col-reverse bottom-8 right-8">
+      {toasts.map((toast) => (
+        <Toast key={toast.id} {...toast} onDismiss={dismissToast} />
+      ))}
+    </div>
+  );
+}

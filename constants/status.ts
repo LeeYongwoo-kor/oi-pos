@@ -5,3 +5,12 @@ export const SubscriptionStatus = {
   PENDING: 4,
   CANCELLED: 5,
 } as const;
+
+export const PaypalStatus = {
+  CREATED: "CREATED",
+  APPROVED: "APPROVED",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+  CANCELLED: "CANCELLED",
+  VOIDED: "VOIDED",
+} as const;

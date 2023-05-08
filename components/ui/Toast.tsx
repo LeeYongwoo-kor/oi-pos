@@ -2,14 +2,16 @@ import useToast from "@/hooks/useToast";
 import { joinCls } from "@/lib/client/helper";
 import { useEffect } from "react";
 
+export type ToastKind = "preserve" | "error" | "success" | "info";
+
 export type ToastType = {
-  id: number;
-  type: "preserve" | "error" | "success";
+  id: string;
+  type: ToastKind;
   message: string;
 };
 
 interface ToastProps extends ToastType {
-  onDismiss: (id: number) => void;
+  onDismiss: (id: string) => void;
 }
 
 const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
@@ -26,6 +28,8 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
       ? "bg-red-600"
       : type === "success"
       ? "bg-green-600"
+      : type === "info"
+      ? "bg-blue-600"
       : "bg-white";
 
   return (

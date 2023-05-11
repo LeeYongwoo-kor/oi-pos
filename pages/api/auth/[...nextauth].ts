@@ -1,12 +1,18 @@
+import { generateVerifyLoginEmail } from "@/email/generateVerifyLoginEmail";
 import prisma from "@/lib/server/prismadb";
+import { sendEmail } from "@/lib/server/sendEmail";
+import CustomError from "@/utils/CustomError";
 import {
   createAccountByNewProvider,
   getAccount,
   getUserByEmail,
+  updateUserRole,
 } from "@/utils/database";
 import { createRestaurantAndTable } from "@/utils/database/transactions";
+import { deleteVerificationTokens } from "@/utils/database/verificationToken";
+import retryAsyncProcess from "@/utils/retryAsyncProcess";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import sgMail from "@sendgrid/mail";
+import { Restaurant, RestaurantTable, User } from "@prisma/client";
 import NextAuth, { NextAuthOptions, TokenSet } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
@@ -29,21 +35,27 @@ export const authOptions: NextAuthOptions = {
         },
       },
       from: process.env.EMAIL_FROM,
-      sendVerificationRequest({ identifier, url }) {
-        sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
-        const msg = {
-          to: identifier,
-          from: process.env.EMAIL_FROM,
-          subject: "Please Verify Your Account",
-          text: "and easy to do anywhere, even with Yoshi!",
-          html: `<body><div><strong>and easy to do anywhere, even with Yoshi!!!!</strong></div>
-          <span><a href="${url}" target="_blank" style="font-size: 18px; font-family: Helvetica, Arial, sans-serif; color: #346df1; text-decoration: none; border-radius: 5px; padding: 10px 20px; border: 1px solid; display: inline-block; font-weight: bold;">Sign in</a></span></body>`,
-        };
+      async sendVerificationRequest({ identifier, url }) {
+        try {
+          await deleteVerificationTokens(identifier);
+        } catch (e) {
+          //TODO: send log to sentry
+          console.error(e);
+        }
 
-        sgMail
-          .send(msg)
-          .then(() => console.log("Email sent!"))
-          .catch((err) => console.error(err));
+        try {
+          const emailContent = generateVerifyLoginEmail(url);
+
+          await sendEmail({
+            to: identifier,
+            from: process.env.EMAIL_FROM!,
+            subject: "Hello, I'm Yoshi! Please Verify Your Account",
+            html: emailContent,
+          });
+        } catch (e) {
+          console.error(e);
+          throw new CustomError("Error sending email", e);
+        }
       },
     }),
     GoogleProvider({
@@ -74,28 +86,21 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     // strategy: "database",
-    maxAge: 30 * 60 * 60 * 24, // 30 days
+    maxAge: 60 * 60 * 24 * 28, // 28 days
     // Note: This option is ignored if using JSON Web Tokens
-    updateAge: 60 * 60 * 24, // 24 hours
+    // updateAge: 60 * 60 * 24, // 24 hours
+  },
+  jwt: {
+    maxAge: 60 * 60, // 1 hour
   },
   callbacks: {
     async jwt({ token, user, account, profile, isNewUser }: any) {
+      console.log("this is jwt");
       // first login
       if (account) {
-        // If isNewUser, add a new record to the Restaurant and Restaurant Table.
-        if (isNewUser) {
-          try {
-            // Create a new Restaurant and new RestaurantTable
-            const result = await createRestaurantAndTable(user?.id);
-            console.log(result);
-          } catch (error) {
-            console.error(
-              "Error creating restaurant and restaurant table: ",
-              error
-            );
-            // The error property will be used client-side to handle the refresh token error
-            return { ...token, error: "CreateRestaurantInfoError" as const };
-          }
+        if (profile && account.provider === "line") {
+          token.name = profile.name;
+          token.picture = profile.picture;
         }
         // Save the access token and refresh token in the JWT on the initial login
         return {
@@ -150,7 +155,7 @@ export const authOptions: NextAuthOptions = {
               });
               break;
             default:
-              throw new Error("Unsupported provider");
+              return { ...token, error: "UnsupportedProviderError" as const };
           }
 
           const tokens: TokenSet = await response.json();
@@ -174,17 +179,19 @@ export const authOptions: NextAuthOptions = {
       }
     },
     async session({ session, user, token }: any) {
+      console.log("this is session");
       const { error } = token;
-      if (error) {
-        session.error = error;
+      if (token) {
+        if (error) {
+          session.error = error;
+        }
+        session.id = token.sub;
+        session.user.name = token.name;
+        session.user.image = token.picture;
       }
       return session;
     },
     async signIn({ user, account, profile, email, credentials }) {
-      console.log(user);
-      console.log(account);
-      console.log(profile);
-      console.log(email);
       try {
         if (email && !email.verificationRequest) {
           // TODO: Hash the URL to prevent direct access
@@ -195,7 +202,12 @@ export const authOptions: NextAuthOptions = {
 
         if (userByEmail) {
           if (email) {
-            return "/errors/email-already-in-use?allowAccess=true";
+            // not email user
+            if (!userByEmail.emailVerified) {
+              return "/errors/email-already-in-use?allowAccess=true";
+            }
+
+            return true;
           }
 
           const oauthAccount = await getAccount(
@@ -219,6 +231,37 @@ export const authOptions: NextAuthOptions = {
       } catch (error) {
         console.error("An error occurred while checking the account: ", error);
         return `/errors/prisma-error?name=PrismaFetchError`;
+      }
+    },
+  },
+  events: {
+    async signIn(message) {
+      const { user } = message;
+      try {
+        const deleteVerificationTokensResult = await deleteVerificationTokens(
+          user?.email
+        );
+        console.log(
+          "deleted verification tokens: ",
+          deleteVerificationTokensResult
+        );
+      } catch (e) {
+        console.error("Error deleting verification tokens: ", e);
+      }
+    },
+    async createUser(message) {
+      const { user } = message;
+      try {
+        const maxRetries = 3;
+        await Promise.all([
+          retryAsyncProcess<(Restaurant | RestaurantTable)[]>(
+            () => createRestaurantAndTable(user?.id),
+            maxRetries
+          ),
+          retryAsyncProcess<User>(() => updateUserRole(user?.id), maxRetries),
+        ]);
+      } catch (e) {
+        console.error("An error occurred in one of the processes:", e);
       }
     },
   },

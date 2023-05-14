@@ -1,19 +1,19 @@
+import { Session } from "@/types/next-auth.types";
+import CustomError from "@/lib/shared/CustomError";
 import { NextApiRequest, NextApiResponse } from "next";
-import { JWT, getToken } from "next-auth/jwt";
+import { getSession } from "next-auth/react";
 
 export interface ResponseType {
   ok: boolean;
   [key: string]: any;
 }
 
-type method = "GET" | "POST" | "DELETE" | "PATCH" | "PUT";
-
 interface ConfigType {
-  methods: method[];
+  methods: Method[];
   handler: (
     req: NextApiRequest,
     res: NextApiResponse,
-    token: JWT | null
+    session?: Session | null
   ) => void;
   isLoginRequired?: boolean;
 }
@@ -27,20 +27,28 @@ export default function withApiHandler({
     req: NextApiRequest,
     res: NextApiResponse
   ): Promise<any> {
-    const token = await getToken({ req });
+    const session = await getSession({ req });
     console.log("this is withHandler");
 
-    if (isLoginRequired && !token) {
+    if (isLoginRequired && !session) {
       return res.status(401).json({ message: "You must be logged in" });
     }
 
     if (req.method && !methods.includes(req.method as any)) {
       return res.status(405).json({ message: "Method not allowed" });
     }
+
     try {
-      await handler(req, res, token);
+      await handler(req, res, session);
     } catch (error) {
-      console.log(error);
+      //TODO: send error to sentry
+      console.error(error);
+      if (error instanceof CustomError) {
+        return res
+          .status(500)
+          .json({ message: error.message, originalError: error.originalError });
+      }
+
       return res.status(500).json({ error });
     }
   };

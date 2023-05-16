@@ -1,27 +1,31 @@
+import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prisma from "@/lib/services/prismadb";
 import { Account } from "@prisma/client";
 import { Account as NextAuthAccount } from "next-auth/core/types";
 
 export async function getAccount(
   userId: string,
   providerAccountId: string | null | undefined
-): Promise<Account | null | undefined> {
+): Promise<Account | null> {
   if (!providerAccountId) {
     return null;
   }
 
-  try {
-    const accountResult = await prisma?.account.findFirst({
+  const [account, error] = await prismaRequestHandler(
+    prisma.account.findFirst({
       where: {
         userId,
         providerAccountId,
       },
-    });
+    }),
+    "getAccount"
+  );
 
-    return accountResult;
-  } catch (e) {
-    console.error("Error fetching account by ID: ", e);
-    throw e;
+  if (error) {
+    throw new Error(error.message);
   }
+
+  return account;
 }
 
 export async function getAllAccounts(): Promise<Account[] | null> {
@@ -31,13 +35,13 @@ export async function getAllAccounts(): Promise<Account[] | null> {
 export async function createAccountByNewProvider(
   userId: string,
   account: NextAuthAccount | null
-): Promise<Account | null | undefined> {
+): Promise<Account> {
   if (!account) {
-    return null;
+    throw new Error("failed to create account");
   }
 
-  try {
-    const newAccount = await prisma?.account.create({
+  const [newAccount, error] = await prismaRequestHandler(
+    prisma.account.create({
       data: {
         userId,
         type: account.type,
@@ -50,15 +54,13 @@ export async function createAccountByNewProvider(
         scope: account.scope,
         id_token: account.id_token,
       },
-    });
+    }),
+    "createAccountByNewProvider"
+  );
 
-    if (!newAccount) {
-      throw new Error("failed to create account");
-    }
-
-    return newAccount;
-  } catch (e) {
-    console.error("Error creating account by new provider: ", e);
-    throw e;
+  if (error) {
+    throw new Error(error.message);
   }
+
+  return newAccount;
 }

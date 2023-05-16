@@ -1,12 +1,13 @@
+import prisma from "@/lib/services/prismadb";
 import { Restaurant, RestaurantTable } from "@prisma/client";
 import { createRestaurant } from "./restaurant";
 import { createRestaurantTable } from "./restaurantTable";
 
 export async function createRestaurantAndTable(
   userId: string
-): Promise<(Restaurant | RestaurantTable)[] | null | undefined> {
+): Promise<(Restaurant | RestaurantTable)[]> {
   try {
-    const result = await prisma?.$transaction(async () => {
+    const result = await prisma.$transaction(async () => {
       // Create a new Restaurant for the new user
       const restaurant = await createRestaurant(userId);
 

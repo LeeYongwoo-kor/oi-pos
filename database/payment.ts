@@ -10,7 +10,7 @@ export async function getPaymentByOrderId(
     return null;
   }
 
-  const [payment, error] = await prismaRequestHandler(
+  const payment = await prismaRequestHandler(
     prisma.payment.findUnique({
       where: {
         orderId,
@@ -19,10 +19,6 @@ export async function getPaymentByOrderId(
     }),
     "getPaymentByOrderId"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return payment;
 }
@@ -42,7 +38,7 @@ export async function createPayment(
     throw new Error("failed to create payment");
   }
 
-  const [newPayment, error] = await prismaRequestHandler(
+  const newPayment = await prismaRequestHandler(
     prisma.payment.create({
       data: {
         planId,
@@ -55,10 +51,6 @@ export async function createPayment(
     "createPayment"
   );
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
   return newPayment;
 }
 
@@ -70,17 +62,13 @@ export async function updatePaymentStatus(
     throw Error("not found orderId or newStatus");
   }
 
-  const [updatedPayment, error] = await prismaRequestHandler(
+  const updatedPayment = await prismaRequestHandler(
     prisma.payment.update({
       where: { orderId },
       data: { status: newStatus },
     }),
     "updatePaymentStatus"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return updatedPayment;
 }
@@ -92,16 +80,12 @@ export async function deletePayments(
     return null;
   }
 
-  const [deletedPayment, error] = await prismaRequestHandler(
+  const deletedPayment = await prismaRequestHandler(
     prisma.payment.deleteMany({
       where: { orderId },
     }),
     "deletePayments"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return deletedPayment;
 }

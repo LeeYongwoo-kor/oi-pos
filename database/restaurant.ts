@@ -9,7 +9,7 @@ export async function getRestaurant(
     return null;
   }
 
-  const [restaurant, error] = await prismaRequestHandler(
+  const restaurant = await prismaRequestHandler(
     prisma.restaurant.findUnique({
       where: {
         userId,
@@ -17,10 +17,6 @@ export async function getRestaurant(
     }),
     "getRestaurant"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return restaurant;
 }
@@ -34,7 +30,7 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
     throw new Error("failed to create restaurant");
   }
 
-  const [newRestaurant, error] = await prismaRequestHandler(
+  const newRestaurant = await prismaRequestHandler(
     prisma.restaurant.create({
       data: {
         userId,
@@ -42,10 +38,6 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
     }),
     "createRestaurant"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return newRestaurant;
 }

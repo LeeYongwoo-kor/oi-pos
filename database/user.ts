@@ -9,7 +9,7 @@ export async function getUserByEmail(
     return null;
   }
 
-  const [userByEmail, error] = await prismaRequestHandler(
+  const userByEmail = await prismaRequestHandler(
     prisma.user.findUnique({
       where: {
         email,
@@ -17,10 +17,6 @@ export async function getUserByEmail(
     }),
     "getUserByEmail"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return userByEmail;
 }
@@ -36,17 +32,13 @@ export async function updateUserRole(
     throw new Error("not found user id");
   }
 
-  const [updateUser, error] = await prismaRequestHandler(
+  const updateUser = await prismaRequestHandler(
     prisma.user.update({
       where: { id: userId },
       data: { role: "OWNER" },
     }),
     "updateUserRole"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return updateUser;
 }

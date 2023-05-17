@@ -11,7 +11,7 @@ export async function getAccount(
     return null;
   }
 
-  const [account, error] = await prismaRequestHandler(
+  const account = await prismaRequestHandler(
     prisma.account.findFirst({
       where: {
         userId,
@@ -20,10 +20,6 @@ export async function getAccount(
     }),
     "getAccount"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return account;
 }
@@ -40,7 +36,7 @@ export async function createAccountByNewProvider(
     throw new Error("failed to create account");
   }
 
-  const [newAccount, error] = await prismaRequestHandler(
+  const newAccount = await prismaRequestHandler(
     prisma.account.create({
       data: {
         userId,
@@ -57,10 +53,6 @@ export async function createAccountByNewProvider(
     }),
     "createAccountByNewProvider"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return newAccount;
 }

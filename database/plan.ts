@@ -9,7 +9,7 @@ export async function getPlan(
     return null;
   }
 
-  const [plan, error] = await prismaRequestHandler(
+  const plan = await prismaRequestHandler(
     prisma.plan.findUnique({
       where: {
         id: planId,
@@ -17,10 +17,6 @@ export async function getPlan(
     }),
     "getPlan"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return plan;
 }
@@ -32,7 +28,7 @@ export async function getPlanDuration(
     return null;
   }
 
-  const [planDuration, error] = await prismaRequestHandler(
+  const planDuration = await prismaRequestHandler(
     prisma.plan.findUnique({
       where: {
         id: planId,
@@ -44,22 +40,14 @@ export async function getPlanDuration(
     "getPlanDuration"
   );
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
   return planDuration;
 }
 
 export async function getAllPlans(): Promise<Plan[] | null> {
-  const [plans, error] = await prismaRequestHandler(
+  const plans = await prismaRequestHandler(
     prisma.plan.findMany({}),
     "getAllPlans"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return plans;
 }

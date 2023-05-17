@@ -9,7 +9,7 @@ export async function getRestaurantTable(
     return null;
   }
 
-  const [restaurantTable, error] = await prismaRequestHandler(
+  const restaurantTable = await prismaRequestHandler(
     prisma.restaurantTable.findFirst({
       where: {
         restaurantId,
@@ -17,10 +17,6 @@ export async function getRestaurantTable(
     }),
     "getRestaurantTable"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return restaurantTable;
 }
@@ -38,7 +34,7 @@ export async function createRestaurantTable(
     throw new Error("failed to create restaurant table");
   }
 
-  const [newRestaurantTable, error] = await prismaRequestHandler(
+  const newRestaurantTable = await prismaRequestHandler(
     prisma.restaurantTable.create({
       data: {
         restaurantId,
@@ -46,10 +42,6 @@ export async function createRestaurantTable(
     }),
     "createRestaurantTable"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return newRestaurantTable;
 }

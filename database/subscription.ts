@@ -13,17 +13,13 @@ export async function getSubscription(
     return null;
   }
 
-  const [subscription, error] = await prismaRequestHandler(
+  const subscription = await prismaRequestHandler(
     prisma.subscription.findUnique({
       where: { userId },
       include: { plan: true },
     }),
     "getSubscription"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return subscription;
 }
@@ -51,7 +47,7 @@ export async function upsertSubscription(
   const currentPeriodEnd = currentPeriodStart + planDuration.duration;
 
   // Upsert the subscription
-  const [newSubscription, error] = await prismaRequestHandler(
+  const newSubscription = await prismaRequestHandler(
     prisma.subscription.upsert({
       where: {
         userId: userId as string,
@@ -78,10 +74,6 @@ export async function upsertSubscription(
     }),
     "upsertSubscription"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return newSubscription;
 }

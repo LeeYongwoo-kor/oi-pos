@@ -8,16 +8,12 @@ export async function deleteVerificationTokens(
     return null;
   }
 
-  const [deleteCount, error] = await prismaRequestHandler(
+  const deleteCount = await prismaRequestHandler(
     prisma.verificationToken.deleteMany({
       where: { identifier },
     }),
     "deleteVerificationTokens"
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   return deleteCount;
 }

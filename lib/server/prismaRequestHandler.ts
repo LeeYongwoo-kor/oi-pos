@@ -1,20 +1,15 @@
 import { Prisma } from "@prisma/client";
 import prismaErrorHandler from "./prismaErrorHandler";
 
-type PrismaResult<T> =
-  | [T, null]
-  | [null, ReturnType<typeof prismaErrorHandler>];
-
 export default async function prismaRequestHandler<T>(
   promise: Prisma.PrismaPromise<T>,
   functionName: string
-): Promise<PrismaResult<T>> {
+): Promise<T> {
   try {
     const data = await promise;
-    return [data, null];
+    return data;
   } catch (e: any) {
-    const errorResponse = prismaErrorHandler(e);
-    console.error(`Error in ${functionName}: ${errorResponse.message}`, e);
-    return [null, errorResponse];
+    console.error(`Error in ${functionName}: ${e.message}`, e);
+    prismaErrorHandler(e); // This will throw a custom error
   }
 }

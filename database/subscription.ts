@@ -3,8 +3,9 @@ import { SubscriptionStatus } from "@/constants/status";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { Plan, Subscription } from "@prisma/client";
-import hasNullUndefined from "../utils/hasNullUndefined";
+import { hasNullUndefined } from "../utils/checkNullUndefined";
 import { getPlanDuration } from "./plan";
+import { ValidationError } from "@/lib/shared/CustomError";
 
 export async function getSubscription(
   userId: string | undefined | null
@@ -33,13 +34,14 @@ export async function upsertSubscription(
   planId: PlanType
 ): Promise<Subscription> {
   if (hasNullUndefined({ userId, planId })) {
-    throw new Error("Missing parameters");
+    throw new ValidationError(
+      "Failed to create subscription. Please try again"
+    );
   }
 
   const planDuration = await getPlanDuration(planId);
-
   if (!planDuration) {
-    throw new Error("Plan duration not found");
+    throw new ValidationError("Plan duration not found");
   }
 
   // Calculate the current period start and end dates (Unix timestamps in seconds)

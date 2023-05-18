@@ -1,5 +1,6 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/CustomError";
 import { RestaurantTable } from "@prisma/client";
 
 export async function getRestaurantTable(
@@ -31,7 +32,7 @@ export async function createRestaurantTable(
   restaurantId: string
 ): Promise<RestaurantTable> {
   if (!restaurantId) {
-    throw new Error("failed to create restaurant table");
+    throw new ValidationError("failed to create restaurant table");
   }
 
   const newRestaurantTable = await prismaRequestHandler(

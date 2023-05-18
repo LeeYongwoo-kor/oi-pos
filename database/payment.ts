@@ -1,7 +1,8 @@
 import prisma from "@/lib/services/prismadb";
 import { Payment } from "@prisma/client";
-import hasNullUndefined from "../utils/hasNullUndefined";
+import checkNullUndefined from "@/utils/checkNullUndefined";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import { ValidationError } from "@/lib/shared/CustomError";
 
 export async function getPaymentByOrderId(
   orderId: string | undefined
@@ -34,8 +35,16 @@ export async function createPayment(
   amount: number,
   currency: Currency
 ): Promise<Payment> {
-  if (hasNullUndefined({ planId, orderId, status, amount, currency })) {
-    throw new Error("failed to create payment");
+  const { hasNullUndefined } = checkNullUndefined({
+    planId,
+    orderId,
+    status,
+    amount,
+    currency,
+  });
+
+  if (hasNullUndefined) {
+    throw new ValidationError("Failed to create payment. Please try again");
   }
 
   const newPayment = await prismaRequestHandler(
@@ -58,8 +67,11 @@ export async function updatePaymentStatus(
   orderId: string,
   newStatus: PaypalStatus
 ): Promise<Payment> {
-  if (hasNullUndefined({ orderId, newStatus })) {
-    throw Error("not found orderId or newStatus");
+  const { hasNullUndefined } = checkNullUndefined({ orderId, newStatus });
+  if (hasNullUndefined) {
+    throw new ValidationError(
+      "Failed to update payment status. Please try again"
+    );
   }
 
   const updatedPayment = await prismaRequestHandler(
@@ -77,7 +89,7 @@ export async function deletePayments(
   orderId: string | unknown
 ): Promise<{ count: number } | null> {
   if (!orderId) {
-    return null;
+    throw new ValidationError("Failed to delete payments. Please try again");
   }
 
   const deletedPayment = await prismaRequestHandler(

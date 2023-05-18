@@ -1,5 +1,6 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/CustomError";
 import { Restaurant } from "@prisma/client";
 
 export async function getRestaurant(
@@ -27,7 +28,7 @@ export async function getAllRestaurants(): Promise<Restaurant[] | null> {
 
 export async function createRestaurant(userId: string): Promise<Restaurant> {
   if (!userId) {
-    throw new Error("failed to create restaurant");
+    throw new ValidationError("failed to create restaurant");
   }
 
   const newRestaurant = await prismaRequestHandler(

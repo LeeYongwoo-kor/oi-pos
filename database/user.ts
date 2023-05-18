@@ -1,5 +1,6 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/CustomError";
 import { User } from "@prisma/client";
 
 export async function getUserByEmail(
@@ -29,7 +30,7 @@ export async function updateUserRole(
   userId: string | null | undefined
 ): Promise<User> {
   if (!userId) {
-    throw new Error("not found user id");
+    throw new ValidationError("not found user id");
   }
 
   const updateUser = await prismaRequestHandler(

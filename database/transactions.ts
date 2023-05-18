@@ -2,32 +2,24 @@ import prisma from "@/lib/services/prismadb";
 import { Restaurant, RestaurantTable } from "@prisma/client";
 import { createRestaurant } from "./restaurant";
 import { createRestaurantTable } from "./restaurantTable";
+import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 
 export async function createRestaurantAndTable(
   userId: string
 ): Promise<(Restaurant | RestaurantTable)[]> {
   try {
-    const result = await prisma.$transaction(async () => {
-      // Create a new Restaurant for the new user
-      const restaurant = await createRestaurant(userId);
-
-      if (!restaurant) {
-        throw new Error("failed to create restaurant");
-      }
-
-      // Create a new RestaurantTable for the new Restaurant
-      const restaurantTable = await createRestaurantTable(restaurant.id);
-
-      if (!restaurantTable) {
-        throw new Error("failed to create restaurant table");
-      }
-
-      // Return the created Restaurant and RestaurantTable
-      return [restaurant, restaurantTable];
-    });
+    const result = await prismaRequestHandler(
+      prisma.$transaction(async () => {
+        const restaurant = await createRestaurant(userId);
+        const restaurantTable = await createRestaurantTable(restaurant.id);
+        return [restaurant, restaurantTable];
+      }),
+      "createRestaurantAndTable"
+    );
 
     return result;
   } catch (e) {
+    //TODO: send error to sentry
     console.error("Error creating restaurant and table: ", e);
     throw e;
   }

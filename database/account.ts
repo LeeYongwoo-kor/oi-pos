@@ -1,5 +1,6 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/CustomError";
 import { Account } from "@prisma/client";
 import { Account as NextAuthAccount } from "next-auth/core/types";
 
@@ -33,7 +34,7 @@ export async function createAccountByNewProvider(
   account: NextAuthAccount | null
 ): Promise<Account> {
   if (!account) {
-    throw new Error("failed to create account");
+    throw new ValidationError("failed to create account");
   }
 
   const newAccount = await prismaRequestHandler(

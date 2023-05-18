@@ -1,5 +1,9 @@
+import {
+  CustomError,
+  MethodNotAllowedError,
+  UnauthorizedError,
+} from "@/lib/shared/CustomError";
 import { Session } from "@/types/next-auth.types";
-import CustomError from "@/lib/shared/CustomError";
 import { NextApiRequest, NextApiResponse } from "next";
 import { getSession } from "next-auth/react";
 
@@ -28,14 +32,15 @@ export default function withApiHandler({
     res: NextApiResponse
   ): Promise<any> {
     const session = await getSession({ req });
-    console.log("this is withHandler");
 
     if (isLoginRequired && !session) {
-      return res.status(401).json({ message: "You must be logged in" });
+      throw new UnauthorizedError("Unauthorized. You must be signed in");
     }
 
-    if (req.method && !methods.includes(req.method as any)) {
-      return res.status(405).json({ message: "Method not allowed" });
+    if (req.method && !methods.includes(req.method as Method)) {
+      throw new MethodNotAllowedError(
+        "Method Not Allowed. Please try request with correct method"
+      );
     }
 
     try {
@@ -43,13 +48,18 @@ export default function withApiHandler({
     } catch (error) {
       //TODO: send error to sentry
       console.error(error);
+
       if (error instanceof CustomError) {
+        if (error.redirectURL) {
+          res.redirect(error.redirectURL);
+        }
+
         return res
-          .status(500)
-          .json({ message: error.message, originalError: error.originalError });
+          .status(error.statusCode || 500)
+          .json({ message: error.message });
       }
 
-      return res.status(500).json({ error });
+      return res.status(500).json({ message: "Internal Server Error" });
     }
   };
 }

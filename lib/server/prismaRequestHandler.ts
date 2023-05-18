@@ -1,8 +1,7 @@
-import { Prisma } from "@prisma/client";
 import prismaErrorHandler from "./prismaErrorHandler";
 
 export default async function prismaRequestHandler<T>(
-  promise: Prisma.PrismaPromise<T>,
+  promise: Promise<T>,
   functionName: string
 ): Promise<T> {
   try {

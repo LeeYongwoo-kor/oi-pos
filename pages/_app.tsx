@@ -1,9 +1,11 @@
-import ToastHandler from "@/components/handler/ToastHandler";
+import ToastHandler from "@/components/handlers/ToastHandler";
 import ToastContainer from "@/components/ui/Toast";
+import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants";
 import { ErrorProvider } from "@/context/ErrorContext";
 import { MessageProvider } from "@/context/MessageContext";
 import { NavigationProvider } from "@/context/NavigationContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { CustomError, CustomErrorType } from "@/lib/shared/CustomError";
 import "@/styles/globals.css";
 import { SessionProvider } from "next-auth/react";
 import type { AppProps } from "next/app";
@@ -17,10 +19,38 @@ export default function App({
   pageProps: { session, ...pageProps },
 }: AppProps) {
   return (
-    <SWRConfig
-      value={{ fetcher: (url: string) => fetch(url).then((res) => res.json()) }}
-    >
-      <ErrorProvider>
+    <ErrorProvider>
+      <SWRConfig
+        value={{
+          fetcher: (url: string) =>
+            fetch(url).then(async (res) => {
+              if (!res.ok) {
+                const errorMessage: CustomErrorType = await res.json();
+                throw errorMessage;
+              }
+              return res.json();
+            }),
+          onErrorRetry(
+            err: CustomErrorType,
+            key,
+            config,
+            revalidate,
+            { retryCount }
+          ) {
+            // Never retry on not 5xx errors
+            if (!String(err?.statusCode).startsWith("5")) return;
+
+            // Never retry on /api/v1/users/me
+            if (key === "/api/v1/users/me") return;
+
+            // Only retry up to 5 times
+            if (retryCount >= ERROR_RETRY_COUNT) return;
+
+            // Retry after 1 second
+            setTimeout(() => revalidate({ retryCount }), ERROR_RETRY_DELAY);
+          },
+        }}
+      >
         <SessionProvider session={session}>
           {/* <AuthProvider requireAuth={requireAuth}> */}
           <NavigationProvider>
@@ -34,7 +64,7 @@ export default function App({
           </NavigationProvider>
           {/* </AuthProvider> */}
         </SessionProvider>
-      </ErrorProvider>
-    </SWRConfig>
+      </SWRConfig>
+    </ErrorProvider>
   );
 }

@@ -16,9 +16,9 @@ datasource db {
 model User {
   id            String    @id @default(cuid())
   email         String?   @unique 
-  role          String?      
+  role          String?
+  status        UserStatus @default(ACTIVE)
   emailVerified DateTime? @map("email_verified")
-  phone         Int?      @unique
   name          String?
   image         String?
   createdAt     DateTime  @default(now())
@@ -96,7 +96,7 @@ model Subscription {
   id          String  @id @default(cuid())
   userId      String  @map("user_id") @unique
   planId      String  @map("plan_id") @unique
-  status      Int
+  status      SubscriptionStatus
   currentPeriodStart DateTime @map("current_period_start")
   currentPeriodEnd DateTime @map("current_period_end")
   createdAt   DateTime @default(now())
@@ -113,8 +113,13 @@ model Restaurant {
   userId      String  @map("user_id") @unique
   name        String?
   address     String?
+  phoneNumber Int?
   branch      String?
   template    Int? @default(0)
+  startTime   String?
+  endTime     String?
+  holidays    String?
+  lastOrder   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   restaurantTables RestaurantTable[]
@@ -129,6 +134,7 @@ model RestaurantTable {
   id          String  @id @default(cuid())
   restaurantId String  @map("restaurant_id") @unique
   tableNumber  Int? @default(1) @map("table_number")
+  tableType    TableType @default(TABLE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
 
@@ -167,4 +173,25 @@ model Payment {
 
   @@map("payment")
   @@index([planId])
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+  BANNED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  EXPIRED
+  PENDING
+  CANCELLED
+}
+
+enum TableType {
+  TABLE
+  COUNTER
 }

@@ -1,4 +1,4 @@
-import { ErrorContext, ErrorContextType } from "@/context/ErrorContext";
+import { ErrorContext, ErrorContextType } from "@/providers/ErrorContext";
 import { useContext, useEffect, useState } from "react";
 
 const useError = (): ErrorContextType => {

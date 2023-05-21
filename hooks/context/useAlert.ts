@@ -1,4 +1,7 @@
-import { MessageContext, MessageContextProps } from "@/context/MessageContext";
+import {
+  MessageContext,
+  MessageContextProps,
+} from "@/providers/MessageContext";
 import { useContext } from "react";
 
 export const useAlert = (): ((

@@ -1,9 +1,13 @@
 import {
   NavigationContext,
   NavigationContextType,
-} from "@/context/NavigationContext";
+} from "@/providers/NavigationContext";
 import { useContext } from "react";
 
+/**
+ * Custom hook to use the navigation context
+ * @returns {NavigationContextType} The navigation context
+ */
 const useNavigation = (): NavigationContextType => {
   const context = useContext(NavigationContext);
 

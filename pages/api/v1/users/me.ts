@@ -1,41 +1,25 @@
+import { getUserByEmail } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { getUserByEmail } from "@/utils/database";
+import { NotFoundError } from "@/lib/shared/CustomError";
 import { NextApiRequest, NextApiResponse } from "next";
-import { JWT } from "next-auth/jwt";
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-  token: JWT | null
-) {
-  const { email } = req.body;
-  // console.log(req);
-  console.log(token);
+interface IGetUserQuery {
+  email: string;
+  [key: string]: string | string[] | undefined;
+}
 
-  // test
-  if (req.method === "GET") {
-    res.status(200).json({ hi: "hello" });
+async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { email } = req.query as IGetUserQuery;
+  const existingUser = await getUserByEmail(email);
+  if (!existingUser) {
+    throw new NotFoundError("User not found with the given email");
   }
 
-  if (req.method === "POST") {
-    try {
-      const existingUser = await getUserByEmail(email);
-
-      if (!existingUser) {
-        res.status(200).json({ exists: false });
-      }
-
-      res.status(200).json(existingUser);
-    } catch (error) {
-      res
-        .status(500)
-        .json({ error: "An error occurred while checking the account." });
-    }
-  }
+  return res.status(200).json(existingUser);
 }
 
 export default withApiHandler({
-  methods: ["GET", "POST"],
+  methods: ["GET"],
   handler,
   isLoginRequired: false,
 });

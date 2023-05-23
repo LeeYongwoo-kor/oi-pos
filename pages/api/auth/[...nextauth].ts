@@ -1,18 +1,18 @@
-import { generateVerifyLoginEmail } from "@/email/generateVerifyLoginEmail";
-import prisma from "@/lib/server/prismadb";
-import { sendEmail } from "@/lib/server/sendEmail";
-import CustomError from "@/utils/CustomError";
 import {
   createAccountByNewProvider,
   getAccount,
   getUserByEmail,
+  getUserById,
   updateUserRole,
-} from "@/utils/database";
-import { createRestaurantAndTable } from "@/utils/database/transactions";
-import { deleteVerificationTokens } from "@/utils/database/verificationToken";
-import retryAsyncProcess from "@/utils/retryAsyncProcess";
+} from "@/database";
+import { deleteVerificationTokens } from "@/database/verificationToken";
+import { generateVerifyLoginEmail } from "@/email/generateVerifyLoginEmail";
+import { withErrorRetry } from "@/lib/server/withErrorRetry";
+import prisma from "@/lib/services/prismadb";
+import { sendEmail } from "@/lib/services/sendEmail";
+import { CustomError, ForbiddenError } from "@/lib/shared/CustomError";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { Restaurant, RestaurantTable, User } from "@prisma/client";
+import { Account, User, UserStatus } from "@prisma/client";
 import NextAuth, { NextAuthOptions, TokenSet } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
@@ -30,32 +30,22 @@ export const authOptions: NextAuthOptions = {
         host: process.env.EMAIL_SERVER_HOST,
         port: process.env.EMAIL_SERVER_PORT,
         auth: {
-          user: process.env.EMAIL_SERVER_USERx,
+          user: process.env.EMAIL_SERVER_USER,
           pass: process.env.EMAIL_SERVER_PASSWORD,
         },
       },
       from: process.env.EMAIL_FROM,
       async sendVerificationRequest({ identifier, url }) {
-        try {
-          await deleteVerificationTokens(identifier);
-        } catch (e) {
-          //TODO: send log to sentry
-          console.error(e);
-        }
+        // delete existing tokens
+        await deleteVerificationTokens(identifier);
 
-        try {
-          const emailContent = generateVerifyLoginEmail(url);
-
-          await sendEmail({
-            to: identifier,
-            from: process.env.EMAIL_FROM!,
-            subject: "Hello, I'm Yoshi! Please Verify Your Account",
-            html: emailContent,
-          });
-        } catch (e) {
-          console.error(e);
-          throw new CustomError("Error sending email", e);
-        }
+        // send verification email
+        await sendEmail({
+          to: identifier,
+          from: process.env.EMAIL_FROM ?? "",
+          subject: "Hello, I'm Yoshi! Please Verify Your Account",
+          html: generateVerifyLoginEmail(url),
+        });
       },
     }),
     GoogleProvider({
@@ -94,9 +84,52 @@ export const authOptions: NextAuthOptions = {
     maxAge: 60 * 60, // 1 hour
   },
   callbacks: {
-    async jwt({ token, user, account, profile, isNewUser }: any) {
+    async jwt({ token, user, account, profile, isNewUser }) {
       console.log("this is jwt");
-      // first login
+      // initial login success sign up
+      if (user) {
+        try {
+          const userInfo = await getUserById(user.id);
+          if (!userInfo || userInfo.status !== UserStatus.ACTIVE) {
+            throw new ForbiddenError(
+              "You are not active user. Please contact support team."
+            );
+          }
+          token = { ...token, status: userInfo.status, role: userInfo.role };
+        } catch (err) {
+          const errMessage =
+            err instanceof CustomError ? err.message : String(err);
+          //TODO: send error to sentry
+          console.error("Get user info failed: ", errMessage);
+          if (err instanceof CustomError) {
+            if (err instanceof ForbiddenError) {
+              return {
+                ...token,
+                errorName: "NotActiveUser",
+                errorMessage: errMessage,
+              };
+            }
+            return { ...token, errorName: err.name, errorMessage: errMessage };
+          }
+        }
+      }
+      // new user registration
+      if (isNewUser) {
+        try {
+          withErrorRetry<User>(() => updateUserRole(user?.id));
+        } catch (err) {
+          const errMessage =
+            err instanceof CustomError ? err.message : String(err);
+          //TODO: send error to sentry
+          console.error("Update user role failed: ", errMessage);
+          return {
+            ...token,
+            errorName: "UpdateUserError",
+            messageMessage: errMessage,
+          };
+        }
+      }
+      // initial login with OAuth provider
       if (account) {
         if (profile && account.provider === "line") {
           token.name = profile.name;
@@ -112,7 +145,7 @@ export const authOptions: NextAuthOptions = {
           ),
           refresh_token: account.refresh_token,
         };
-      } else if (Date.now() < token.expires_at * 1000) {
+      } else if (Date.now() < (token.expires_at || 0) * 1000) {
         // If the access token has not expired yet, return it
         return token;
       } else {
@@ -125,65 +158,81 @@ export const authOptions: NextAuthOptions = {
               // Email provider does not support refresh token
               return token;
             case "google":
+              if (!token.refresh_token) {
+                throw token;
+              }
               // Refresh Google access token
               response = await fetch("https://oauth2.googleapis.com/token", {
                 headers: {
                   "Content-Type": "application/x-www-form-urlencoded",
                 },
                 body: new URLSearchParams({
-                  client_id: process.env.GOOGLE_CLIENT_ID,
-                  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                  client_id: process.env.GOOGLE_CLIENT_ID!,
+                  client_secret: process.env.GOOGLE_CLIENT_SECRET!,
                   grant_type: "refresh_token",
                   refresh_token: token.refresh_token,
-                } as any),
+                }),
                 method: "POST",
               });
               break;
             case "line":
+              if (!token.refresh_token) {
+                throw token;
+              }
               // Refresh Line access token
               response = await fetch("https://api.line.me/oauth2/v2.1/token", {
                 headers: {
                   "Content-Type": "application/x-www-form-urlencoded",
                 },
                 body: new URLSearchParams({
-                  client_id: process.env.LINE_CLIENT_ID,
-                  client_secret: process.env.LINE_CLIENT_SECRET,
+                  client_id: process.env.LINE_CLIENT_ID!,
+                  client_secret: process.env.LINE_CLIENT_SECRET!,
                   grant_type: "refresh_token",
                   refresh_token: token.refresh_token,
-                } as any),
+                }),
                 method: "POST",
               });
               break;
             default:
-              return { ...token, error: "UnsupportedProviderError" as const };
+              return {
+                ...token,
+                errorName: "UnsupportedProviderError",
+                errorMessage: `Provider ${token.provider} is not supported`,
+              };
           }
 
-          const tokens: TokenSet = await response.json();
-          if (!response.ok) throw tokens;
+          const providerToken: TokenSet = await response.json();
+          if (!response.ok) throw providerToken;
 
           return {
             ...token, // Keep the previous token properties
-            access_token: tokens.access_token,
+            access_token: providerToken.access_token,
             expires_at: Math.floor(
-              Date.now() / 1000 + (tokens.expires_in || 3599)
+              Date.now() / 1000 + (providerToken.expires_in || 3599)
             ),
             // Fall back to old refresh token, but note that
             // many providers may only allow using a refresh token once.
-            refresh_token: tokens.refresh_token ?? token.refresh_token,
+            refresh_token: providerToken.refresh_token ?? token.refresh_token,
           };
-        } catch (error) {
-          console.error("Error refreshing access token", error);
+        } catch (err) {
+          //TODO: send error to sentry
+          console.error("Error refreshing access token", err);
           // The error property will be used client-side to handle the refresh token error
-          return { ...token, error: "RefreshAccessTokenError" as const };
+          return {
+            ...token,
+            errorName: "RefreshAccessTokenError",
+            errorMessage: "Error refreshing access token",
+          };
         }
       }
     },
-    async session({ session, user, token }: any) {
+    async session({ session, user, token }) {
       console.log("this is session");
-      const { error } = token;
+      const { errorName, errorMessage } = token;
       if (token) {
-        if (error) {
-          session.error = error;
+        if (errorName) {
+          session.errorName = errorName;
+          session.errorMessage = errorMessage;
         }
         session.id = token.sub;
         session.user.name = token.name;
@@ -199,7 +248,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         const userByEmail = await getUserByEmail(user?.email);
-
         if (userByEmail) {
           if (email) {
             // not email user
@@ -216,21 +264,17 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (!oauthAccount) {
-            const createAccount = await createAccountByNewProvider(
-              userByEmail.id,
-              account
+            withErrorRetry<Account>(() =>
+              createAccountByNewProvider(userByEmail.id, account)
             );
-
-            if (!createAccount) {
-              return "/errors/prisma-error?name=CreateAccountError";
-            }
           }
         }
 
         return true;
-      } catch (error) {
-        console.error("An error occurred while checking the account: ", error);
-        return `/errors/prisma-error?name=PrismaFetchError`;
+      } catch (err) {
+        //TODO: send error to sentry
+        console.error("An error occurred while checking the account: ", err);
+        return `/errors/prisma-error?allowAccess=true`;
       }
     },
   },
@@ -238,38 +282,16 @@ export const authOptions: NextAuthOptions = {
     async signIn(message) {
       const { user } = message;
       try {
-        const deleteVerificationTokensResult = await deleteVerificationTokens(
-          user?.email
-        );
-        console.log(
-          "deleted verification tokens: ",
-          deleteVerificationTokensResult
-        );
-      } catch (e) {
-        console.error("Error deleting verification tokens: ", e);
-      }
-    },
-    async createUser(message) {
-      const { user } = message;
-      try {
-        const maxRetries = 3;
-        await Promise.all([
-          retryAsyncProcess<(Restaurant | RestaurantTable)[]>(
-            () => createRestaurantAndTable(user?.id),
-            maxRetries
-          ),
-          retryAsyncProcess<User>(() => updateUserRole(user?.id), maxRetries),
-        ]);
-      } catch (e) {
-        console.error("An error occurred in one of the processes:", e);
+        await deleteVerificationTokens(user?.email);
+      } catch (err) {
+        //TODO: send error to sentry
+        console.error("Error deleting verification tokens: ", err);
       }
     },
   },
   pages: {
     verifyRequest: "/auth/verify-request",
     signIn: "/auth/signin",
-    error: "/auth/error",
-    // newUser: "/auth/new-user",
   },
 };
 

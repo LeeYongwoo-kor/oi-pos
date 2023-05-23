@@ -1,13 +1,17 @@
+import useError from "@/hooks/context/useError";
+import useToast from "@/hooks/context/useToast";
 import { GetServerSidePropsContext } from "next";
 import { getServerSession } from "next-auth";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
+import Image from "next/image";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { authOptions } from "../api/auth/[...nextauth]";
-import Image from "next/image";
-import useError from "@/hooks/useError";
-import { useState } from "react";
 
+type SigninProps = {
+  callbackError: string;
+};
 interface IEmail {
   email: string;
 }
@@ -24,25 +28,56 @@ const callbackErrors: { [key: string]: string } = {
   EmailSignin: "Check your email address.",
   CredentialsSignin:
     "Sign in failed. Check the details you provided are correct.",
-  RefreshAccessTokenError:
-    "Unable to refresh access token, please sign in again.",
   default: "Unable to sign in.",
 };
 
-const Signin = ({ callbackError }: any) => {
+const expectedErrors: { [key: string]: string } = {
+  "email-already-in-use":
+    "The email is already in use. Please use a different email.",
+  "prisma-error": "The signin process failed. Please try again later.",
+  // new custom errors
+  RefreshAccessTokenError:
+    "Unable to refresh access token, Please sign in again.",
+  Unauthorized: "Unauthorized access, Please sign in again.",
+  UnsupportedProviderError: "Unsupported provider, Please sign in again.",
+  UpdateUserError: "Unable to update your account, Please try again.",
+  NotAllowedAccess: "You are not allowed to access that page. Please sign in.",
+  InvalidError: "Invalid Error Occured, Please try again.",
+};
+
+function getExpctedError(errorName: string): string | undefined {
+  return expectedErrors[errorName];
+}
+
+const Signin = ({ callbackError }: SigninProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { error } = useError();
+  const { addToast } = useToast();
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<IEmail>();
 
+  const errorName = error?.errorName;
+  const errorMessage = error?.errorMessage;
+
   const onValid = async ({ email }: IEmail) => {
     setIsSubmitting(true);
     await signIn("email", { email, callbackUrl: "/dashboard" });
     setIsSubmitting(false);
   };
+
+  useEffect(() => {
+    if (errorName) {
+      addToast(
+        "error",
+        getExpctedError(errorName) ||
+          errorMessage ||
+          "Unexpected Error Occured. Please try again."
+      );
+    }
+  }, [addToast, errorName, errorMessage]);
 
   return (
     <main>
@@ -91,12 +126,11 @@ const Signin = ({ callbackError }: any) => {
                   {errors.email.message}
                 </p>
               )}
-              {error === "email-already-in-use" && (
+              {/* {signinError && (
                 <p className="mt-1 text-xs text-red-500">
-                  Error: The email is already in use. Please use a different
-                  email.
+                  Error: {signinErrors[signinError]}
                 </p>
-              )}
+              )} */}
             </div>
             <button
               disabled={isSubmitting}
@@ -147,22 +181,21 @@ const Signin = ({ callbackError }: any) => {
 export default Signin;
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  const { error } = ctx.query;
-
-  if (error) {
-    return {
-      props: {
-        callbackError:
-          callbackErrors[error as string] ?? callbackErrors.default,
-      },
-    };
-  }
-
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (session) {
     return {
       redirect: {
         destination: "/dashboard",
+      },
+    };
+  }
+
+  const { error } = ctx.query;
+  if (error) {
+    return {
+      props: {
+        callbackError:
+          callbackErrors[error as string] ?? callbackErrors.default,
       },
     };
   }

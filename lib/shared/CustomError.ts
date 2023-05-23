@@ -97,6 +97,13 @@ class ConflictError extends CustomError {
   }
 }
 
+class ForbiddenError extends CustomError {
+  constructor(message: string, originalError?: Error) {
+    super(message, 403, originalError);
+    this.name = "ForbiddenError";
+  }
+}
+
 export {
   CustomError,
   DatabaseError,
@@ -109,4 +116,5 @@ export {
   ServiceUnavailableError,
   PaymentRequiredError,
   ConflictError,
+  ForbiddenError,
 };

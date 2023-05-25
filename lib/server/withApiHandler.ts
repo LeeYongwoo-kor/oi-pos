@@ -3,8 +3,8 @@ import {
   MethodNotAllowedError,
   UnauthorizedError,
 } from "@/lib/shared/CustomError";
-import { Session } from "@/types/next-auth.types";
 import { NextApiRequest, NextApiResponse } from "next";
+import { Session } from "next-auth";
 import { getSession } from "next-auth/react";
 
 export interface ResponseType {
@@ -45,18 +45,16 @@ export default function withApiHandler({
 
     try {
       await handler(req, res, session);
-    } catch (error) {
+    } catch (err) {
       //TODO: send error to sentry
-      console.error(error);
+      console.error(err);
 
-      if (error instanceof CustomError) {
-        if (error.redirectURL) {
-          res.redirect(error.redirectURL);
+      if (err instanceof CustomError) {
+        if (err.redirectURL) {
+          res.redirect(err.redirectURL);
         }
 
-        return res
-          .status(error.statusCode || 500)
-          .json({ message: error.message });
+        return res.status(err.statusCode || 500).json({ message: err.message });
       }
 
       return res.status(500).json({ message: "Internal Server Error" });

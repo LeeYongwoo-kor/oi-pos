@@ -3,25 +3,47 @@ import { useSWRConfig } from "swr";
 import { CustomError } from "../shared/CustomError";
 import { withErrorRetry } from "../server/withErrorRetry";
 
-type ApiErrorData = {
+type ApiErrorState = {
   message: string;
+  statusCode: number;
   redirectURL?: string;
 };
-interface UseMutationState<T> {
+type UseMutationState<T> = {
   loading: boolean;
   data?: T;
-  error?: ApiErrorData | null;
-}
+  error?: ApiErrorState | null;
+};
 type UseMutationResult<T, U> = [
-  (data: U, options?: UseMutationOptions) => Promise<void>,
+  (data: U, options?: UseMutationOptions) => Promise<T>,
   UseMutationState<T>
 ];
 type UseMutationOptions = {
   retry?: boolean;
+  dynamicUrl?: string;
+  isMutate?: boolean;
 };
 
+/**
+ * Custom hook to make a mutation request to the server and handle the response
+ * @category Client
+ * @param {string} baseUrl - The base url of the request
+ * @param {Exclude<Method, "GET">} method - The HTTP method of the request
+ * @returns {UseMutationResult} - A tuple of the mutation function and the state of the request
+ * @example
+ * const [createUser, { loading, data, error }] =
+ *  useMutation<User, UserInput>("/api/v1/users", "POST");
+ * const handleCreateUser = async (data: UserInput) => {
+ *  if (!loading) return;
+ *  const { userId } = await getUser();
+ *  const newUser = await createUser(
+ *   { userId },
+ *   { isMutate: true, retry: true, dynamicUrl: userId }
+ *  );
+ *  if (error) addToast("error", error.message) // ... handle error
+ * }
+ */
 export default function useMutation<T = any, U = any>(
-  url: string,
+  baseUrl: string,
   method: Exclude<Method, "GET"> = "POST"
 ): UseMutationResult<T, U> {
   const { mutate } = useSWRConfig();
@@ -32,7 +54,8 @@ export default function useMutation<T = any, U = any>(
   });
 
   const mutation = async (data: U, options: UseMutationOptions = {}) => {
-    const { retry } = options;
+    const { retry, dynamicUrl, isMutate = false } = options;
+    const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
     setState((prev) => ({ ...prev, loading: true }));
     try {
       const fetchData = async () => {
@@ -53,17 +76,23 @@ export default function useMutation<T = any, U = any>(
       const fetchDataWithRetry = retry ? withErrorRetry(fetchData) : fetchData;
       const responseData = await fetchDataWithRetry();
       setState((prev) => ({ ...prev, data: responseData }));
-      mutate(url);
-    } catch (error: any) {
-      if (error instanceof CustomError) {
+
+      if (isMutate) {
+        mutate(url);
+      }
+
+      return responseData;
+    } catch (err: any) {
+      if (err instanceof CustomError) {
         setState((prev) => ({
           ...prev,
-          error: { message: error.message },
+          error: { message: err.message, statusCode: err.statusCode },
         }));
       } else {
+        console.error(err);
         setState((prev) => ({
           ...prev,
-          error: { message: "Internal Server Error" },
+          error: { message: "Internal Server Error", statusCode: 500 },
         }));
       }
     } finally {

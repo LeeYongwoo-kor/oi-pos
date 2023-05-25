@@ -21,6 +21,7 @@ const useError = (): ErrorContextType => {
   if (context === null) {
     throw new Error("useError must be used within an ErrorProvider");
   }
+
   return context;
 };
 

@@ -17,54 +17,51 @@ type PrismaError =
   | PrismaClientInitializationError
   | PrismaClientRustPanicError;
 
-function prismaErrorHandler(error: PrismaError | Error): never {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    switch (error.code) {
+function prismaErrorHandler(err: PrismaError | Error): never {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (err.code) {
       case "P2025":
-        throw new NotFoundError(
-          "The requested item could not be found.",
-          error
-        );
+        throw new NotFoundError("The requested item could not be found.", err);
       case "P2002":
         throw new DatabaseError(
           "The provided data conflicts with existing data.",
-          error
+          err
         );
       case "P2010":
         throw new ValidationError(
           "The submitted data is incorrect or incomplete. Please check your input.",
-          error
+          err
         );
       case "P2014":
         throw new ValidationError(
           "The provided data references a non-existent item.",
-          error
+          err
         );
       default:
         throw new DatabaseError(
           "An unexpected database error occurred. Please try again later.",
-          error
+          err
         );
     }
-  } else if (error instanceof Prisma.PrismaClientValidationError) {
+  } else if (err instanceof Prisma.PrismaClientValidationError) {
     throw new ValidationError(
       "The submitted data is incorrect or incomplete.",
-      error
+      err
     );
-  } else if (error instanceof Prisma.PrismaClientInitializationError) {
+  } else if (err instanceof Prisma.PrismaClientInitializationError) {
     throw new DatabaseError(
       "An error occurred while initializing the application. Please try again later.",
-      error
+      err
     );
-  } else if (error instanceof Prisma.PrismaClientRustPanicError) {
+  } else if (err instanceof Prisma.PrismaClientRustPanicError) {
     throw new DatabaseError(
       "An unexpected error occurred. Please try again later.",
-      error
+      err
     );
   } else {
     throw new DatabaseError(
       "An unexpected error occurred. Please try again later.",
-      error
+      err
     );
   }
 }

@@ -1,10 +1,10 @@
-export interface IOrderData {
+export interface IOrderParams {
   orderId: string;
   planName: string;
   amount: number;
 }
 
-export function generateInvoiceEmail(orderData: IOrderData): string {
+export function generateInvoiceEmail(orderData: IOrderParams): string {
   return `
     <div style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; max-width: 600px; margin-left: auto; margin-right: auto;">
       <div style="background-color: #ffffff; padding: 30px; border-radius: 5px;">

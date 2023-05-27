@@ -16,7 +16,7 @@ datasource db {
 model User {
   id            String    @id @default(cuid())
   email         String?   @unique 
-  role          String?
+  role          UserRole  @default(OWNER)
   status        UserStatus @default(ACTIVE)
   emailVerified DateTime? @map("email_verified")
   name          String?
@@ -82,7 +82,7 @@ model Plan {
   name        String
   description String?
   price       Float
-  currency    String
+  currency    CurrecyType
   duration    Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
@@ -113,13 +113,13 @@ model Restaurant {
   userId      String  @map("user_id") @unique
   name        String?
   address     String?
-  phoneNumber Int?
+  phoneNumber Int? @map("phone_number")
   branch      String?
   template    Int? @default(0)
-  startTime   String?
-  endTime     String?
+  startTime   String? @map("start_time")
+  endTime     String? @map("end_time")
   holidays    String?
-  lastOrder   String?
+  lastOrder   String? @map("last_order")
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   restaurantTables RestaurantTable[]
@@ -134,7 +134,7 @@ model RestaurantTable {
   id          String  @id @default(cuid())
   restaurantId String  @map("restaurant_id") @unique
   tableNumber  Int? @default(1) @map("table_number")
-  tableType    TableType @default(TABLE)
+  tableType    TableType @default(TABLE) @map("table_type")
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
 
@@ -162,17 +162,23 @@ model MenuItem {
 
 model Payment {
   id           String  @id @default(cuid())
-  orderId      String  @unique
-  planId       String
+  orderId      String  @unique @map("order_id")
+  planId       String @map("plan_id")
   status       String
   amount       Float
-  currency     String
+  currency     CurrecyType
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
   plan         Plan     @relation(fields: [planId], references: [id])
 
   @@map("payment")
   @@index([planId])
+}
+
+enum UserRole {
+  ADMIN
+  OWNER
+  STAFF
 }
 
 enum UserStatus {
@@ -194,4 +200,9 @@ enum SubscriptionStatus {
 enum TableType {
   TABLE
   COUNTER
+}
+
+enum CurrecyType {
+  USD
+  JPY
 }

@@ -4,4 +4,4 @@ export const PlanId = {
   YEARLY_PLAN: "20002",
 } as const;
 
-export type PlanEnumType = keyof typeof PlanId;
+export type PlanEnumType = (typeof PlanId)[keyof typeof PlanId];

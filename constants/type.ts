@@ -6,6 +6,7 @@ export const TableType = {
 export const UserRoleType = {
   ADMIN: "ADMIN",
   OWNER: "OWNER",
+  STAFF: "STAFF",
 } as const;
 
 export type TableEnumType = keyof typeof TableType;

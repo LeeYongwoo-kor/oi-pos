@@ -7,6 +7,7 @@ type UseErrorType = {
 export type ErrorContextType = {
   error: UseErrorType | null;
   setError: Dispatch<SetStateAction<UseErrorType>>;
+  clearError: () => void;
 };
 
 export const ErrorContext = createContext<ErrorContextType | null>(null);
@@ -17,9 +18,12 @@ export function ErrorProvider({ children }: { children: React.ReactNode }) {
     errorMessage: null,
   });
 
+  const clearError = () => setError({ errorName: null, errorMessage: null });
+
   const value = {
     error,
     setError,
+    clearError,
   };
 
   return (

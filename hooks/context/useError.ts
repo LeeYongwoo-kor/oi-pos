@@ -15,6 +15,11 @@ const useError = (): ErrorContextType => {
       setError: () => {
         console.warn("setError should not be used in a non-client environment");
       },
+      clearError: () => {
+        console.warn(
+          "clearError should not be used in a non-client environment"
+        );
+      },
     };
   }
 

@@ -1,5 +1,5 @@
-import useToast from "@/hooks/useToast";
-import { joinCls } from "@/lib/client/helper";
+import useToast from "@/hooks/context/useToast";
+import { joinCls } from "@/utils/cssHelper";
 import { useEffect } from "react";
 
 export type ToastKind = "preserve" | "error" | "success" | "info";

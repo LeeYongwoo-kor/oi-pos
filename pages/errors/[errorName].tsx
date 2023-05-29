@@ -17,16 +17,18 @@ export default function ErrorPage({ errorName, errorMessage }: ErrorPageProps) {
   useEffect(() => {
     if (errorName) {
       setError({ errorName, errorMessage });
-      signOut();
+      signOut({ redirect: false }).then(() => {
+        router.push("/auth/signin");
+      });
     }
-  }, [router, setError, errorName, errorMessage]);
+  }, [errorName, errorMessage, setError, router]);
 
   return null;
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const errorName = context.params?.errorName;
-  const { errorMessage, allowAccess } = context.query;
+  const { errorMessage = null, allowAccess } = context.query;
 
   if (hasNullUndefined({ errorName, allowAccess })) {
     return {

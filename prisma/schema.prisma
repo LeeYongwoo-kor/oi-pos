@@ -79,6 +79,7 @@ model VerificationToken {
 
 model Plan {
   id          String  @id
+  planType    PlanType @unique
   name        String
   description String?
   price       Float
@@ -86,7 +87,7 @@ model Plan {
   duration    Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
-  subscription Subscription?
+  subscription Subscription[]
   payment     Payment[]
 
   @@map("plans")
@@ -132,7 +133,7 @@ model Restaurant {
 
 model RestaurantTable {
   id          String  @id @default(cuid())
-  restaurantId String  @map("restaurant_id") @unique
+  restaurantId String  @map("restaurant_id")
   tableNumber  Int? @default(1) @map("table_number")
   tableType    TableType @default(TABLE) @map("table_type")
   createdAt   DateTime @default(now())
@@ -146,7 +147,7 @@ model RestaurantTable {
 
 model MenuItem {
   id          String  @id @default(cuid())
-  restaurantId String  @map("restaurant_id") @unique
+  restaurantId String  @map("restaurant_id")
   name        String?
   description String?
   price       Float?
@@ -162,7 +163,7 @@ model MenuItem {
 
 model Payment {
   id           String  @id @default(cuid())
-  orderId      String  @unique @map("order_id")
+  orderId      String  @map("order_id")
   planId       String @map("plan_id")
   status       String
   amount       Float
@@ -200,6 +201,12 @@ enum SubscriptionStatus {
 enum TableType {
   TABLE
   COUNTER
+}
+
+enum PlanType {
+  FREE_TRIAL
+  MONTHLY
+  YEARLY
 }
 
 enum CurrecyType {

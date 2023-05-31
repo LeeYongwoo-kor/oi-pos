@@ -7,20 +7,14 @@ import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 export async function createRestaurantAndTable(
   userId: string
 ): Promise<(Restaurant | RestaurantTable)[]> {
-  try {
-    const result = await prismaRequestHandler(
-      prisma.$transaction(async () => {
-        const restaurant = await createRestaurant(userId);
-        const restaurantTable = await createRestaurantTable(restaurant.id);
-        return [restaurant, restaurantTable];
-      }),
-      "createRestaurantAndTable"
-    );
+  const result = await prismaRequestHandler(
+    prisma.$transaction(async () => {
+      const restaurant = await createRestaurant(userId);
+      const restaurantTable = await createRestaurantTable(restaurant.id);
+      return [restaurant, restaurantTable];
+    }),
+    "createRestaurantAndTable"
+  );
 
-    return result;
-  } catch (e) {
-    //TODO: send error to sentry
-    console.error("Error creating restaurant and table: ", e);
-    throw e;
-  }
+  return result;
 }

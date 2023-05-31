@@ -1,5 +1,6 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import convertDatesToISOString from "@/utils/convertDatesToISOString";
 import { Plan } from "@prisma/client";
 
 export async function getPlan(
@@ -18,7 +19,7 @@ export async function getPlan(
     "getPlan"
   );
 
-  return plan;
+  return plan ? convertDatesToISOString(plan) : null;
 }
 
 export async function getPlanDuration(
@@ -49,5 +50,5 @@ export async function getAllPlans(): Promise<Plan[] | null> {
     "getAllPlans"
   );
 
-  return plans;
+  return plans ? plans.map((plan) => convertDatesToISOString(plan)) : null;
 }

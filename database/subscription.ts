@@ -6,6 +6,7 @@ import { Plan, Subscription } from "@prisma/client";
 import { hasNullUndefined } from "../utils/checkNullUndefined";
 import { getPlanDuration } from "./plan";
 import { ValidationError } from "@/lib/shared/CustomError";
+import convertDatesToISOString from "@/utils/convertDatesToISOString";
 
 export async function getSubscription(
   userId: string | undefined | null
@@ -22,7 +23,7 @@ export async function getSubscription(
     "getSubscription"
   );
 
-  return subscription;
+  return subscription ? convertDatesToISOString(subscription) : null;
 }
 
 export async function getAllSubscriptions(): Promise<Subscription[] | null> {
@@ -77,5 +78,5 @@ export async function upsertSubscription(
     "upsertSubscription"
   );
 
-  return newSubscription;
+  return convertDatesToISOString(newSubscription);
 }

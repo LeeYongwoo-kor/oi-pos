@@ -18,6 +18,10 @@ declare module "next-auth" {
   interface Profile {
     picture?: string;
   }
+  interface User {
+    status?: UserStatus;
+    role?: UserRole;
+  }
 }
 
 declare module "next-auth/jwt" {

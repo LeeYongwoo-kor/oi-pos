@@ -1,4 +1,4 @@
-import { joinCls } from "@/lib/client/helper";
+import { joinCls } from "@/utils/cssHelper";
 import React from "react";
 
 type MessageProps = {

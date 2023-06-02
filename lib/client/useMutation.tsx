@@ -54,7 +54,7 @@ export default function useMutation<T = any, U = any>(
   });
 
   const mutation = async (data: U, options: UseMutationOptions = {}) => {
-    const { retry, dynamicUrl, isMutate = false } = options;
+    const { retry, dynamicUrl, isMutate = true } = options;
     const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
     setState((prev) => ({ ...prev, loading: true }));
     try {

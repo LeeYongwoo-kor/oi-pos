@@ -8,6 +8,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { authOptions } from "../api/auth/[...nextauth]";
+import useToastError from "@/hooks/context/useToastError";
 
 type SigninProps = {
   callbackError: string;
@@ -52,7 +53,7 @@ function getExpctedError(errorName: string): string | undefined {
 const Signin = ({ callbackError }: SigninProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { error } = useError();
-  const { addToast } = useToast();
+  const toastError = useToastError();
   const {
     register,
     handleSubmit,
@@ -70,14 +71,13 @@ const Signin = ({ callbackError }: SigninProps) => {
 
   useEffect(() => {
     if (errorName) {
-      addToast(
-        "error",
+      toastError(
         getExpctedError(errorName) ||
           errorMessage ||
           "Unexpected Error Occured. Please try again."
       );
     }
-  }, [addToast, errorName, errorMessage]);
+  }, [errorName, errorMessage, toastError]);
 
   return (
     <main>

@@ -85,6 +85,8 @@ model Plan {
   price       Float
   currency    CurrecyType
   duration    Int
+  maxMenus    Int
+  maxTables   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   subscription Subscription[]
@@ -163,7 +165,7 @@ model MenuItem {
 
 model Payment {
   id           String  @id @default(cuid())
-  orderId      String  @map("order_id")
+  orderId      String  @map("order_id") @unique
   planId       String @map("plan_id")
   status       String
   amount       Float

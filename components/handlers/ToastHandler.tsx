@@ -1,18 +1,17 @@
+import { useNavigation } from "@/providers/NavigationContext";
 import { ToastContext } from "@/providers/ToastContext";
-import useNavigation from "@/hooks/context/useNavigation";
 import { useContext, useEffect } from "react";
 
 const ToastHandler = () => {
   const toastContext = useContext(ToastContext);
-  const { routeChanged, toastMessage, toastKind, resetToastMessage } =
-    useNavigation();
+  const { toastMessage, toastKind, hideToastMessage } = useNavigation();
 
   useEffect(() => {
-    if (routeChanged && toastMessage && toastContext) {
+    if (toastMessage && toastContext) {
       toastContext.addToast(toastKind, toastMessage);
-      resetToastMessage();
+      hideToastMessage();
     }
-  }, [resetToastMessage, routeChanged, toastContext, toastKind, toastMessage]);
+  }, [hideToastMessage, toastContext, toastKind, toastMessage]);
 
   return null;
 };

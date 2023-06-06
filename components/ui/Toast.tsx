@@ -1,4 +1,4 @@
-import useToast from "@/hooks/context/useToast";
+import { useToast } from "@/providers/ToastContext";
 import { joinCls } from "@/utils/cssHelper";
 import { useEffect } from "react";
 

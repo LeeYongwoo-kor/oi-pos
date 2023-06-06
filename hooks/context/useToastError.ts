@@ -1,5 +1,5 @@
-import useError from "./useError";
-import useToast from "./useToast";
+import { useError } from "@/providers/ErrorContext";
+import { useToast } from "@/providers/ToastContext";
 
 const useToastError = (): ((errorMessage: string) => void) => {
   const { clearError } = useError();

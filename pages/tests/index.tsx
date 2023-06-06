@@ -1,6 +1,6 @@
 import Layout from "@/components/Layout";
 import Loader from "@/components/Loader";
-import useToast from "@/hooks/context/useToast";
+import { useToast } from "@/providers/ToastContext";
 
 export default function Tests() {
   const { addToast } = useToast();

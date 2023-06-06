@@ -1,12 +1,11 @@
 import { ToastKind } from "@/components/ui/Toast";
-import { ReactNode, createContext, useState } from "react";
+import { ReactNode, createContext, useContext, useState } from "react";
 
 export type NavigationContextType = {
-  routeChanged: boolean;
   toastMessage: string;
   toastKind: ToastKind;
-  setToastMessage: (type: ToastKind, message: string) => void;
-  resetToastMessage: () => void;
+  showToastMessage: (type: ToastKind, message: string) => void;
+  hideToastMessage: () => void;
 };
 
 export const NavigationContext = createContext<NavigationContextType>(
@@ -17,33 +16,58 @@ interface NavigationProviderProps {
   children: ReactNode;
 }
 
-export function NavigationProvider({ children }: NavigationProviderProps) {
-  const [routeChanged, setRouteChanged] = useState(false);
+function useNavigationContextValue() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastKind, setToastKind] = useState<ToastKind>("info");
 
-  const updateToastMessage = (kind: ToastKind, message: string) => {
+  const showToastMessage = (kind: ToastKind, message: string) => {
+    if (typeof window === "undefined") {
+      console.warn(
+        "showToastMessage should not be used in a non-client environment"
+      );
+      return;
+    }
     setToastMessage(message);
     setToastKind(kind);
-    setRouteChanged(true);
   };
 
-  const resetToastMessage = () => {
+  const hideToastMessage = () => {
+    if (typeof window === "undefined") {
+      console.warn(
+        "hideToastMessage should not be used in a non-client environment"
+      );
+    }
     setToastMessage("");
-    setRouteChanged(false);
   };
+
+  return {
+    toastMessage,
+    toastKind,
+    showToastMessage,
+    hideToastMessage,
+  };
+}
+
+export function NavigationProvider({ children }: NavigationProviderProps) {
+  const contextValue = useNavigationContextValue();
 
   return (
-    <NavigationContext.Provider
-      value={{
-        routeChanged,
-        toastMessage,
-        toastKind,
-        setToastMessage: updateToastMessage,
-        resetToastMessage,
-      }}
-    >
+    <NavigationContext.Provider value={contextValue}>
       {children}
     </NavigationContext.Provider>
   );
 }
+
+/**
+ * Custom hook to use the navigation context
+ * @returns {NavigationContextType} The navigation context
+ */
+export const useNavigation = (): NavigationContextType => {
+  const context = useContext(NavigationContext);
+
+  if (!context) {
+    throw new Error("useNavigation must be used within a NavigationProvider");
+  }
+
+  return context;
+};

@@ -1,3 +1,4 @@
+import { TOAST_MESSAGE_CLOSE_DELAY } from "@/constants";
 import { useToast } from "@/providers/ToastContext";
 import { joinCls } from "@/utils/cssHelper";
 import { useEffect } from "react";
@@ -16,11 +17,17 @@ interface ToastProps extends ToastType {
 
 const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
     if (type !== "preserve") {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         onDismiss(id);
-      }, 5000);
+      }, TOAST_MESSAGE_CLOSE_DELAY);
     }
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [type, id, onDismiss]);
 
   const bgColor =

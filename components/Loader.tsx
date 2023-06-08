@@ -4,9 +4,9 @@ import React from "react";
 
 function Loader() {
   return (
-    <div className="flex items-center justify-center h-screen">
-      <FontAwesomeIcon size="3x" icon={faGear} spin />
-      <span className="ml-2 font-medium">Loading...</span>
+    <div className="flex items-center justify-center h-full">
+      <FontAwesomeIcon width={50} height={50} size="3x" icon={faGear} spin />
+      <span className="ml-2 text-lg font-semibold">Loading...</span>
     </div>
   );
 }

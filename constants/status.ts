@@ -1,10 +1,18 @@
-export const SubscriptionStatus = {
+const SubscriptionStatus = {
   ACTIVE: "ACTIVE",
   TRIAL: "TRIAL",
   EXPIRED: "EXPIRED",
   PENDING: "PENDING",
   CANCELLED: "CANCELLED",
 } as const;
+
+const UserStatus = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+  SUSPENDED: "SUSPENDED",
+  DELETED: "DELETED",
+  BANNED: "BANNED",
+};
 
 export const PaypalStatus = {
   CREATED: "CREATED",
@@ -14,14 +22,6 @@ export const PaypalStatus = {
   CANCELLED: "CANCELLED",
   VOIDED: "VOIDED",
 } as const;
-
-export const UserStatus = {
-  ACTIVE: "ACTIVE",
-  INACTIVE: "INACTIVE",
-  SUSPENDED: "SUSPENDED",
-  DELETED: "DELETED",
-  BANNED: "BANNED",
-};
 
 export type SubscriptionStatusEnumType = keyof typeof SubscriptionStatus;
 export type PaypalStatusEnumType = keyof typeof PaypalStatus;

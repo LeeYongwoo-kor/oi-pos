@@ -65,7 +65,7 @@ export async function createPayment(
 
 export async function updatePaymentStatus(
   orderId: string,
-  newStatus: PaypalStatus
+  newStatus: PaypalStatusType
 ): Promise<Payment> {
   const { hasNullUndefined } = checkNullUndefined({ orderId, newStatus });
   if (hasNullUndefined) {

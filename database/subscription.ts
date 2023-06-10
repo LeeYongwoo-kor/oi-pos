@@ -1,8 +1,7 @@
 import { PlanId } from "@/constants/plan";
-import { SubscriptionStatus } from "@/constants/status";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { Plan, Subscription } from "@prisma/client";
+import { Plan, Subscription, SubscriptionStatus } from "@prisma/client";
 import { hasNullUndefined } from "../utils/checkNullUndefined";
 import { getPlanDuration } from "./plan";
 import { ValidationError } from "@/lib/shared/CustomError";
@@ -49,6 +48,12 @@ export async function upsertSubscription(
   const currentPeriodStart = Math.floor(new Date().getTime() / 1000);
   const currentPeriodEnd = currentPeriodStart + planDuration.duration;
 
+  // Determine the subscription status
+  const subscriptionStatus =
+    planId == PlanId.TRIAL_PLAN
+      ? SubscriptionStatus.TRIAL
+      : SubscriptionStatus.ACTIVE;
+
   // Upsert the subscription
   const newSubscription = await prismaRequestHandler(
     prisma.subscription.upsert({
@@ -58,19 +63,13 @@ export async function upsertSubscription(
       create: {
         userId: userId as string,
         planId,
-        status:
-          planId == PlanId.TRIAL_PLAN
-            ? SubscriptionStatus.TRIAL
-            : SubscriptionStatus.ACTIVE, // Set the subscription status to active
+        status: subscriptionStatus,
         currentPeriodStart: new Date(currentPeriodStart * 1000),
         currentPeriodEnd: new Date(currentPeriodEnd * 1000),
       },
       update: {
         planId,
-        status:
-          planId == PlanId.TRIAL_PLAN
-            ? SubscriptionStatus.TRIAL
-            : SubscriptionStatus.ACTIVE,
+        status: subscriptionStatus,
         currentPeriodStart: new Date(currentPeriodStart * 1000),
         currentPeriodEnd: new Date(currentPeriodEnd * 1000),
       },

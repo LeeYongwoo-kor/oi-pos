@@ -1,7 +1,7 @@
 import { TOAST_MESSAGE_CLOSE_DELAY } from "@/constants";
-import { useToast } from "@/providers/ToastContext";
+import { useToast } from "@/hooks/useToast";
 import { joinCls } from "@/utils/cssHelper";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 
 export type ToastKind = "preserve" | "error" | "success" | "info";
 
@@ -62,7 +62,7 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   );
 };
 
-export default function ToastContainer() {
+function ToastContainer() {
   const { toasts, dismissToast } = useToast();
 
   return (
@@ -73,3 +73,5 @@ export default function ToastContainer() {
     </div>
   );
 }
+
+export default React.memo(ToastContainer);

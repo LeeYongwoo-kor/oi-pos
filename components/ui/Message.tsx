@@ -1,15 +1,20 @@
+import { messageLoadingState, messageState } from "@/hooks/state/messageState";
 import { joinCls } from "@/utils/cssHelper";
 import React from "react";
+import { useRecoilState, useResetRecoilState } from "recoil";
 
-type MessageProps = {
+export interface UseMessageReturn {
+  isOpen: boolean;
   title: string;
   message: string;
+  type: "alert" | "confirm";
+  onConfirm?: () => void;
+  onCancel?: () => void;
+}
+
+interface MessageProps extends UseMessageReturn {
   loading: boolean;
-  type?: "alert" | "confirm";
-  isOpen?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-};
+}
 
 const Message = ({
   title,
@@ -58,4 +63,41 @@ const Message = ({
   );
 };
 
-export default Message;
+function MessageContainer() {
+  const [messageConfig, setMessageConfig] = useRecoilState(messageState);
+  const [loading, setLoading] = useRecoilState(messageLoadingState);
+  const resetMessageState = useResetRecoilState(messageState);
+
+  const handleConfirm = () => {
+    setLoading(true);
+    try {
+      if (messageConfig.type === "confirm") {
+        messageConfig.onConfirm?.();
+      }
+    } finally {
+      setLoading(false);
+      resetMessageState();
+    }
+  };
+
+  const handleCancel = () => {
+    setLoading(true);
+    try {
+      messageConfig.onCancel?.();
+    } finally {
+      setLoading(false);
+      resetMessageState();
+    }
+  };
+
+  return (
+    <Message
+      {...messageConfig}
+      loading={loading}
+      onConfirm={handleConfirm}
+      onCancel={handleCancel}
+    />
+  );
+}
+
+export default React.memo(MessageContainer);

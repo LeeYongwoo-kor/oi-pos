@@ -4,7 +4,7 @@ import { ValidationError } from "@/lib/shared/CustomError";
 import { Restaurant } from "@prisma/client";
 
 export async function getRestaurant(
-  userId: string
+  userId: string | undefined | null
 ): Promise<Restaurant | null> {
   if (!userId) {
     return null;

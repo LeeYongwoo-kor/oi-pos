@@ -79,3 +79,22 @@ export async function upsertSubscription(
 
   return convertDatesToISOString(newSubscription);
 }
+
+export async function updateSubscriptionStatus(
+  userId: string | null | undefined,
+  subscriptionStatus: SubscriptionStatus
+): Promise<Subscription> {
+  if (!userId) {
+    throw new ValidationError("Not found user id");
+  }
+
+  const updateSubscription = await prismaRequestHandler(
+    prisma.subscription.update({
+      where: { userId: userId },
+      data: { status: subscriptionStatus },
+    }),
+    "updateSubscriptionStatus"
+  );
+
+  return updateSubscription;
+}

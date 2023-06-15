@@ -11,10 +11,10 @@ export default withAuth(
   function middleware(req: NextRequest & { nextauth: { token: JWT | null } }) {
     const { token } = req.nextauth;
 
-    if (token !== null && "errorName" in token) {
+    if (token !== null && token.errorName) {
       return NextResponse.redirect(
         new URL(
-          `/errors/${token.errorName}?errorMessage=${token.errorMessage}&allowAccess=true`,
+          `/errors/${token.errorName}?errorMessage=${token.message}&allowAccess=true`,
           req.url
         )
       );
@@ -25,7 +25,7 @@ export default withAuth(
   {
     callbacks: {
       authorized({ req, token }: IAuthorizedOptions) {
-        console.log("this is middleware");
+        console.log("this is middleware callbacks");
         console.log("Request received:", req.url);
         // `/admin` requires admin role
         // if (req.nextUrl.pathname === "/admin") {

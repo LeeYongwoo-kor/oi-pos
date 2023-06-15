@@ -9,7 +9,8 @@ declare module "next-auth" {
   interface Session {
     id?: string | null;
     errorName?: string;
-    errorMessage?: string;
+    message?: string;
+    redirectUrl?: string;
     user: {
       // The OAuth account ID
     } & DefaultSession["user"];
@@ -34,6 +35,7 @@ declare module "next-auth/jwt" {
     expires_at?: number;
     refresh_token?: string;
     errorName?: string;
-    errorMessage?: string;
+    message?: string;
+    redirectUrl?: string;
   }
 }

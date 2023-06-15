@@ -1,6 +1,7 @@
 import {
   CustomError,
   MethodNotAllowedError,
+  NotFoundError,
   UnauthorizedError,
 } from "@/lib/shared/CustomError";
 import { NextApiRequest, NextApiResponse } from "next";
@@ -46,8 +47,11 @@ export default function withApiHandler({
     try {
       await handler(req, res, session);
     } catch (err) {
-      //TODO: send error to sentry
-      console.error(err);
+      // Not found error is not sent to sentry
+      if (!(err instanceof NotFoundError)) {
+        //TODO: send error to sentry
+        console.error(err);
+      }
 
       if (err instanceof CustomError) {
         if (err.redirectURL) {

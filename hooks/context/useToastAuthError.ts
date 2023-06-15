@@ -1,7 +1,7 @@
 import { useError } from "@/providers/ErrorContext";
-import { useToast } from "@/providers/ToastContext";
+import { useToast } from "../useToast";
 
-const useToastError = (): ((errorMessage: string) => void) => {
+const useToastAuthError = (): ((errorMessage: string) => void) => {
   const { clearError } = useError();
   const { addToast } = useToast();
 
@@ -13,4 +13,4 @@ const useToastError = (): ((errorMessage: string) => void) => {
   };
 };
 
-export default useToastError;
+export default useToastAuthError;

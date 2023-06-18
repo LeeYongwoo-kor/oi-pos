@@ -1,11 +1,17 @@
-import useConfirm from "@/hooks/useConfirm";
+import { useConfirm } from "@/hooks/useConfirm";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 
-export default function NavigationBar() {
+type NavigationBarProps = {
+  isAllInfoRegistered: boolean;
+};
+
+export default function NavigationBar({
+  isAllInfoRegistered,
+}: NavigationBarProps) {
   const router = useRouter();
-  const showConfirm = useConfirm();
+  const { showConfirm } = useConfirm();
 
   const openConfirm = () => {
     showConfirm({
@@ -35,28 +41,34 @@ export default function NavigationBar() {
 
         {/* Navigation menu */}
         <nav className="hidden space-x-10 md:flex">
-          <a href="#" className="text-gray-600 hover:text-gray-800">
-            Orders
-          </a>
-          <a href="#" className="text-gray-600 hover:text-gray-800">
-            Tables
-          </a>
-          <a href="#" className="text-gray-600 hover:text-gray-800">
-            Menus
-          </a>
-          <a href="#" className="text-gray-600 hover:text-gray-800">
-            Restaurants
-          </a>
+          {isAllInfoRegistered && (
+            <>
+              <a href="#" className="text-gray-600 hover:text-gray-800">
+                Orders
+              </a>
+              <a href="#" className="text-gray-600 hover:text-gray-800">
+                Tables
+              </a>
+              <a href="#" className="text-gray-600 hover:text-gray-800">
+                Menus
+              </a>
+              <a href="#" className="text-gray-600 hover:text-gray-800">
+                Restaurants
+              </a>
+            </>
+          )}
         </nav>
 
         {/* Settings and logout buttons */}
         <div className="flex items-center space-x-6">
-          <button
-            onClick={handleSettings}
-            className="text-gray-600 hover:text-gray-800"
-          >
-            Settings
-          </button>
+          {isAllInfoRegistered && (
+            <button
+              onClick={handleSettings}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Settings
+            </button>
+          )}
           <button
             onClick={openConfirm}
             className="text-gray-600 hover:text-gray-800"

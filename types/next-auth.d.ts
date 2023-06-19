@@ -11,6 +11,7 @@ declare module "next-auth" {
     errorName?: string;
     message?: string;
     redirectUrl?: string;
+    isAllInfoRegistered?: boolean;
     user: {
       // The OAuth account ID
     } & DefaultSession["user"];
@@ -37,5 +38,6 @@ declare module "next-auth/jwt" {
     errorName?: string;
     message?: string;
     redirectUrl?: string;
+    isAllInfoRegistered?: boolean;
   }
 }

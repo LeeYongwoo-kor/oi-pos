@@ -1,11 +1,15 @@
 import React from "react";
 
-interface StatusBarProps {
-  steps: string[];
-  currentStep: string;
-}
+type Step = string;
+type StatusBarProps<Steps extends Step[]> = {
+  steps: [...Steps];
+  currentStep: Steps[number];
+};
 
-export const StatusBar: React.FC<StatusBarProps> = ({ steps, currentStep }) => {
+export function StatusBar<T extends Step[]>({
+  steps,
+  currentStep,
+}: StatusBarProps<T>) {
   const currentStepIndex = steps.indexOf(currentStep);
 
   return (
@@ -36,4 +40,4 @@ export const StatusBar: React.FC<StatusBarProps> = ({ steps, currentStep }) => {
       ))}
     </div>
   );
-};
+}

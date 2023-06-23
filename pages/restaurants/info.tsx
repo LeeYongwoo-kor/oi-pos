@@ -1,12 +1,15 @@
-import { useForm } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
 import Layout from "@/components/Layout";
-import { useEffect, useState } from "react";
-import useSWR, { useSWRConfig } from "swr";
-import useSubmit from "@/hooks/useSubmit";
-import { useToast } from "@/hooks/useToast";
 import { StatusBar } from "@/components/StatusBar";
+import { useToast } from "@/hooks/useToast";
+import useMutation from "@/lib/client/useMutation";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { Restaurant } from "@prisma/client";
+import { useEffect, useState } from "react";
+import { FieldValues, useForm } from "react-hook-form";
+import useSWR from "swr";
+import * as yup from "yup";
+import { IPutSubscriptionInfoBody } from "../api/v1/restaurant/info";
+import { useRouter } from "next/router";
 
 interface IAddress {
   address1: string;
@@ -26,29 +29,30 @@ interface ZipcodeApiResponse {
 }
 
 const schema = yup.object().shape({
-  restaurantName: yup
+  name: yup
     .string()
     .required("Restaurant Name is required")
     .max(30, "Restaurant Name should be at most 30 characters")
     .matches(/^\s*\w.*$/, "No special characters allowed"),
-  branchName: yup
+  branch: yup
     .string()
     .required("Branch Name is required")
-    .max(20, "Branch Name should be at most 20 characters")
     .matches(/^\s*\w.*$/, "No special characters allowed"),
-  phone: yup.string().matches(/^0\d{9,10}$/, "Must be a valid phone number"),
+  phoneNumber: yup
+    .string()
+    .matches(/^0\d{9,10}$/, "Must be a valid phone number"),
   postCode: yup
     .string()
     .required("Post Code is required")
+    .max(7, "Post Code should be at most 7 characters")
     .matches(/^\d{7}$/, "Must be a valid post code"),
-  address: yup
-    .string()
-    .required("Address is required. Please input post code and click search"),
+  address: yup.string(),
   restAddress: yup
     .string()
+    .required("Rest Address is required")
     .max(50, "Rest Address should be at most 50 characters")
     .matches(
-      /^[a-zA-Z0-9\s,.'-]*$/,
+      /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF a-zA-Z0-9\s,.'-]*$/,
       "No special characters allowed other than address characters"
     ),
 });
@@ -56,65 +60,81 @@ const schema = yup.object().shape({
 export default function RestaurantInfo() {
   const {
     register,
-    handleSubmit: formSubmit,
+    handleSubmit,
     setValue,
     watch,
     resetField,
-    formState: { errors, isValid, touchedFields },
+    formState: { errors, isValid, isSubmitting, touchedFields, isSubmitted },
   } = useForm({
     resolver: yupResolver(schema),
     mode: "onChange",
   });
   const watchFields = watch();
-  // const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSearchButtonEnabled, setSearchButtonEnabled] = useState(false);
   const { addToast } = useToast();
-  const { mutate } = useSWRConfig();
-  const { data, error } = useSWR<ZipcodeApiResponse>(
-    isSearchButtonEnabled
+  const { data, isLoading } = useSWR<ZipcodeApiResponse>(
+    !errors.postCode &&
+      watchFields.postCode &&
+      watchFields.postCode.length === 7
       ? `https://zip-cloud.appspot.com/api/search?zipcode=${watchFields.postCode}`
-      : null
+      : null,
+    { keepPreviousData: true }
   );
-
-  const onSubmitCallback = async (formData: any) => {
-    console.log(formData);
-  };
-  const { isSubmitting, handleSubmit } = useSubmit(onSubmitCallback);
-
-  const handlePostCodeSearch = () => {
-    if (!watchFields.postCode) return;
-    resetField("address");
-    mutate(
-      `https://zip-cloud.appspot.com/api/search?zipcode=${watchFields.postCode}`
+  const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
+    useMutation<Restaurant, IPutSubscriptionInfoBody>(
+      "/api/v1/restaurant/info",
+      "PUT"
     );
+  const [addressValue, setAddressValue] = useState("");
+  const router = useRouter();
+
+  const handleSubmitRestaurantInfo = async (formData: FieldValues) => {
+    if (isSubmitted) {
+      return;
+    }
+    const paramData = formData as IPutSubscriptionInfoBody;
+    const resultData = await upsertRestaurantInfo(paramData);
+    if (resultData) {
+      router.push("/restaurants/hours");
+    }
   };
 
   useEffect(() => {
-    setSearchButtonEnabled(!errors.postCode && !!watchFields.postCode);
-  }, [errors.postCode, watchFields.postCode]);
+    if (upsertRestaurantInfoErr) {
+      addToast("error", upsertRestaurantInfoErr.message);
+    }
+  }, [upsertRestaurantInfoErr]);
 
   useEffect(() => {
-    if (isSearchButtonEnabled) {
-      if (data?.results === null) {
-        addToast("error", "Post Code not found, Please try again");
-        resetField("address");
-      }
-      if (data?.results && data.results.length > 0) {
-        const addressResult = [
-          data.results[0].address1,
-          data.results[0].address2,
-          data.results[0].address3,
-        ].join(" ");
-        setValue("address", addressResult);
-      }
+    if (errors.postCode) {
+      resetField("address");
     }
-  }, [data, setValue]);
+  }, [errors.postCode]);
+
+  useEffect(() => {
+    if (isLoading) {
+      setAddressValue("Loading...");
+    } else if (data?.results && data.results.length > 0) {
+      const addressResult = [
+        data.results[0].address1,
+        data.results[0].address2,
+        data.results[0].address3,
+      ]
+        .join(" ")
+        .trim();
+      setAddressValue(addressResult);
+      setValue("address", addressResult);
+    } else if (!isLoading && data?.results === null) {
+      setAddressValue("");
+      addToast("error", "Post Code not found, Please try again");
+      resetField("address");
+    }
+  }, [data, setValue, isLoading]);
 
   return (
     <Layout>
       <StatusBar
         steps={["Info", "Hours", "Tables", "Menus", "Complete"]}
-        currentStep="Tables"
+        currentStep="Info"
       />
       <div className="container px-4 py-8 mx-auto">
         <h1 className="mb-4 text-2xl font-semibold">
@@ -123,23 +143,23 @@ export default function RestaurantInfo() {
         <p className="mb-6">
           This page helps you enter basic information about your restaurant.
         </p>
-        <form onSubmit={formSubmit(handleSubmit)}>
+        <form onSubmit={handleSubmit(handleSubmitRestaurantInfo)}>
           <div className="mb-4">
             <label className="block mb-2">Restaurant Name</label>
             <input
               className={`w-full p-2 border ${
-                errors.restaurantName
+                errors.name
                   ? "border-red-500"
-                  : touchedFields.restaurantName && watchFields.restaurantName
+                  : touchedFields.name && watchFields.name
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
               type="text"
-              {...register("restaurantName")}
+              {...register("name")}
             />
-            {errors.restaurantName && (
+            {errors.name && (
               <span className="text-red-500">
-                {errors.restaurantName?.message as string}
+                {errors.name?.message as string}
               </span>
             )}
           </div>
@@ -147,18 +167,18 @@ export default function RestaurantInfo() {
             <label className="block mb-2">Branch Name</label>
             <input
               className={`w-full p-2 border ${
-                errors.branchName
+                errors.branch
                   ? "border-red-500"
-                  : touchedFields.branchName && watchFields.branchName
+                  : touchedFields.branch && watchFields.branch
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
               type="text"
-              {...register("branchName")}
+              {...register("branch")}
             />
-            {errors.branchName && (
+            {errors.branch && (
               <span className="text-red-500">
-                {errors.branchName?.message as string}
+                {errors.branch?.message as string}
               </span>
             )}
           </div>
@@ -168,31 +188,33 @@ export default function RestaurantInfo() {
             </label>
             <input
               className={`w-full p-2 border ${
-                errors.phone
+                errors.phoneNumber
                   ? "border-red-500"
-                  : touchedFields.phone && watchFields.phone
+                  : touchedFields.phoneNumber && watchFields.phoneNumber
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
               type="tel"
               maxLength={11}
-              {...register("phone")}
+              {...register("phoneNumber")}
             />
-            {errors.phone && (
+            {errors.phoneNumber && (
               <span className="text-red-500">
-                {errors.phone?.message as string}
+                {errors.phoneNumber?.message as string}
               </span>
             )}
           </div>
           <label className="block mb-2">
             Japan Postal Code (Please omit the -)
           </label>
-          <div className="flex items-center">
+          <div className="mb-4">
             <input
               className={`w-full p-2 border ${
-                errors.postCode
+                errors.postCode || data?.results === null
                   ? "border-red-500"
-                  : touchedFields.postCode && watchFields.postCode
+                  : touchedFields.postCode &&
+                    watchFields.postCode &&
+                    data?.results !== null
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
@@ -200,35 +222,29 @@ export default function RestaurantInfo() {
               maxLength={7}
               {...register("postCode")}
             />
-            <button
-              className={`p-2 ml-2 text-white bg-blue-500 rounded ${
-                isSearchButtonEnabled
-                  ? "hover:bg-blue-700"
-                  : "opacity-50 cursor-not-allowed"
-              }`}
-              type="button"
-              onClick={handlePostCodeSearch}
-              disabled={!isSearchButtonEnabled}
-            >
-              Search
-            </button>
+            {errors.postCode && (
+              <span className="text-red-500">
+                {errors.postCode?.message as string}
+              </span>
+            )}
+            {data?.results === null && (
+              <span className="text-red-500">
+                Post Code not found, Please try again
+              </span>
+            )}
           </div>
-          {errors.postCode && (
-            <span className="text-red-500">
-              {errors.postCode?.message as string}
-            </span>
-          )}
-          <div className="mt-4 mb-4">
+          <div className="mb-4">
             <label className="block mb-2">Address</label>
             <input
               className={`w-full p-2 border ${
                 errors.address
                   ? "border-red-500"
-                  : touchedFields.address
+                  : watchFields.address
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
               type="text"
+              value={addressValue}
               {...register("address")}
               disabled
             />
@@ -239,12 +255,14 @@ export default function RestaurantInfo() {
             )}
           </div>
           <div className="mb-4">
-            <label className="block mb-2">
-              Rest of the Address (Not required)
-            </label>
+            <label className="block mb-2">Rest of the Address</label>
             <input
               className={`w-full p-2 border ${
-                errors.restAddress ? "border-red-500" : "border-green-500"
+                errors.restAddress
+                  ? "border-red-500"
+                  : touchedFields.restAddress && watchFields.restAddress
+                  ? "border-green-500"
+                  : "border-gray-400"
               } rounded`}
               type="text"
               {...register("restAddress")}
@@ -257,12 +275,14 @@ export default function RestaurantInfo() {
           </div>
           <button
             className={`p-2 text-white bg-green-600 rounded ${
-              isValid && !isSubmitting
+              isValid && !isSubmitting && !isLoading && data?.results !== null
                 ? "hover:bg-green-700"
                 : "opacity-60 cursor-not-allowed"
             }}`}
             type="submit"
-            disabled={!isValid || isSubmitting}
+            disabled={
+              !isValid || isSubmitting || isLoading || data?.results === null
+            }
           >
             NEXT
           </button>

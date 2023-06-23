@@ -1,7 +1,19 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/CustomError";
+import { ValidationError } from "@/lib/shared/ApiError";
+import checkNullUndefined from "@/utils/checkNullUndefined";
+import convertDatesToISOString from "@/utils/convertDatesToISOString";
 import { Restaurant } from "@prisma/client";
+
+export interface UpsertRestaurantInfoParams {
+  userId: string | undefined | null;
+  name: string;
+  branch: string;
+  phoneNumber: string;
+  postCode: string;
+  address: string;
+  restAddress: string;
+}
 
 export async function getRestaurant(
   userId: string | undefined | null
@@ -41,4 +53,39 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
   );
 
   return newRestaurant;
+}
+
+export async function upsertRestaurantInfo(
+  restaurantInfo: UpsertRestaurantInfoParams
+): Promise<Restaurant> {
+  const { hasNullUndefined } = checkNullUndefined(restaurantInfo);
+
+  if (!restaurantInfo.userId || hasNullUndefined) {
+    throw new ValidationError(
+      "Failed to update restaurant info. Please try again later."
+    );
+  }
+
+  const upsertRestaurantInfoData = {
+    userId: restaurantInfo.userId,
+    name: restaurantInfo.name,
+    branch: restaurantInfo.branch,
+    phoneNumber: restaurantInfo.phoneNumber,
+    postCode: restaurantInfo.postCode,
+    address: restaurantInfo.address,
+    restAddress: restaurantInfo.restAddress,
+  };
+
+  const newRestaurantInfo = await prismaRequestHandler(
+    prisma.restaurant.upsert({
+      where: {
+        userId: upsertRestaurantInfoData.userId,
+      },
+      create: upsertRestaurantInfoData,
+      update: upsertRestaurantInfoData,
+    }),
+    "upsertRestaurantInfo"
+  );
+
+  return convertDatesToISOString(newRestaurantInfo);
 }

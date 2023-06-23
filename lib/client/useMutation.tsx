@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useSWRConfig } from "swr";
-import { CustomError } from "../shared/CustomError";
+import { ApiError, ApiErrorType } from "../shared/ApiError";
 import { withErrorRetry } from "../server/withErrorRetry";
 
 type ApiErrorState = {
   message: string;
   statusCode: number;
-  redirectURL?: string;
+  redirectUrl?: string;
 };
 type UseMutationState<T> = {
   loading: boolean;
@@ -21,6 +21,7 @@ type UseMutationOptions = {
   retry?: boolean;
   dynamicUrl?: string;
   isMutate?: boolean;
+  headers?: Record<string, string>;
 };
 
 /**
@@ -29,17 +30,18 @@ type UseMutationOptions = {
  * @param {string} baseUrl - The base url of the request
  * @param {Exclude<Method, "GET">} method - The HTTP method of the request
  * @returns {UseMutationResult} - A tuple of the mutation function and the state of the request
+ * @objectParam {UseMutationOptions} options - The options for the mutation request
  * @example
  * const [createUser, { loading, data, error }] =
- *  useMutation<User, UserInput>("/api/v1/users", "POST");
- * const handleCreateUser = async (data: UserInput) => {
+ *  useMutation<ReturnType, ArgumentType>("/api/v1/users", "POST");
+ * const handleCreateUser = async (data: ArgumentType) => {
  *  if (!loading) return;
  *  const { userId } = await getUser();
  *  const newUser = await createUser(
  *   { userId },
- *   { isMutate: true, retry: true, dynamicUrl: userId }
+ *   { isMutate: false, retry: true, dynamicUrl: userId }
  *  );
- *  if (error) addToast("error", error.message) // ... handle error
+ *  if (error) addToast("error", error.message); // ... handle error
  * }
  */
 export default function useMutation<T = any, U = any>(
@@ -54,7 +56,7 @@ export default function useMutation<T = any, U = any>(
   });
 
   const mutation = async (data: U, options: UseMutationOptions = {}) => {
-    const { retry, dynamicUrl, isMutate = true } = options;
+    const { retry, dynamicUrl, isMutate = true, headers = {} } = options;
     const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
     setState((prev) => ({ ...prev, loading: true }));
     try {
@@ -63,40 +65,44 @@ export default function useMutation<T = any, U = any>(
           method,
           headers: {
             "Content-type": "application/json",
+            ...headers,
           },
           body: JSON.stringify(data),
         });
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new CustomError(errorData.message, response.status);
+          const errorData: ApiErrorType = await response.json();
+          throw new ApiError(errorData.message, response.status);
         }
         return response.json();
       };
 
       const fetchDataWithRetry = retry ? withErrorRetry(fetchData) : fetchData;
       const responseData = await fetchDataWithRetry();
-      setState((prev) => ({ ...prev, data: responseData }));
 
       if (isMutate) {
-        mutate(url);
+        mutate(url, responseData, false);
       }
 
+      setState({ loading: false, data: responseData, error: null });
       return responseData;
     } catch (err: any) {
-      if (err instanceof CustomError) {
-        setState((prev) => ({
-          ...prev,
-          error: { message: err.message, statusCode: err.statusCode },
-        }));
+      let errorMessage = "Internal Server Error";
+      let statusCode = 500;
+
+      // TODO: send error to sentry
+      console.error(err);
+      console.error(`Error occurred on endpoint: ${url}`);
+      if (err instanceof ApiError) {
+        errorMessage = err.message;
+        statusCode = err.statusCode || 500;
       } else {
-        console.error(err);
-        setState((prev) => ({
-          ...prev,
-          error: { message: "Internal Server Error", statusCode: 500 },
-        }));
+        errorMessage = err.message;
       }
-    } finally {
-      setState((prev) => ({ ...prev, loading: false }));
+      setState({
+        loading: false,
+        data: undefined,
+        error: { message: errorMessage, statusCode },
+      });
     }
   };
 

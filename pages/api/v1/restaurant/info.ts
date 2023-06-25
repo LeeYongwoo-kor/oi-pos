@@ -15,19 +15,17 @@ async function handler(
   res: NextApiResponse,
   session?: Session | null
 ) {
-  if (req.method === Method.PUT) {
-    if (!session) {
-      throw new UnauthorizedError("Unauthorized. You must be signed in");
-    }
-
-    const body: IPutSubscriptionInfoBody = req.body;
-    const upsertSubscription = await upsertRestaurantInfo({
-      userId: session?.id,
-      ...body,
-    });
-
-    return res.status(200).json(upsertSubscription);
+  if (!session) {
+    throw new UnauthorizedError("Unauthorized. You must be signed in");
   }
+
+  const body: IPutSubscriptionInfoBody = req.body;
+  const upsertSubscription = await upsertRestaurantInfo({
+    userId: session?.id,
+    ...body,
+  });
+
+  return res.status(200).json(upsertSubscription);
 }
 
 export default withApiHandler({

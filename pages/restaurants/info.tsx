@@ -8,8 +8,11 @@ import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import useSWR from "swr";
 import * as yup from "yup";
-import { IPutSubscriptionInfoBody } from "../api/v1/restaurant/info";
+import { IPutSubscriptionInfoBody } from "@/pages/api/v1/restaurant/info";
 import { useRouter } from "next/router";
+import { getInputFormCls } from "@/utils/cssHelper";
+import { RESTAURANT_INFO } from "@/constants/errorMessage";
+import LoadingOverlay from "@/components/LoadingOverlay";
 
 interface IAddress {
   address1: string;
@@ -31,29 +34,37 @@ interface ZipcodeApiResponse {
 const schema = yup.object().shape({
   name: yup
     .string()
-    .required("Restaurant Name is required")
-    .max(30, "Restaurant Name should be at most 30 characters")
-    .matches(/^\s*\w.*$/, "No special characters allowed"),
+    .required(RESTAURANT_INFO.NAME_REQUIRED)
+    .max(30, RESTAURANT_INFO.NAME_MAX)
+    .matches(
+      /^(?=.*\S)[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\w\s-]*$/,
+      RESTAURANT_INFO.NAME_SPECIAL_CHAR
+    ),
   branch: yup
     .string()
-    .required("Branch Name is required")
-    .matches(/^\s*\w.*$/, "No special characters allowed"),
+    .required(RESTAURANT_INFO.BRANCH_REQUIRED)
+    .max(30, RESTAURANT_INFO.BRANCH_MAX)
+    .matches(
+      /^(?=.*\S)[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\w\s-]*$/,
+      RESTAURANT_INFO.BRANCH_SPECIAL_CHAR
+    ),
   phoneNumber: yup
     .string()
-    .matches(/^0\d{9,10}$/, "Must be a valid phone number"),
+    .required(RESTAURANT_INFO.PHONE_REQUIRED)
+    .matches(/^0\d{9,10}$/, RESTAURANT_INFO.PHONE_INVALID),
   postCode: yup
     .string()
-    .required("Post Code is required")
-    .max(7, "Post Code should be at most 7 characters")
-    .matches(/^\d{7}$/, "Must be a valid post code"),
+    .required(RESTAURANT_INFO.POST_CODE_REQUIRED)
+    .max(7, RESTAURANT_INFO.POST_CODE_MAX)
+    .matches(/^\d{7}$/, RESTAURANT_INFO.POST_CODE_INVALID),
   address: yup.string(),
   restAddress: yup
     .string()
-    .required("Rest Address is required")
-    .max(50, "Rest Address should be at most 50 characters")
+    .required(RESTAURANT_INFO.REST_ADDRESS_REQUIRED)
+    .max(50, RESTAURANT_INFO.REST_ADDRESS_MAX)
     .matches(
       /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF a-zA-Z0-9\s,.'-]*$/,
-      "No special characters allowed other than address characters"
+      RESTAURANT_INFO.REST_ADDRESS_SPECIAL_CHAR
     ),
 });
 
@@ -62,22 +73,36 @@ export default function RestaurantInfo() {
     register,
     handleSubmit,
     setValue,
+    setError,
     watch,
     resetField,
-    formState: { errors, isValid, isSubmitting, touchedFields, isSubmitted },
+    formState: { errors, isValid, isSubmitting, touchedFields },
   } = useForm({
     resolver: yupResolver(schema),
     mode: "onChange",
   });
   const watchFields = watch();
   const { addToast } = useToast();
-  const { data, isLoading } = useSWR<ZipcodeApiResponse>(
+  const {
+    data: postCodeResult,
+    error: postCodeErr,
+    isLoading,
+  } = useSWR<ZipcodeApiResponse>(
     !errors.postCode &&
       watchFields.postCode &&
       watchFields.postCode.length === 7
       ? `https://zip-cloud.appspot.com/api/search?zipcode=${watchFields.postCode}`
       : null,
     { keepPreviousData: true }
+  );
+  const { data: checkDuplicatePhoneNumberResult } = useSWR<{
+    isDuplicate: boolean;
+  }>(
+    !errors.phoneNumber &&
+      watchFields.phoneNumber &&
+      watchFields.phoneNumber.length >= 10
+      ? `/api/v1/restaurant/check-phone-number/${watchFields.phoneNumber}`
+      : null
   );
   const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
     useMutation<Restaurant, IPutSubscriptionInfoBody>(
@@ -88,7 +113,7 @@ export default function RestaurantInfo() {
   const router = useRouter();
 
   const handleSubmitRestaurantInfo = async (formData: FieldValues) => {
-    if (isSubmitted) {
+    if (isSubmitting) {
       return;
     }
     const paramData = formData as IPutSubscriptionInfoBody;
@@ -98,11 +123,28 @@ export default function RestaurantInfo() {
     }
   };
 
+  const checkDuplicatePhoneNumber = async (phoneNumber: string) => {
+    if (!phoneNumber || errors.phoneNumber) {
+      return;
+    }
+
+    if (checkDuplicatePhoneNumberResult?.isDuplicate) {
+      setError("phoneNumber", {
+        type: "manual",
+        message: RESTAURANT_INFO.PHONE_DUPLICATE,
+      });
+      addToast("error", RESTAURANT_INFO.PHONE_DUPLICATE);
+    }
+  };
+
   useEffect(() => {
     if (upsertRestaurantInfoErr) {
       addToast("error", upsertRestaurantInfoErr.message);
     }
-  }, [upsertRestaurantInfoErr]);
+    if (postCodeErr) {
+      addToast("error", postCodeErr.message);
+    }
+  }, [upsertRestaurantInfoErr, postCodeErr]);
 
   useEffect(() => {
     if (errors.postCode) {
@@ -113,22 +155,22 @@ export default function RestaurantInfo() {
   useEffect(() => {
     if (isLoading) {
       setAddressValue("Loading...");
-    } else if (data?.results && data.results.length > 0) {
+    } else if (postCodeResult?.results && postCodeResult.results.length > 0) {
       const addressResult = [
-        data.results[0].address1,
-        data.results[0].address2,
-        data.results[0].address3,
+        postCodeResult.results[0].address1,
+        postCodeResult.results[0].address2,
+        postCodeResult.results[0].address3,
       ]
         .join(" ")
         .trim();
       setAddressValue(addressResult);
       setValue("address", addressResult);
-    } else if (!isLoading && data?.results === null) {
+    } else if (!isLoading && postCodeResult?.results === null) {
       setAddressValue("");
       addToast("error", "Post Code not found, Please try again");
       resetField("address");
     }
-  }, [data, setValue, isLoading]);
+  }, [postCodeResult, setValue, isLoading]);
 
   return (
     <Layout>
@@ -136,6 +178,7 @@ export default function RestaurantInfo() {
         steps={["Info", "Hours", "Tables", "Menus", "Complete"]}
         currentStep="Info"
       />
+      {isSubmitting && <LoadingOverlay />}
       <div className="container px-4 py-8 mx-auto">
         <h1 className="mb-4 text-2xl font-semibold">
           Enter basic information about the restaurant
@@ -147,14 +190,14 @@ export default function RestaurantInfo() {
           <div className="mb-4">
             <label className="block mb-2">Restaurant Name</label>
             <input
-              className={`w-full p-2 border ${
-                errors.name
-                  ? "border-red-500"
-                  : touchedFields.name && watchFields.name
-                  ? "border-green-500"
-                  : "border-gray-400"
-              } rounded`}
+              className={getInputFormCls(
+                "w-full p-2 border",
+                errors.name,
+                touchedFields.name,
+                watchFields.name
+              )}
               type="text"
+              maxLength={30}
               {...register("name")}
             />
             {errors.name && (
@@ -166,14 +209,14 @@ export default function RestaurantInfo() {
           <div className="mb-4">
             <label className="block mb-2">Branch Name</label>
             <input
-              className={`w-full p-2 border ${
-                errors.branch
-                  ? "border-red-500"
-                  : touchedFields.branch && watchFields.branch
-                  ? "border-green-500"
-                  : "border-gray-400"
-              } rounded`}
+              className={getInputFormCls(
+                "w-full p-2 border",
+                errors.branch,
+                touchedFields.branch,
+                watchFields.branch
+              )}
               type="text"
+              maxLength={30}
               {...register("branch")}
             />
             {errors.branch && (
@@ -190,13 +233,15 @@ export default function RestaurantInfo() {
               className={`w-full p-2 border ${
                 errors.phoneNumber
                   ? "border-red-500"
-                  : touchedFields.phoneNumber && watchFields.phoneNumber
+                  : watchFields.phoneNumber &&
+                    checkDuplicatePhoneNumberResult?.isDuplicate === false
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
               type="tel"
               maxLength={11}
               {...register("phoneNumber")}
+              onBlur={(e) => checkDuplicatePhoneNumber(e.target.value)}
             />
             {errors.phoneNumber && (
               <span className="text-red-500">
@@ -210,11 +255,11 @@ export default function RestaurantInfo() {
           <div className="mb-4">
             <input
               className={`w-full p-2 border ${
-                errors.postCode || data?.results === null
+                errors.postCode || postCodeResult?.results === null
                   ? "border-red-500"
                   : touchedFields.postCode &&
                     watchFields.postCode &&
-                    data?.results !== null
+                    postCodeResult?.results !== null
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
@@ -227,7 +272,7 @@ export default function RestaurantInfo() {
                 {errors.postCode?.message as string}
               </span>
             )}
-            {data?.results === null && (
+            {postCodeResult?.results === null && (
               <span className="text-red-500">
                 Post Code not found, Please try again
               </span>
@@ -236,13 +281,12 @@ export default function RestaurantInfo() {
           <div className="mb-4">
             <label className="block mb-2">Address</label>
             <input
-              className={`w-full p-2 border ${
-                errors.address
-                  ? "border-red-500"
-                  : watchFields.address
-                  ? "border-green-500"
-                  : "border-gray-400"
-              } rounded`}
+              className={getInputFormCls(
+                "w-full p-2 border",
+                errors.address,
+                touchedFields.address,
+                watchFields.address
+              )}
               type="text"
               value={addressValue}
               {...register("address")}
@@ -257,14 +301,14 @@ export default function RestaurantInfo() {
           <div className="mb-4">
             <label className="block mb-2">Rest of the Address</label>
             <input
-              className={`w-full p-2 border ${
-                errors.restAddress
-                  ? "border-red-500"
-                  : touchedFields.restAddress && watchFields.restAddress
-                  ? "border-green-500"
-                  : "border-gray-400"
-              } rounded`}
+              className={getInputFormCls(
+                "w-full p-2 border",
+                errors.restAddress,
+                touchedFields.restAddress,
+                watchFields.restAddress
+              )}
               type="text"
+              maxLength={100}
               {...register("restAddress")}
             />
             {errors.restAddress && (
@@ -275,13 +319,21 @@ export default function RestaurantInfo() {
           </div>
           <button
             className={`p-2 text-white bg-green-600 rounded ${
-              isValid && !isSubmitting && !isLoading && data?.results !== null
+              isValid &&
+              !isSubmitting &&
+              !isLoading &&
+              postCodeResult?.results !== null &&
+              checkDuplicatePhoneNumberResult?.isDuplicate === false
                 ? "hover:bg-green-700"
                 : "opacity-60 cursor-not-allowed"
             }}`}
             type="submit"
             disabled={
-              !isValid || isSubmitting || isLoading || data?.results === null
+              !isValid ||
+              isSubmitting ||
+              isLoading ||
+              postCodeResult?.results === null ||
+              checkDuplicatePhoneNumberResult?.isDuplicate
             }
           >
             NEXT

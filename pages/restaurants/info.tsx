@@ -1,18 +1,29 @@
 import Layout from "@/components/Layout";
+import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
+import { RESTAURANT_INFO } from "@/constants/errorMessage";
+import { getRestaurant } from "@/database";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
+import { IPutSubscriptionInfoBody } from "@/pages/api/v1/restaurant/info";
+import { getInputFormCls } from "@/utils/cssHelper";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Restaurant } from "@prisma/client";
+import { GetServerSidePropsContext } from "next";
+import { Session, getServerSession } from "next-auth";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { FieldValues, useForm } from "react-hook-form";
+import { FieldErrors, FieldValues, useForm } from "react-hook-form";
 import useSWR from "swr";
 import * as yup from "yup";
-import { IPutSubscriptionInfoBody } from "@/pages/api/v1/restaurant/info";
-import { useRouter } from "next/router";
-import { getInputFormCls } from "@/utils/cssHelper";
-import { RESTAURANT_INFO } from "@/constants/errorMessage";
-import LoadingOverlay from "@/components/LoadingOverlay";
+import { authOptions } from "../api/auth/[...nextauth]";
+import { useConfirm } from "@/hooks/useConfirm";
+import { isFormChanged } from "@/utils/formHelper";
+
+type RestaurantInfoProps = {
+  restaurantInfo: Restaurant;
+  initErr: Error;
+};
 
 interface IAddress {
   address1: string;
@@ -68,13 +79,17 @@ const schema = yup.object().shape({
     ),
 });
 
-export default function RestaurantInfo() {
+export default function RestaurantInfo({
+  restaurantInfo,
+  initErr,
+}: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
     setValue,
     setError,
     watch,
+    getValues,
     resetField,
     formState: { errors, isValid, isSubmitting, touchedFields },
   } = useForm({
@@ -82,49 +97,110 @@ export default function RestaurantInfo() {
     mode: "onChange",
   });
   const watchFields = watch();
-  const { addToast } = useToast();
-  const {
-    data: postCodeResult,
-    error: postCodeErr,
-    isLoading,
-  } = useSWR<ZipcodeApiResponse>(
-    !errors.postCode &&
-      watchFields.postCode &&
-      watchFields.postCode.length === 7
-      ? `https://zip-cloud.appspot.com/api/search?zipcode=${watchFields.postCode}`
-      : null,
-    { keepPreviousData: true }
+  const allFormData = getValues();
+  const useCheckPostCode = (
+    postCode: FieldValues,
+    errors: FieldErrors<FieldValues>
+  ) => {
+    const {
+      data: postCodeResult,
+      error: postCodeErr,
+      isLoading,
+    } = useSWR<ZipcodeApiResponse>(
+      !errors.postCode && postCode && postCode.length === 7
+        ? `https://zip-cloud.appspot.com/api/search?zipcode=${postCode}`
+        : null,
+      { keepPreviousData: true }
+    );
+
+    return { postCodeResult, postCodeErr, isLoading };
+  };
+  const useCheckDuplicatePhoneNumber = (
+    phoneNumber: FieldValues,
+    errors: FieldErrors<FieldValues>
+  ) => {
+    const {
+      data: checkDuplicatePhoneNumberResult,
+      error: checkDuplicatePhoneNumberErr,
+    } = useSWR<{
+      isDuplicate: boolean;
+    }>(
+      !errors.phoneNumber && phoneNumber && phoneNumber.length >= 10
+        ? `/api/v1/restaurant/check-phone-number/${phoneNumber}`
+        : null
+    );
+
+    return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
+  };
+  const { postCodeResult, postCodeErr, isLoading } = useCheckPostCode(
+    watchFields.postCode,
+    errors
   );
-  const { data: checkDuplicatePhoneNumberResult } = useSWR<{
-    isDuplicate: boolean;
-  }>(
-    !errors.phoneNumber &&
-      watchFields.phoneNumber &&
-      watchFields.phoneNumber.length >= 10
-      ? `/api/v1/restaurant/check-phone-number/${watchFields.phoneNumber}`
-      : null
-  );
+  const { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr } =
+    useCheckDuplicatePhoneNumber(watchFields.phoneNumber, errors);
   const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
     useMutation<Restaurant, IPutSubscriptionInfoBody>(
       "/api/v1/restaurant/info",
       "PUT"
     );
+  const { addToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [addressValue, setAddressValue] = useState("");
   const router = useRouter();
 
-  const handleSubmitRestaurantInfo = async (formData: FieldValues) => {
-    if (isSubmitting) {
+  const updateConfirm = (formData: FieldValues) => {
+    if (isSubmitting || !isValid) {
       return;
     }
+
+    if (!isFormChanged(restaurantInfo, formData)) {
+      addToast("info", "変更したい内容を入力してください");
+      return;
+    }
+
+    showConfirm({
+      title: "店舗情報の更新",
+      message: "変更内容を保存しますか？",
+      onConfirm: () => handleSubmitRestaurantInfo(formData),
+    });
+  };
+
+  const handleSubmitRestaurantInfo = async (formData: FieldValues) => {
+    if (isSubmitting || !isValid) {
+      return;
+    }
+
     const paramData = formData as IPutSubscriptionInfoBody;
     const resultData = await upsertRestaurantInfo(paramData);
     if (resultData) {
-      router.push("/restaurants/hours");
+      await router.push("/restaurants/hours");
+      addToast(
+        "info",
+        restaurantInfo
+          ? "店舗情報を正常に更新しました"
+          : "店舗情報を正常に登録しました"
+      );
     }
+  };
+
+  const handleClickNextBtn = () => {
+    if (!isFormChanged(restaurantInfo, allFormData)) {
+      router.push("/restaurants/hours");
+      return;
+    }
+
+    showConfirm({
+      title: "更新内容の破棄",
+      message: "変更した内容が破棄されます。よろしいでしょうか？",
+      onConfirm: () => router.push("/restaurants/hours"),
+    });
   };
 
   const checkDuplicatePhoneNumber = async (phoneNumber: string) => {
     if (!phoneNumber || errors.phoneNumber) {
+      return;
+    }
+    if (restaurantInfo?.phoneNumber === phoneNumber) {
       return;
     }
 
@@ -137,25 +213,68 @@ export default function RestaurantInfo() {
     }
   };
 
+  // Setting restaurantInfo to form (If already exists)
+  useEffect(() => {
+    if (restaurantInfo) {
+      setValue("name", restaurantInfo.name, { shouldTouch: true });
+      setValue("branch", restaurantInfo.branch, { shouldTouch: true });
+      setValue("phoneNumber", restaurantInfo.phoneNumber, {
+        shouldTouch: true,
+      });
+      setValue("postCode", restaurantInfo.postCode, { shouldTouch: true });
+      setValue("address", restaurantInfo.address, { shouldTouch: true });
+      setValue("restAddress", restaurantInfo.restAddress, {
+        shouldTouch: true,
+      });
+    }
+  }, [restaurantInfo]);
+
+  // If error occurs when SSR, reload the page
+  useEffect(() => {
+    if (initErr) {
+      addToast("error", initErr.message);
+      router.reload();
+    }
+  }, [initErr]);
+
+  // Handles any errors related to upsertRestaurantInfo
   useEffect(() => {
     if (upsertRestaurantInfoErr) {
       addToast("error", upsertRestaurantInfoErr.message);
     }
+  }, [upsertRestaurantInfoErr]);
+
+  // Handles any errors related to postCode
+  useEffect(() => {
     if (postCodeErr) {
       addToast("error", postCodeErr.message);
     }
-  }, [upsertRestaurantInfoErr, postCodeErr]);
+  }, [postCodeErr]);
 
+  // Handles any errors related to checkDuplicatePhoneNumber
+  useEffect(() => {
+    if (checkDuplicatePhoneNumberErr) {
+      addToast("error", checkDuplicatePhoneNumberErr.message);
+    }
+  }, [checkDuplicatePhoneNumberErr]);
+
+  // Resets the 'address' field when 'postCode' field has an error
   useEffect(() => {
     if (errors.postCode) {
       resetField("address");
     }
   }, [errors.postCode]);
 
+  // Handle the loading state
   useEffect(() => {
     if (isLoading) {
       setAddressValue("Loading...");
-    } else if (postCodeResult?.results && postCodeResult.results.length > 0) {
+    }
+  }, [isLoading]);
+
+  // Handle the case where we have results
+  useEffect(() => {
+    if (postCodeResult?.results && postCodeResult.results.length > 0) {
       const addressResult = [
         postCodeResult.results[0].address1,
         postCodeResult.results[0].address2,
@@ -164,13 +283,18 @@ export default function RestaurantInfo() {
         .join(" ")
         .trim();
       setAddressValue(addressResult);
-      setValue("address", addressResult);
-    } else if (!isLoading && postCodeResult?.results === null) {
+      setValue("address", addressResult, { shouldValidate: true });
+    }
+  }, [postCodeResult]);
+
+  // Handle the case where no results were found
+  useEffect(() => {
+    if (!isLoading && postCodeResult?.results === null) {
       setAddressValue("");
       addToast("error", "Post Code not found, Please try again");
       resetField("address");
     }
-  }, [postCodeResult, setValue, isLoading]);
+  }, [isLoading, postCodeResult]);
 
   return (
     <Layout>
@@ -186,7 +310,11 @@ export default function RestaurantInfo() {
         <p className="mb-6">
           This page helps you enter basic information about your restaurant.
         </p>
-        <form onSubmit={handleSubmit(handleSubmitRestaurantInfo)}>
+        <form
+          onSubmit={handleSubmit(
+            restaurantInfo ? updateConfirm : handleSubmitRestaurantInfo
+          )}
+        >
           <div className="mb-4">
             <label className="block mb-2">Restaurant Name</label>
             <input
@@ -234,7 +362,8 @@ export default function RestaurantInfo() {
                 errors.phoneNumber
                   ? "border-red-500"
                   : watchFields.phoneNumber &&
-                    checkDuplicatePhoneNumberResult?.isDuplicate === false
+                    (restaurantInfo?.phoneNumber === watchFields.phoneNumber ||
+                      checkDuplicatePhoneNumberResult?.isDuplicate === false)
                   ? "border-green-500"
                   : "border-gray-400"
               } rounded`}
@@ -323,7 +452,8 @@ export default function RestaurantInfo() {
               !isSubmitting &&
               !isLoading &&
               postCodeResult?.results !== null &&
-              checkDuplicatePhoneNumberResult?.isDuplicate === false
+              (checkDuplicatePhoneNumberResult?.isDuplicate === false ||
+                restaurantInfo?.phoneNumber === watchFields.phoneNumber)
                 ? "hover:bg-green-700"
                 : "opacity-60 cursor-not-allowed"
             }}`}
@@ -333,13 +463,63 @@ export default function RestaurantInfo() {
               isSubmitting ||
               isLoading ||
               postCodeResult?.results === null ||
-              checkDuplicatePhoneNumberResult?.isDuplicate
+              (checkDuplicatePhoneNumberResult?.isDuplicate &&
+                restaurantInfo?.phoneNumber !== watchFields.phoneNumber)
             }
           >
-            NEXT
+            {restaurantInfo ? "Edit" : "Next"}
           </button>
+          {restaurantInfo && (
+            <button
+              className="p-2 ml-2 text-white rounded bg-sky-600 hover:bg-sky-700"
+              type="button"
+              onClick={handleClickNextBtn}
+            >
+              Next
+            </button>
+          )}
         </form>
       </div>
     </Layout>
   );
+}
+
+export async function getServerSideProps(ctx: GetServerSidePropsContext) {
+  try {
+    const session: Session | null = await getServerSession(
+      ctx.req,
+      ctx.res,
+      authOptions
+    );
+
+    if (!session) {
+      return {
+        redirect: {
+          destination: "/auth/signin?error=Unauthorized",
+          permanent: false,
+        },
+      };
+    }
+
+    const restaurantInfo = await getRestaurant(session.id);
+    if (restaurantInfo) {
+      return {
+        props: {
+          restaurantInfo,
+        },
+      };
+    }
+
+    return {
+      props: {},
+    };
+  } catch (err) {
+    // TODO: send error to sentry
+    console.log(err);
+    return {
+      props: {
+        initErr: err,
+      },
+    };
+  }
 }

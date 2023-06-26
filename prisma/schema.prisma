@@ -116,8 +116,10 @@ model Restaurant {
   userId      String  @map("user_id") @unique
   name        String?
   address     String?
-  phoneNumber Int? @map("phone_number")
+  restAddress String? @map("rest_address")
   branch      String?
+  postCode    String? @map("post_code")
+  phoneNumber String? @map("phone_number") @unique
   template    Int? @default(0)
   startTime   String? @map("start_time")
   endTime     String? @map("end_time")

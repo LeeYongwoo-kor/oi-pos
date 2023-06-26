@@ -31,7 +31,22 @@ export async function getRestaurant(
     "getRestaurant"
   );
 
-  return restaurant;
+  return restaurant ? convertDatesToISOString(restaurant) : null;
+}
+
+export async function getAllRestaurantPhoneNumbers(): Promise<
+  { phoneNumber: string | null }[]
+> {
+  const phoneNumbers = await prismaRequestHandler(
+    prisma.restaurant.findMany({
+      select: {
+        phoneNumber: true,
+      },
+    }),
+    "getAllRestaurantPhoneNumbers"
+  );
+
+  return phoneNumbers;
 }
 
 export async function getAllRestaurants(): Promise<Restaurant[] | null> {
@@ -52,7 +67,7 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
     "createRestaurant"
   );
 
-  return newRestaurant;
+  return convertDatesToISOString(newRestaurant);
 }
 
 export async function upsertRestaurantInfo(

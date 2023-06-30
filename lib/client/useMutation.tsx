@@ -44,7 +44,7 @@ type UseMutationOptions = {
  *  if (error) addToast("error", error.message); // ... handle error
  * }
  */
-export default function useMutation<T = any, U = any>(
+export default function useMutation<T, U>(
   baseUrl: string,
   method: Exclude<Method, "GET"> = "POST"
 ): UseMutationResult<T, U> {
@@ -80,7 +80,7 @@ export default function useMutation<T = any, U = any>(
       const responseData = await fetchDataWithRetry();
 
       if (isMutate) {
-        mutate(url, responseData, false);
+        await mutate(url, responseData, false);
       }
 
       setState({ loading: false, data: responseData, error: null });

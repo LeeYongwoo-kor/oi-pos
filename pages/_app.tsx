@@ -1,18 +1,32 @@
+import Loader from "@/components/Loader";
 import AuthenticationHandler from "@/components/handlers/AuthenticationHandler";
 import MessageContainer from "@/components/ui/Message";
 import ToastContainer from "@/components/ui/Toast";
 import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants";
 import { CustomErrorType } from "@/lib/shared/CustomError";
 import { ErrorProvider } from "@/providers/ErrorContext";
+import { LoadingProvider, useLoading } from "@/providers/LoadingContext";
 import { NavigationProvider } from "@/providers/NavigationContext";
 import "@/styles/globals.css";
+import { LocalizationProvider } from "@mui/x-date-pickers";
 import { SessionProvider } from "next-auth/react";
 import type { AppProps } from "next/app";
 import ReactModal from "react-modal";
 import { RecoilRoot } from "recoil";
 import { SWRConfig } from "swr";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
 ReactModal.setAppElement("#__next");
+
+export async function fetcher<T>(url: string): Promise<T> {
+  return fetch(url).then(async (res) => {
+    if (!res.ok) {
+      const errorMessage: CustomErrorType = await res.json();
+      throw errorMessage;
+    }
+    return res.json();
+  });
+}
 
 export default function App({
   Component,
@@ -21,47 +35,54 @@ export default function App({
   return (
     <RecoilRoot>
       <ErrorProvider>
-        <SWRConfig
-          value={{
-            fetcher: (url: string) =>
-              fetch(url).then(async (res) => {
-                if (!res.ok) {
-                  const errorMessage: CustomErrorType = await res.json();
-                  throw errorMessage;
-                }
-                return res.json();
-              }),
-            onErrorRetry(
-              err: CustomErrorType,
-              key,
-              config,
-              revalidate,
-              { retryCount }
-            ) {
-              // Never retry on not 5xx errors
-              if (!String(err?.statusCode).startsWith("5")) return;
+        <LoadingProvider>
+          <SWRConfig
+            value={{
+              fetcher,
+              onErrorRetry(
+                err: CustomErrorType,
+                key,
+                config,
+                revalidate,
+                { retryCount }
+              ) {
+                // Never retry on not 5xx errors
+                if (!String(err?.statusCode).startsWith("5")) return;
 
-              // Never retry on /api/v1/users/me
-              if (key === "/api/v1/users/me") return;
+                // Never retry on /api/v1/users/me
+                if (key === "/api/v1/users/me") return;
 
-              // Only retry up to 5 times
-              if (retryCount >= ERROR_RETRY_COUNT) return;
+                // Only retry up to 5 times
+                if (retryCount >= ERROR_RETRY_COUNT) return;
 
-              // Retry after 1 second
-              setTimeout(() => revalidate({ retryCount }), ERROR_RETRY_DELAY);
-            },
-          }}
-        >
-          <SessionProvider session={session}>
-            <AuthenticationHandler />
-            <NavigationProvider>
-              <Component {...pageProps} />
-              <ToastContainer />
-              <MessageContainer />
-            </NavigationProvider>
-          </SessionProvider>
-        </SWRConfig>
+                // Retry after 1 second
+                setTimeout(() => revalidate({ retryCount }), ERROR_RETRY_DELAY);
+              },
+            }}
+          >
+            <SessionProvider session={session}>
+              <AuthenticationHandler />
+              <PageComponent Component={Component} pageProps={pageProps} />
+            </SessionProvider>
+          </SWRConfig>
+        </LoadingProvider>
       </ErrorProvider>
     </RecoilRoot>
   );
 }
+
+const PageComponent = ({ Component, pageProps }: AppProps) => {
+  const [loading] = useLoading();
+
+  return loading ? (
+    <Loader />
+  ) : (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <NavigationProvider>
+        <Component {...pageProps} />
+        <ToastContainer />
+        <MessageContainer />
+      </NavigationProvider>
+    </LocalizationProvider>
+  );
+};

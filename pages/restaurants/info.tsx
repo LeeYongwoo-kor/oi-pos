@@ -79,6 +79,41 @@ const schema = yup.object().shape({
     ),
 });
 
+const useCheckPostCode = (
+  postCode: FieldValues,
+  errors: FieldErrors<FieldValues>
+) => {
+  const {
+    data: postCodeResult,
+    error: postCodeErr,
+    isLoading: checkPostCodeLoading,
+  } = useSWR<ZipcodeApiResponse>(
+    !errors.postCode && postCode && postCode.length === 7
+      ? `https://zip-cloud.appspot.com/api/search?zipcode=${postCode}`
+      : null,
+    { keepPreviousData: true }
+  );
+
+  return { postCodeResult, postCodeErr, checkPostCodeLoading };
+};
+const useCheckDuplicatePhoneNumber = (
+  phoneNumber: FieldValues,
+  errors: FieldErrors<FieldValues>
+) => {
+  const {
+    data: checkDuplicatePhoneNumberResult,
+    error: checkDuplicatePhoneNumberErr,
+  } = useSWR<{
+    isDuplicate: boolean;
+  }>(
+    !errors.phoneNumber && phoneNumber && phoneNumber.length >= 10
+      ? `/api/v1/restaurant/check-phone-number/${phoneNumber}`
+      : null
+  );
+
+  return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
+};
+
 export default function RestaurantInfo({
   restaurantInfo,
   initErr,
@@ -98,44 +133,9 @@ export default function RestaurantInfo({
   });
   const watchFields = watch();
   const allFormData = getValues();
-  const useCheckPostCode = (
-    postCode: FieldValues,
-    errors: FieldErrors<FieldValues>
-  ) => {
-    const {
-      data: postCodeResult,
-      error: postCodeErr,
-      isLoading,
-    } = useSWR<ZipcodeApiResponse>(
-      !errors.postCode && postCode && postCode.length === 7
-        ? `https://zip-cloud.appspot.com/api/search?zipcode=${postCode}`
-        : null,
-      { keepPreviousData: true }
-    );
 
-    return { postCodeResult, postCodeErr, isLoading };
-  };
-  const useCheckDuplicatePhoneNumber = (
-    phoneNumber: FieldValues,
-    errors: FieldErrors<FieldValues>
-  ) => {
-    const {
-      data: checkDuplicatePhoneNumberResult,
-      error: checkDuplicatePhoneNumberErr,
-    } = useSWR<{
-      isDuplicate: boolean;
-    }>(
-      !errors.phoneNumber && phoneNumber && phoneNumber.length >= 10
-        ? `/api/v1/restaurant/check-phone-number/${phoneNumber}`
-        : null
-    );
-
-    return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
-  };
-  const { postCodeResult, postCodeErr, isLoading } = useCheckPostCode(
-    watchFields.postCode,
-    errors
-  );
+  const { postCodeResult, postCodeErr, checkPostCodeLoading } =
+    useCheckPostCode(watchFields.postCode, errors);
   const { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr } =
     useCheckDuplicatePhoneNumber(watchFields.phoneNumber, errors);
   const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
@@ -267,10 +267,10 @@ export default function RestaurantInfo({
 
   // Handle the loading state
   useEffect(() => {
-    if (isLoading) {
+    if (checkPostCodeLoading) {
       setAddressValue("Loading...");
     }
-  }, [isLoading]);
+  }, [checkPostCodeLoading]);
 
   // Handle the case where we have results
   useEffect(() => {
@@ -289,12 +289,12 @@ export default function RestaurantInfo({
 
   // Handle the case where no results were found
   useEffect(() => {
-    if (!isLoading && postCodeResult?.results === null) {
+    if (!checkPostCodeLoading && postCodeResult?.results === null) {
       setAddressValue("");
       addToast("error", "Post Code not found, Please try again");
       resetField("address");
     }
-  }, [isLoading, postCodeResult]);
+  }, [checkPostCodeLoading, postCodeResult]);
 
   return (
     <Layout>
@@ -450,7 +450,7 @@ export default function RestaurantInfo({
             className={`p-2 text-white bg-green-600 rounded ${
               isValid &&
               !isSubmitting &&
-              !isLoading &&
+              !checkPostCodeLoading &&
               postCodeResult?.results !== null &&
               (checkDuplicatePhoneNumberResult?.isDuplicate === false ||
                 restaurantInfo?.phoneNumber === watchFields.phoneNumber)
@@ -461,7 +461,7 @@ export default function RestaurantInfo({
             disabled={
               !isValid ||
               isSubmitting ||
-              isLoading ||
+              checkPostCodeLoading ||
               postCodeResult?.results === null ||
               (checkDuplicatePhoneNumberResult?.isDuplicate &&
                 restaurantInfo?.phoneNumber !== watchFields.phoneNumber)

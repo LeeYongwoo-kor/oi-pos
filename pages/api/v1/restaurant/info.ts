@@ -1,13 +1,19 @@
 import { Method } from "@/constants/fetch";
-import { UpsertRestaurantInfoParams, upsertRestaurantInfo } from "@/database";
+import {
+  UpsertRestaurantInfoParams,
+  updateRestaurantInfo,
+  upsertRestaurantInfo,
+} from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { UnauthorizedError } from "@/lib/shared/ApiError";
+import { Restaurant } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 
-export type IPutSubscriptionInfoBody = Omit<
-  UpsertRestaurantInfoParams,
-  "userId"
+export type IPutRestaurantInfoBody = Omit<UpsertRestaurantInfoParams, "userId">;
+
+export type IPatchRestaurantInfoBody = Pick<
+  Restaurant,
+  "startTime" | "endTime" | "holidays" | "lastOrder"
 >;
 
 async function handler(
@@ -15,20 +21,26 @@ async function handler(
   res: NextApiResponse,
   session?: Session | null
 ) {
-  if (!session) {
-    throw new UnauthorizedError("Unauthorized. You must be signed in");
+  if (req.method === Method.PUT) {
+    const body: IPutRestaurantInfoBody = req.body;
+    const upsertSubscription = await upsertRestaurantInfo({
+      userId: session?.id,
+      ...body,
+    });
+
+    return res.status(200).json(upsertSubscription);
   }
 
-  const body: IPutSubscriptionInfoBody = req.body;
-  const upsertSubscription = await upsertRestaurantInfo({
-    userId: session?.id,
-    ...body,
-  });
+  if (req.method === Method.PATCH) {
+    const body: IPatchRestaurantInfoBody = req.body;
+    const upsertSubscription =
+      await updateRestaurantInfo<IPatchRestaurantInfoBody>(session?.id, body);
 
-  return res.status(200).json(upsertSubscription);
+    return res.status(200).json(upsertSubscription);
+  }
 }
 
 export default withApiHandler({
-  methods: ["PUT"],
+  methods: ["PUT", "PATCH"],
   handler,
 });

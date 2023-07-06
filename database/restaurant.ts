@@ -104,3 +104,32 @@ export async function upsertRestaurantInfo(
 
   return convertDatesToISOString(newRestaurantInfo);
 }
+
+export async function updateRestaurantInfo<
+  T extends Partial<Omit<Restaurant, "id">>
+>(userId: string | null | undefined, restaurantInfo: T): Promise<Restaurant> {
+  const { hasNullUndefined } = checkNullUndefined(restaurantInfo);
+
+  if (!userId || hasNullUndefined) {
+    throw new ValidationError(
+      "Failed to update restaurant info. Please try again later."
+    );
+  }
+
+  const updateInfo = {
+    ...restaurantInfo,
+    holidays: JSON.stringify(restaurantInfo.holidays),
+  };
+
+  const newRestaurantInfo = await prismaRequestHandler(
+    prisma.restaurant.update({
+      where: {
+        userId,
+      },
+      data: updateInfo,
+    }),
+    "updateRestaurantInfo"
+  );
+
+  return convertDatesToISOString(newRestaurantInfo);
+}

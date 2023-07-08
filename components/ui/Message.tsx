@@ -1,6 +1,6 @@
 import { messageLoadingState, messageState } from "@/hooks/state/messageState";
 import { joinCls } from "@/utils/cssHelper";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useRecoilState, useResetRecoilState } from "recoil";
 
 export interface UseMessageReturn {
@@ -8,8 +8,11 @@ export interface UseMessageReturn {
   title: string;
   message: string;
   type: "alert" | "confirm";
+  confirmText?: string;
+  cancelText?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
+  onClose?: () => void;
 }
 
 interface MessageProps extends UseMessageReturn {
@@ -22,9 +25,31 @@ const Message = ({
   type,
   isOpen,
   loading,
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
+  onClose,
 }: MessageProps) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      dialogRef.current &&
+      !dialogRef.current.contains(event.target as Node)
+    ) {
+      event.preventDefault();
+      onClose?.();
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  });
+
   if (!isOpen) {
     return null;
   }
@@ -32,7 +57,10 @@ const Message = ({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center">
       <div className="absolute inset-0 bg-black opacity-50"></div>
-      <div className="z-50 w-full max-w-md p-6 mx-auto bg-white rounded shadow-lg">
+      <div
+        ref={dialogRef}
+        className="z-50 w-full max-w-md p-6 mx-auto bg-white rounded shadow-lg"
+      >
         <h2 className="mb-4 text-xl font-semibold">{title}</h2>
         <p className="mb-6 text-gray-600">{message}</p>
         <div className="flex justify-end space-x-4">
@@ -46,7 +74,7 @@ const Message = ({
                 : "text-white bg-blue-500 hover:bg-blue-600"
             )}
           >
-            {type === "confirm" ? "Cancel" : "Close"}
+            {cancelText || (type === "confirm" ? "Cancel" : "Close")}
           </button>
           {type === "confirm" && (
             <button
@@ -54,7 +82,7 @@ const Message = ({
               disabled={loading}
               className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
             >
-              Confirm
+              {confirmText || "Confirm"}
             </button>
           )}
         </div>
@@ -90,12 +118,23 @@ function MessageContainer() {
     }
   };
 
+  const handleOnClose = () => {
+    setLoading(true);
+    try {
+      messageConfig.onClose?.();
+    } finally {
+      setLoading(false);
+      resetMessageState();
+    }
+  };
+
   return (
     <Message
       {...messageConfig}
       loading={loading}
       onConfirm={handleConfirm}
       onCancel={handleCancel}
+      onClose={handleOnClose}
     />
   );
 }

@@ -5,7 +5,10 @@ import { UseMessageReturn } from "@/components/ui/Message";
 
 export interface UseAlertReturn {
   showAlert: (
-    config: Omit<UseMessageReturn, "type" | "isOpen" | "onConfirm">
+    config: Omit<
+      UseMessageReturn,
+      "type" | "isOpen" | "onConfirm" | "confirmText"
+    >
   ) => void;
 }
 
@@ -13,7 +16,12 @@ export const useAlert = (): UseAlertReturn => {
   const setMessage = useSetRecoilState(messageState);
 
   const showAlert = useCallback(
-    (config: Omit<UseMessageReturn, "type" | "isOpen" | "onConfirm">) => {
+    (
+      config: Omit<
+        UseMessageReturn,
+        "type" | "isOpen" | "onConfirm" | "confirmText"
+      >
+    ) => {
       if (typeof window === "undefined") {
         return;
       }

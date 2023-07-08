@@ -8,6 +8,8 @@ export const messageState = atom<UseMessageReturn>({
     title: "",
     message: "",
     type: "confirm",
+    confirmText: "",
+    cancelText: "",
   },
 });
 

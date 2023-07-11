@@ -6,7 +6,7 @@ import {
   updatePaymentStatus,
 } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { NotFoundError } from "@/lib/shared/CustomError";
+import { NotFoundError } from "@/lib/shared/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IGetPaymentQuery {

@@ -7,7 +7,7 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
-} from "@/lib/shared/CustomError";
+} from "@/lib/shared/ApiError";
 import checkNullUndefined from "@/utils/checkNullUndefined";
 import { NextApiRequest, NextApiResponse } from "next";
 

@@ -1,6 +1,7 @@
 import { Method } from "@/constants/fetch";
 import { getAllPlans } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
+import { NotFoundError } from "@/lib/shared/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -8,9 +9,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const plans = await getAllPlans();
 
     if (!plans) {
-      return res
-        .status(404)
-        .json({ message: "Failed to get plans information" });
+      throw new NotFoundError("Failed to get plans information");
     }
 
     return res.status(200).json(plans);

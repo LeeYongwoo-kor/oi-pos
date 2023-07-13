@@ -123,7 +123,7 @@ model Restaurant {
   template    Int? @default(0)
   startTime   String? @map("start_time")
   endTime     String? @map("end_time")
-  holidays    String?
+  holidays    Json? @default("[]")
   lastOrder   String? @map("last_order")
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
@@ -138,15 +138,29 @@ model Restaurant {
 model RestaurantTable {
   id          String  @id @default(cuid())
   restaurantId String  @map("restaurant_id")
-  tableNumber  Int? @default(1) @map("table_number")
-  tableType    TableType @default(TABLE) @map("table_type")
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableTypeAssignments TableTypeAssignment[]
 
   @@map("restauranttable")
   @@index([restaurantId])
+}
+
+model TableTypeAssignment {
+  id                String  @id @default(cuid())
+  restaurantTableId String  @map("restaurant_table_id")
+  tableType         TableType @map("table_type")
+  number            Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime? @updatedAt
+
+  tableTypeAssignment RestaurantTable @relation(fields: [restaurantTableId], references: [id], onDelete: Cascade)
+
+  @@map("tabletypeassignment")
+  @@index([restaurantTableId])
+  @@unique([restaurantTableId])
 }
 
 model MenuItem {

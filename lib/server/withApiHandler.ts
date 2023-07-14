@@ -1,9 +1,8 @@
 import {
-  CustomError,
+  ApiError,
   MethodNotAllowedError,
-  NotFoundError,
   UnauthorizedError,
-} from "@/lib/shared/CustomError";
+} from "@/lib/shared/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 import { getSession } from "next-auth/react";
@@ -47,21 +46,25 @@ export default function withApiHandler({
     try {
       await handler(req, res, session);
     } catch (err) {
-      // Not found error is not sent to sentry
-      if (!(err instanceof NotFoundError)) {
-        //TODO: send error to sentry
-        console.error(err);
-      }
+      //TODO: send error to sentry (client side not showing error)
+      console.error(err);
 
-      if (err instanceof CustomError) {
-        if (err.redirectURL) {
-          res.redirect(err.redirectURL);
+      if (err instanceof ApiError) {
+        console.error(
+          `Error in ${handler.name}, Error occurred on endpoint: ${err.endpoint}`
+        );
+        if (err.redirectUrl) {
+          res.redirect(err.redirectUrl);
         }
 
-        return res.status(err.statusCode || 500).json({ message: err.message });
+        return res
+          .status(err.statusCode || 500)
+          .json({ statusCode: err.statusCode || 500, message: err.message });
       }
 
-      return res.status(500).json({ message: "Internal Server Error" });
+      return res
+        .status(500)
+        .json({ statusCode: 500, message: "Internal Server Error" });
     }
   };
 }

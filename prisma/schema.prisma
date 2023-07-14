@@ -156,11 +156,11 @@ model TableTypeAssignment {
   createdAt         DateTime @default(now())
   updatedAt         DateTime? @updatedAt
 
-  tableTypeAssignment RestaurantTable @relation(fields: [restaurantTableId], references: [id], onDelete: Cascade)
+  restaurantTable RestaurantTable @relation(fields: [restaurantTableId], references: [id], onDelete: Cascade)
 
   @@map("tabletypeassignment")
   @@index([restaurantTableId])
-  @@unique([restaurantTableId])
+  @@unique([restaurantTableId, tableType])
 }
 
 model MenuItem {

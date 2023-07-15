@@ -1,6 +1,7 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/CustomError";
+import { ValidationError } from "@/lib/shared/ApiError";
+import convertDatesToISOString from "@/utils/convertDatesToISOString";
 import { RestaurantTable } from "@prisma/client";
 
 export async function getRestaurantTable(
@@ -19,7 +20,7 @@ export async function getRestaurantTable(
     "getRestaurantTable"
   );
 
-  return restaurantTable;
+  return restaurantTable ? convertDatesToISOString(restaurantTable) : null;
 }
 
 export async function getAllRestaurantTables(): Promise<
@@ -44,5 +45,5 @@ export async function createRestaurantTable(
     "createRestaurantTable"
   );
 
-  return newRestaurantTable;
+  return convertDatesToISOString(newRestaurantTable);
 }

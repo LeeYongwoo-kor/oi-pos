@@ -27,15 +27,15 @@ export default function NavigationBar({
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-10 h-16 bg-white shadow-md">
+    <header className="fixed inset-x-0 top-0 z-10 bg-white shadow-md h-14">
       <div className="container flex items-center justify-between h-full px-4 mx-auto">
         {/* Logo */}
         <div className="flex-shrink-0">
           <Image
             src="/logo/yoshi.jpg"
             alt="Yoshi Logo"
-            width={64}
-            height={64}
+            width={56}
+            height={56}
           />
         </div>
 

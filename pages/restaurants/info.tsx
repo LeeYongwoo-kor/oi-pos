@@ -5,7 +5,7 @@ import { RESTAURANT_INFO } from "@/constants/errorMessage";
 import { getRestaurant } from "@/database";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { IPutSubscriptionInfoBody } from "@/pages/api/v1/restaurant/info";
+import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/info";
 import { getInputFormCls } from "@/utils/cssHelper";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Restaurant } from "@prisma/client";
@@ -107,7 +107,7 @@ const useCheckDuplicatePhoneNumber = (
     isDuplicate: boolean;
   }>(
     !errors.phoneNumber && phoneNumber && phoneNumber.length >= 10
-      ? `/api/v1/restaurant/check-phone-number/${phoneNumber}`
+      ? `/api/v1/restaurants/check-phone-number/${phoneNumber}`
       : null
   );
 
@@ -124,7 +124,6 @@ export default function RestaurantInfo({
     setValue,
     setError,
     watch,
-    getValues,
     resetField,
     formState: { errors, isValid, isSubmitting, touchedFields },
   } = useForm({
@@ -132,15 +131,14 @@ export default function RestaurantInfo({
     mode: "onChange",
   });
   const watchFields = watch();
-  const allFormData = getValues();
 
   const { postCodeResult, postCodeErr, checkPostCodeLoading } =
     useCheckPostCode(watchFields.postCode, errors);
   const { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr } =
     useCheckDuplicatePhoneNumber(watchFields.phoneNumber, errors);
   const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
-    useMutation<Restaurant, IPutSubscriptionInfoBody>(
-      "/api/v1/restaurant/info",
+    useMutation<Restaurant, IPutRestaurantInfoBody>(
+      "/api/v1/restaurants/info",
       "PUT"
     );
   const { addToast } = useToast();
@@ -154,14 +152,20 @@ export default function RestaurantInfo({
     }
 
     if (!isFormChanged(restaurantInfo, formData)) {
-      addToast("info", "変更したい内容を入力してください");
+      router.push("/restaurants/hours");
       return;
     }
 
     showConfirm({
       title: "店舗情報の更新",
-      message: "変更内容を保存しますか？",
+      message: "変更された情報があります。変更内容を保存しますか？",
+      confirmText: "保存する",
+      cancelText: "保存しない",
       onConfirm: () => handleSubmitRestaurantInfo(formData),
+      onCancel: () => {
+        router.push("/restaurants/hours");
+        return;
+      },
     });
   };
 
@@ -170,7 +174,7 @@ export default function RestaurantInfo({
       return;
     }
 
-    const paramData = formData as IPutSubscriptionInfoBody;
+    const paramData = formData as IPutRestaurantInfoBody;
     const resultData = await upsertRestaurantInfo(paramData);
     if (resultData) {
       await router.push("/restaurants/hours");
@@ -181,19 +185,6 @@ export default function RestaurantInfo({
           : "店舗情報を正常に登録しました"
       );
     }
-  };
-
-  const handleClickNextBtn = () => {
-    if (!isFormChanged(restaurantInfo, allFormData)) {
-      router.push("/restaurants/hours");
-      return;
-    }
-
-    showConfirm({
-      title: "更新内容の破棄",
-      message: "変更した内容が破棄されます。よろしいでしょうか？",
-      onConfirm: () => router.push("/restaurants/hours"),
-    });
   };
 
   const checkDuplicatePhoneNumber = async (phoneNumber: string) => {
@@ -467,17 +458,8 @@ export default function RestaurantInfo({
                 restaurantInfo?.phoneNumber !== watchFields.phoneNumber)
             }
           >
-            {restaurantInfo ? "Edit" : "Next"}
+            Next
           </button>
-          {restaurantInfo && (
-            <button
-              className="p-2 ml-2 text-white rounded bg-sky-600 hover:bg-sky-700"
-              type="button"
-              onClick={handleClickNextBtn}
-            >
-              Next
-            </button>
-          )}
         </form>
       </div>
     </Layout>
@@ -515,7 +497,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     };
   } catch (err) {
     // TODO: send error to sentry
-    console.log(err);
+    console.error(err);
     return {
       props: {
         initErr: err,

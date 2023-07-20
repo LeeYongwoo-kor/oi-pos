@@ -11,9 +11,9 @@ import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
-import { IPatchRestaurantInfoBody } from "../api/v1/restaurant/info";
+import { IPatchRestaurantInfoBody } from "../api/v1/restaurants/info";
 import { useToast } from "@/hooks/useToast";
-import isEmpty from "@/utils/isEmpty";
+import isEmpty from "@/utils/validation/isEmpty";
 import { GetServerSidePropsContext } from "next";
 import { Session, getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]";
@@ -22,7 +22,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import { useConfirm } from "@/hooks/useConfirm";
 import { hasNullUndefined } from "@/utils/checkNullUndefined";
 import { isFormChanged } from "@/utils/formHelper";
-import isEqualArrays from "@/utils/isEqualArrays";
+import isEqualArrays from "@/utils/validation/isEqualArrays";
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -60,7 +60,7 @@ export default function RestaurantHours({
   });
   const [updateRestaurantInfo, { error: updateRestaurantInfoErr }] =
     useMutation<Restaurant, IPatchRestaurantInfoBody>(
-      "/api/v1/restaurant/info",
+      "/api/v1/restaurants/info",
       "PATCH"
     );
   const router = useRouter();

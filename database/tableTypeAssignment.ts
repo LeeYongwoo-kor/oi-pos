@@ -5,6 +5,12 @@ import checkNullUndefined from "@/utils/checkNullUndefined";
 import convertDatesToISOString from "@/utils/convertDatesToISOString";
 import { TableTypeAssignment } from "@prisma/client";
 
+export type UpsertTableTypeParams = {
+  restaurantTableId: string | null | undefined;
+  tableType: TableType;
+  number: number;
+};
+
 export async function getTableTypeAssignments(
   restaurantTableId: string | undefined | null
 ): Promise<TableTypeAssignment[] | null> {
@@ -53,4 +59,36 @@ export async function createTableTypeAssignment(
   );
 
   return convertDatesToISOString(newTableTypeAssignment);
+}
+
+export async function upsertTableTypeAssignment(
+  tableTypeInfo: UpsertTableTypeParams
+): Promise<TableTypeAssignment> {
+  const { hasNullUndefined } = checkNullUndefined(tableTypeInfo);
+
+  if (!hasNullUndefined) {
+    throw new ValidationError("Failed to update table type assignment");
+  }
+
+  const upsertTableTypeAssignmentData = {
+    restaurantTableId: tableTypeInfo.restaurantTableId as string,
+    tableType: tableTypeInfo.tableType,
+    number: tableTypeInfo.number,
+  };
+
+  const newTableInfo = await prismaRequestHandler(
+    prisma.tableTypeAssignment.upsert({
+      where: {
+        restaurantTableId_tableType: {
+          restaurantTableId: tableTypeInfo.restaurantTableId as string,
+          tableType: tableTypeInfo.tableType,
+        },
+      },
+      create: upsertTableTypeAssignmentData,
+      update: upsertTableTypeAssignmentData,
+    }),
+    "updateTableTypeAssignment"
+  );
+
+  return convertDatesToISOString(newTableInfo);
 }

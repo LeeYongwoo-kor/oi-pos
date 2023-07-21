@@ -1,19 +1,33 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
-import isEmpty from "@/utils/validation/isEmpty";
 import { useForm } from "react-hook-form";
 
 export default function RestaurantsTables() {
   const {
     register,
     handleSubmit,
+    setValue,
     watch,
-    formState: { errors, isSubmitting },
-  } = useForm();
+    formState: { isSubmitting },
+  } = useForm({
+    mode: "onChange",
+    defaultValues: {
+      tableNumber: 1,
+      counterNumber: 0,
+    },
+  });
+
+  const tableNumber = watch("tableNumber");
+  const counterNumber = watch("counterNumber");
 
   const handlePrevious = () => {};
   const handleNext = () => {};
+
+  const isValid =
+    (Number(tableNumber) > 0 || Number(counterNumber) > 0) &&
+    tableNumber !== undefined &&
+    counterNumber !== undefined;
 
   return (
     <Layout>
@@ -32,51 +46,64 @@ export default function RestaurantsTables() {
         </p>
         <form>
           <div className="mb-4">
-            <label className="block mb-2">Number of Tables</label>
+            <label className="block mb-2">Number of Tables (1-200)</label>
             <input
               className="w-1/2 px-3 py-2 text-gray-700 placeholder-gray-500 bg-white border border-gray-300 rounded-md focus:border-indigo-500 focus:outline-none"
               type="number"
               min={0}
               max={200}
-              maxLength={3}
               {...register("tableNumber", {
-                validate: (value) =>
-                  value > 0 || "Number of tables must be greater than zero",
+                pattern: {
+                  value: /^[1-9][0-9]{0,2}$/,
+                  message:
+                    "Number of tables must be a number between 1 and 200",
+                },
               })}
               onInput={(e) => {
-                if (e.target.value.length > 3) {
-                  e.target.value = e.target.value.slice(0, 3);
+                const input = e.target as HTMLInputElement;
+                if (input.value.length > 3) {
+                  input.value = input.value.slice(0, 3);
+                }
+                if (Number(input.value) > 200) {
+                  setValue("tableNumber", 200);
                 }
               }}
             />
-            {errors.tableNumber && (
-              <p className="text-red-600">{errors.tableNumber.message}</p>
-            )}
           </div>
-
           <div className="mb-4">
-            <label className="block mb-2">Number of Counters</label>
+            <label className="block mb-2">Number of Counters (1-100)</label>
             <input
               className="w-1/2 px-3 py-2 text-gray-700 placeholder-gray-500 bg-white border border-gray-300 rounded-md focus:border-indigo-500 focus:outline-none"
               type="number"
               min={0}
-              max={200}
+              max={100}
               maxLength={3}
               {...register("counterNumber", {
-                validate: (value) =>
-                  value > 0 || "Number of counters must be greater than zero",
+                pattern: {
+                  value: /^[1-9][0-9]{0,2}$/,
+                  message:
+                    "Number of counters must be a number between 1 and 100",
+                },
               })}
               onInput={(e) => {
-                if (e.target.value.length > 3) {
-                  e.target.value = e.target.value.slice(0, 3);
+                const input = e.target as HTMLInputElement;
+                if (input.value.length > 3) {
+                  input.value = input.value.slice(0, 3);
+                }
+                if (Number(input.value) > 100) {
+                  setValue("counterNumber", 100);
                 }
               }}
             />
-            {errors.counterNumber && (
-              <p className="text-red-600">{errors.counterNumber.message}</p>
-            )}
           </div>
-
+          {!isValid && (
+            <div className="mb-3">
+              <p className="text-red-600">
+                At least one of table or counter number must be greater than
+                zero
+              </p>
+            </div>
+          )}
           <button
             type="button"
             className="p-2 mr-4 text-white rounded bg-sky-600 hover:bg-sky-700"
@@ -86,12 +113,12 @@ export default function RestaurantsTables() {
           </button>
           <button
             className={`p-2 text-white bg-green-600 rounded ${
-              isEmpty(errors) && !isSubmitting
+              isValid && !isSubmitting
                 ? "hover:bg-green-700"
                 : "opacity-60 cursor-not-allowed"
             }`}
             type="button"
-            disabled={!isEmpty(errors) || isSubmitting}
+            disabled={!isValid || isSubmitting}
             onClick={handleSubmit(handleNext)}
           >
             Next

@@ -34,6 +34,32 @@ export async function getRestaurant(
   return restaurant ? convertDatesToISOString(restaurant) : null;
 }
 
+export async function getRestaurantAllInfo(
+  userId: string | undefined | null
+): Promise<Restaurant | null> {
+  if (!userId) {
+    return null;
+  }
+
+  const restaurant = await prismaRequestHandler(
+    prisma.restaurant.findUnique({
+      where: {
+        userId,
+      },
+      include: {
+        restaurantTables: {
+          include: {
+            tableTypeAssignments: true,
+          },
+        },
+      },
+    }),
+    "getRestaurantAllInfo"
+  );
+
+  return restaurant ? convertDatesToISOString(restaurant) : null;
+}
+
 export async function getAllRestaurantPhoneNumbers(): Promise<
   { phoneNumber: string | null }[]
 > {

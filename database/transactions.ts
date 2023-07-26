@@ -2,7 +2,10 @@ import { TableType } from "@/constants/type";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/ApiError";
-import { ISeatingConfig } from "@/pages/api/v1/restaurant/table";
+import {
+  IPutRestaurantTableBody,
+  ISeatingConfig,
+} from "@/pages/api/v1/restaurants/table";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
   Plan,
@@ -13,7 +16,10 @@ import {
 import { CreatePlanParams, upsertPlan } from "./plan";
 import { createRestaurant } from "./restaurant";
 import { createRestaurantTable } from "./restaurantTable";
-import { createTableTypeAssignment } from "./tableTypeAssignment";
+import {
+  createTableTypeAssignment,
+  upsertTableTypeAssignment,
+} from "./tableTypeAssignment";
 
 export async function createRestaurantAndTable(
   userId: string
@@ -42,7 +48,8 @@ export async function createRestaurantTableAndAssignment(
         );
       }
 
-      const { tableNumber, counterNumber } = seatingConfig;
+      const tableNumber = Number(seatingConfig.tableNumber);
+      const counterNumber = Number(seatingConfig.counterNumber);
       let table = null;
       let counter = null;
 
@@ -71,7 +78,7 @@ export async function createRestaurantTableAndAssignment(
 
         counter = await createTableTypeAssignment(
           restaurantTable.id,
-          TableType.TABLE,
+          TableType.COUNTER,
           counterNumber
         );
       }
@@ -79,6 +86,35 @@ export async function createRestaurantTableAndAssignment(
       return [restaurantTable, [table, counter]];
     }),
     "createRestaurantTableAndAssignment"
+  );
+
+  return result;
+}
+
+export async function upsertTableTypeAssignments(
+  assignments: IPutRestaurantTableBody[]
+): Promise<TableTypeAssignment[]> {
+  const result = await prismaRequestHandler(
+    prisma.$transaction(async () => {
+      const assignmentPromises = assignments.map((assignment) =>
+        upsertTableTypeAssignment(assignment)
+      );
+
+      const assignmentResult = await Promise.allSettled(assignmentPromises);
+      const fullfilledResult = assignmentResult
+        .filter(
+          (result): result is PromiseFulfilledResult<TableTypeAssignment> =>
+            result.status === "fulfilled"
+        )
+        .map((result) => result.value);
+
+      if (fullfilledResult.length === 0) {
+        throw new ValidationError("Failed to upsert table type assignments");
+      }
+
+      return fullfilledResult;
+    }),
+    "upsertTableTypeAssignments"
   );
 
   return result;

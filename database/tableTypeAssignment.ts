@@ -1,9 +1,10 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/ApiError";
-import checkNullUndefined from "@/utils/checkNullUndefined";
+import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import convertDatesToISOString from "@/utils/convertDatesToISOString";
 import { TableTypeAssignment } from "@prisma/client";
+import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 
 export type UpsertTableTypeParams = {
   restaurantTableId: string | null | undefined;
@@ -66,14 +67,19 @@ export async function upsertTableTypeAssignment(
 ): Promise<TableTypeAssignment> {
   const { hasNullUndefined } = checkNullUndefined(tableTypeInfo);
 
-  if (!hasNullUndefined) {
+  if (hasNullUndefined) {
     throw new ValidationError("Failed to update table type assignment");
+  }
+
+  const number = Number(tableTypeInfo.number);
+  if (!isPositiveInteger(number)) {
+    throw new ValidationError("Number is not a positive number");
   }
 
   const upsertTableTypeAssignmentData = {
     restaurantTableId: tableTypeInfo.restaurantTableId as string,
     tableType: tableTypeInfo.tableType,
-    number: tableTypeInfo.number,
+    number,
   };
 
   const newTableInfo = await prismaRequestHandler(

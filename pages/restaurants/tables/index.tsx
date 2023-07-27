@@ -1,33 +1,222 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
-import { useForm } from "react-hook-form";
+import { TableType } from "@/constants/type";
+import { IRestaurant, getRestaurantAllInfo } from "@/database";
+import useLoading from "@/hooks/context/useLoading";
+import { useConfirm } from "@/hooks/useConfirm";
+import { useToast } from "@/hooks/useToast";
+import useMutation from "@/lib/client/useMutation";
+import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import {
+  IPostRestaurantTableBody,
+  IPutRestaurantTableBody,
+} from "@/pages/api/v1/restaurants/table";
+import convertStringsToNumbers from "@/utils/convertStringsToNumbers";
+import { isFormChanged } from "@/utils/formHelper";
+import isEmpty from "@/utils/validation/isEmpty";
+import { Restaurant, TableTypeAssignment } from "@prisma/client";
+import { GetServerSidePropsContext } from "next";
+import { Session, getServerSession } from "next-auth";
+import { useRouter } from "next/router";
+import { useEffect } from "react";
+import { FieldValues, useForm } from "react-hook-form";
 
-export default function RestaurantsTables() {
+type RestaurantInfoProps = {
+  restaurantInfo: IRestaurant;
+  initErr: Error;
+};
+
+export default function RestaurantsTables({
+  restaurantInfo,
+  initErr,
+}: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
     setValue,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, errors },
   } = useForm({
     mode: "onChange",
     defaultValues: {
-      tableNumber: 1,
+      tableNumber: 0,
       counterNumber: 0,
     },
   });
+  const { tableNumber, counterNumber } = watch();
+  const [createRestaurantTable, { error: createRestaurantTableErr }] =
+    useMutation<Restaurant, IPostRestaurantTableBody>(
+      "/api/v1/restaurants/table",
+      "POST"
+    );
+  const [upsertRestaurantTable, { error: upsertRestaurantInfoErr }] =
+    useMutation<TableTypeAssignment, IPutRestaurantTableBody[]>(
+      "/api/v1/restaurants/table",
+      "PUT"
+    );
+  const { addToast } = useToast();
+  const { showConfirm } = useConfirm();
+  const router = useRouter();
+  const withLoading = useLoading();
 
-  const tableNumber = watch("tableNumber");
-  const counterNumber = watch("counterNumber");
-
-  const handlePrevious = () => {};
-  const handleNext = () => {};
+  const prevTableNumber =
+    restaurantInfo?.restaurantTables[0]?.tableTypeAssignments?.filter(
+      (data) => data.tableType === TableType.TABLE
+    )[0]?.number;
+  const prevCounterNumber =
+    restaurantInfo?.restaurantTables[0]?.tableTypeAssignments?.filter(
+      (data) => data.tableType === TableType.COUNTER
+    )[0]?.number;
 
   const isValid =
     (Number(tableNumber) > 0 || Number(counterNumber) > 0) &&
     tableNumber !== undefined &&
     counterNumber !== undefined;
+
+  const handleNext = async (formData: FieldValues) => {
+    if (isEmpty(restaurantInfo?.restaurantTables[0])) {
+      withLoading(() => handleCreateRestaurantTables(formData));
+      return;
+    }
+    handleConfirm(formData, "/menus");
+  };
+
+  const handlePrevious = (formData: FieldValues) => {
+    if (isEmpty(restaurantInfo?.restaurantTables[0])) {
+      router.push("/restaurants/hours");
+      return;
+    }
+    handleConfirm(formData, "/restaurants/hours");
+  };
+
+  const handleConfirm = (formData: FieldValues, destination: string) => {
+    if (isSubmitting || !isValid || !isEmpty(errors)) {
+      return;
+    }
+
+    if (
+      !isFormChanged(
+        {
+          tableNumber: prevTableNumber,
+          counterNumber: prevCounterNumber,
+        },
+        convertStringsToNumbers(formData)
+      )
+    ) {
+      router.push(destination);
+      return;
+    }
+
+    showConfirm({
+      title: "店舗情報の更新",
+      message: "変更された情報があります。変更内容を保存しますか？",
+      confirmText: "保存する",
+      cancelText: "保存しない",
+      onConfirm: () =>
+        withLoading(() => handleUpsertRestaurantTables(formData, destination)),
+      onCancel: () => {
+        router.push(destination);
+        return;
+      },
+    });
+  };
+
+  const handleCreateRestaurantTables = async (formData: FieldValues) => {
+    if (isSubmitting || !isValid || !isEmpty(errors)) {
+      return;
+    }
+
+    const paramData = {
+      restaurantId: restaurantInfo.id,
+      seatingConfig: {
+        tableNumber: formData?.tableNumber,
+        counterNumber: formData?.counterNumber,
+      },
+    } as IPostRestaurantTableBody;
+
+    const resultData = await createRestaurantTable(paramData);
+    if (resultData) {
+      await router.push("/menus");
+      addToast("info", "店舗情報を正常に登録しました");
+    }
+  };
+
+  const handleUpsertRestaurantTables = async (
+    formData: FieldValues,
+    destination: string
+  ) => {
+    if (isSubmitting || !isValid || !isEmpty(errors)) {
+      return;
+    }
+
+    let tableParamData = null;
+    let counterParamData = null;
+
+    if (formData?.tableNumber !== prevTableNumber) {
+      tableParamData = {
+        restaurantTableId: restaurantInfo.restaurantTables[0].id,
+        tableType: TableType.TABLE,
+        number: formData?.tableNumber,
+      } as IPutRestaurantTableBody;
+    }
+
+    if (formData?.counterNumber !== prevCounterNumber) {
+      counterParamData = {
+        restaurantTableId: restaurantInfo.restaurantTables[0].id,
+        tableType: TableType.COUNTER,
+        number: formData?.counterNumber,
+      } as IPutRestaurantTableBody;
+    }
+
+    const paramData = [
+      tableParamData,
+      counterParamData,
+    ] as IPutRestaurantTableBody[];
+
+    if (tableParamData || counterParamData) {
+      const resultData = await upsertRestaurantTable(paramData);
+      if (resultData) {
+        await router.push(destination);
+        addToast("info", "店舗情報を正常に更新しました");
+      }
+    } else {
+      router.push(destination);
+    }
+  };
+
+  useEffect(() => {
+    if (restaurantInfo) {
+      if (prevTableNumber) {
+        setValue("tableNumber", prevTableNumber, {
+          shouldTouch: true,
+        });
+      }
+      if (prevCounterNumber) {
+        setValue("counterNumber", prevCounterNumber, {
+          shouldTouch: true,
+        });
+      }
+    }
+  }, [restaurantInfo, prevTableNumber, prevCounterNumber]);
+
+  useEffect(() => {
+    if (createRestaurantTableErr) {
+      addToast("error", createRestaurantTableErr.message);
+    }
+  }, [createRestaurantTableErr]);
+
+  useEffect(() => {
+    if (upsertRestaurantInfoErr) {
+      addToast("error", upsertRestaurantInfoErr.message);
+    }
+  }, [upsertRestaurantInfoErr]);
+
+  useEffect(() => {
+    if (initErr) {
+      addToast("error", initErr.message);
+    }
+  }, [initErr]);
 
   return (
     <Layout>
@@ -52,11 +241,17 @@ export default function RestaurantsTables() {
               type="number"
               min={0}
               max={200}
+              maxLength={3}
               {...register("tableNumber", {
-                pattern: {
-                  value: /^[1-9][0-9]{0,2}$/,
-                  message:
-                    "Number of tables must be a number between 1 and 200",
+                required: "Table number is required",
+                valueAsNumber: true,
+                min: {
+                  value: 0,
+                  message: "Table number must be a positive number",
+                },
+                max: {
+                  value: 200,
+                  message: "Table number must be less than 200",
                 },
               })}
               onInput={(e) => {
@@ -69,6 +264,9 @@ export default function RestaurantsTables() {
                 }
               }}
             />
+            {errors.tableNumber && (
+              <p className="text-red-600">{errors.tableNumber.message}</p>
+            )}
           </div>
           <div className="mb-4">
             <label className="block mb-2">Number of Counters (1-100)</label>
@@ -79,10 +277,15 @@ export default function RestaurantsTables() {
               max={100}
               maxLength={3}
               {...register("counterNumber", {
-                pattern: {
-                  value: /^[1-9][0-9]{0,2}$/,
-                  message:
-                    "Number of counters must be a number between 1 and 100",
+                required: "Counter number is required",
+                valueAsNumber: true,
+                min: {
+                  value: 0,
+                  message: "Counter number must be a positive number",
+                },
+                max: {
+                  value: 200,
+                  message: "Counter number must be less than 200",
                 },
               })}
               onInput={(e) => {
@@ -95,11 +298,14 @@ export default function RestaurantsTables() {
                 }
               }}
             />
+            {errors.counterNumber && (
+              <p className="text-red-600">{errors.counterNumber.message}</p>
+            )}
           </div>
           {!isValid && (
             <div className="mb-3">
               <p className="text-red-600">
-                At least one of table or counter number must be greater than
+                At least one of Table or Counter number must be greater than
                 zero
               </p>
             </div>
@@ -113,12 +319,12 @@ export default function RestaurantsTables() {
           </button>
           <button
             className={`p-2 text-white bg-green-600 rounded ${
-              isValid && !isSubmitting
+              isValid && isEmpty(errors) && !isSubmitting
                 ? "hover:bg-green-700"
                 : "opacity-60 cursor-not-allowed"
             }`}
             type="button"
-            disabled={!isValid || isSubmitting}
+            disabled={!isValid || !isEmpty(errors) || isSubmitting}
             onClick={handleSubmit(handleNext)}
           >
             Next
@@ -127,4 +333,44 @@ export default function RestaurantsTables() {
       </div>
     </Layout>
   );
+}
+
+export async function getServerSideProps(ctx: GetServerSidePropsContext) {
+  try {
+    const session: Session | null = await getServerSession(
+      ctx.req,
+      ctx.res,
+      authOptions
+    );
+
+    if (!session) {
+      return {
+        redirect: {
+          destination: "/auth/signin?error=Unauthorized",
+          permanent: false,
+        },
+      };
+    }
+
+    const restaurantInfo = await getRestaurantAllInfo(session.id);
+    if (restaurantInfo) {
+      return {
+        props: {
+          restaurantInfo,
+        },
+      };
+    }
+
+    return {
+      props: {},
+    };
+  } catch (err) {
+    // TODO: send error to sentry
+    console.error(err);
+    return {
+      props: {
+        initErr: err,
+      },
+    };
+  }
 }

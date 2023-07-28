@@ -2,6 +2,13 @@ export default function checkNullUndefined(obj: Record<string, any>): {
   hasNullUndefined: boolean;
   nullOrUndefinedKeys: string;
 } {
+  if (obj === null || obj === undefined) {
+    return {
+      hasNullUndefined: true,
+      nullOrUndefinedKeys: "Object itself is null or undefined",
+    };
+  }
+
   const nullOrUndefinedKeys = Object.entries(obj)
     .filter(([_, value]) => value === null || value === undefined)
     .map(([key, _]) => key);

@@ -1,20 +1,19 @@
-import Loader from "@/components/Loader";
 import AuthenticationHandler from "@/components/handlers/AuthenticationHandler";
 import MessageContainer from "@/components/ui/Message";
 import ToastContainer from "@/components/ui/Toast";
 import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants";
 import { CustomErrorType } from "@/lib/shared/CustomError";
 import { ErrorProvider } from "@/providers/ErrorContext";
-import { LoadingProvider, useLoading } from "@/providers/LoadingContext";
+import { LoadingProvider } from "@/providers/LoadingContext";
 import { NavigationProvider } from "@/providers/NavigationContext";
 import "@/styles/globals.css";
 import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { SessionProvider } from "next-auth/react";
 import type { AppProps } from "next/app";
 import ReactModal from "react-modal";
 import { RecoilRoot } from "recoil";
 import { SWRConfig } from "swr";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
 ReactModal.setAppElement("#__next");
 
@@ -49,8 +48,8 @@ export default function App({
                 // Never retry on not 5xx errors
                 if (!String(err?.statusCode).startsWith("5")) return;
 
-                // Never retry on /api/v1/users/me
-                if (key === "/api/v1/users/me") return;
+                // Never retry on /api/v1/me/users
+                if (key === "/api/v1/me/users") return;
 
                 // Only retry up to 5 times
                 if (retryCount >= ERROR_RETRY_COUNT) return;
@@ -71,12 +70,14 @@ export default function App({
   );
 }
 
-const PageComponent = ({ Component, pageProps }: AppProps) => {
-  const [loading] = useLoading();
-
-  return loading ? (
-    <Loader />
-  ) : (
+const PageComponent = ({
+  Component,
+  pageProps,
+}: {
+  Component: any;
+  pageProps: any;
+}) => {
+  return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <NavigationProvider>
         <Component {...pageProps} />

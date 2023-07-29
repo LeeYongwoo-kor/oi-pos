@@ -1,20 +1,19 @@
-import React, { createContext, useState, useContext } from "react";
+import LoadingOverlay from "@/components/LoadingOverlay";
+import { loadingState } from "@/recoil/state/loadingState";
+import React from "react";
+import { useRecoilValue } from "recoil";
 
-const LoadingContext = createContext<
-  [boolean, React.Dispatch<React.SetStateAction<boolean>>]
->([false, () => {}]);
-
-type LoadingProviderProps = {
+export type LoadingProviderProps = {
   children: React.ReactNode;
 };
 
-export const LoadingProvider: React.FC<LoadingProviderProps> = ({
-  children,
-}) => {
-  const state = useState(false);
+export const LoadingProvider = ({ children }: LoadingProviderProps) => {
+  const loading = useRecoilValue(loadingState);
+
   return (
-    <LoadingContext.Provider value={state}>{children}</LoadingContext.Provider>
+    <>
+      {loading && <LoadingOverlay />}
+      {children}
+    </>
   );
 };
-
-export const useLoading = () => useContext(LoadingContext);

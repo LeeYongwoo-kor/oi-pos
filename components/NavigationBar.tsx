@@ -2,6 +2,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { useRouter } from "next/router";
+import { useSWRConfig } from "swr";
 
 type NavigationBarProps = {
   isAllInfoRegistered: boolean;
@@ -11,13 +12,18 @@ export default function NavigationBar({
   isAllInfoRegistered,
 }: NavigationBarProps) {
   const router = useRouter();
+  const { mutate } = useSWRConfig();
   const { showConfirm } = useConfirm();
 
   const openConfirm = () => {
     showConfirm({
       title: "ログアウト",
       message: "ログアウトしま～す。よろしいでしょうか？",
-      onConfirm: () => signOut(),
+      onConfirm: () => {
+        // clear cache on logout
+        mutate(() => true, undefined, { revalidate: false });
+        signOut();
+      },
     });
   };
 

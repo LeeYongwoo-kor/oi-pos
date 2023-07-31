@@ -21,7 +21,16 @@ type UseMutationOptions = {
   retry?: boolean;
   dynamicUrl?: string;
   isMutate?: boolean;
+  isOptimistic?: boolean;
+  isRevalidate?: boolean;
   headers?: Record<string, string>;
+};
+type SWRMutateOptions = {
+  revalidate: boolean;
+  populateCache: boolean;
+  rollbackOnError: boolean;
+  throwOnError: boolean;
+  optimisticData?: unknown;
 };
 
 /**
@@ -56,8 +65,21 @@ export default function useMutation<T, U>(
   });
 
   const mutation = async (data: U, options: UseMutationOptions = {}) => {
-    const { retry, dynamicUrl, isMutate = true, headers = {} } = options;
+    const {
+      retry,
+      dynamicUrl,
+      isMutate = true,
+      isRevalidate = true,
+      isOptimistic = false,
+      headers = {},
+    } = options;
     const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
+    const mutateOptions: SWRMutateOptions = {
+      revalidate: isRevalidate,
+      populateCache: true,
+      rollbackOnError: true,
+      throwOnError: true,
+    };
     setState((prev) => ({ ...prev, loading: true }));
     try {
       const fetchData = async () => {
@@ -79,8 +101,13 @@ export default function useMutation<T, U>(
       const fetchDataWithRetry = retry ? withErrorRetry(fetchData) : fetchData;
       const responseData = await fetchDataWithRetry();
 
+      if (isOptimistic) {
+        mutateOptions.optimisticData = responseData;
+        mutateOptions.revalidate = false;
+      }
+
       if (isMutate) {
-        await mutate(url, responseData, false);
+        await mutate(url, responseData, mutateOptions);
       }
 
       setState({ loading: false, data: responseData, error: null });

@@ -12,7 +12,10 @@ async function handler(
   const restaurant = await getRestaurantAllInfo(session?.id);
   if (!restaurant) {
     throw new NotFoundError(
-      "Restaurant not found. Please create restaurant first"
+      "Restaurant not found. Please create restaurant first",
+      undefined,
+      "/restaurants/info",
+      "api/v1/me/restaurants"
     );
   }
 

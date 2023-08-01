@@ -2,11 +2,13 @@ import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
 import { RESTAURANT_INFO } from "@/constants/errorMessage";
-import { getRestaurant } from "@/database";
+import { IRestaurant, getRestaurantAllInfo } from "@/database";
+import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
 import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/info";
 import { getInputFormCls } from "@/utils/cssHelper";
+import { isFormChanged } from "@/utils/formHelper";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Restaurant } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
@@ -14,17 +16,13 @@ import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { FieldErrors, FieldValues, useForm } from "react-hook-form";
-import useSWR from "swr";
+import useSWR, { SWRConfig } from "swr";
 import * as yup from "yup";
 import { authOptions } from "../api/auth/[...nextauth]";
-import { useConfirm } from "@/hooks/useConfirm";
-import { isFormChanged } from "@/utils/formHelper";
 
 type RestaurantInfoProps = {
-  restaurantInfo: Restaurant;
   initErr: Error;
 };
-
 interface IAddress {
   address1: string;
   address2: string;
@@ -114,10 +112,7 @@ const useCheckDuplicatePhoneNumber = (
   return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
 };
 
-export default function RestaurantInfo({
-  restaurantInfo,
-  initErr,
-}: RestaurantInfoProps) {
+function RestaurantInfo({ initErr }: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
@@ -131,6 +126,11 @@ export default function RestaurantInfo({
     mode: "onChange",
   });
   const watchFields = watch();
+  const {
+    data: restaurantInfo,
+    error: restaurantInfoErr,
+    isLoading,
+  } = useSWR<IRestaurant>("/api/v1/me/restaurants");
 
   const { postCodeResult, postCodeErr, checkPostCodeLoading } =
     useCheckPostCode(watchFields.postCode, errors);
@@ -151,7 +151,7 @@ export default function RestaurantInfo({
       return;
     }
 
-    if (!isFormChanged(restaurantInfo, formData)) {
+    if (restaurantInfo && !isFormChanged(restaurantInfo, formData)) {
       router.push("/restaurants/hours");
       return;
     }
@@ -224,9 +224,18 @@ export default function RestaurantInfo({
   useEffect(() => {
     if (initErr) {
       addToast("error", initErr.message);
-      router.reload();
     }
   }, [initErr]);
+
+  // Handles any errors related to restaurantInfo
+  useEffect(() => {
+    if (restaurantInfoErr) {
+      if (restaurantInfoErr.redirectUrl || restaurantInfoErr.status === 404) {
+        return;
+      }
+      addToast("error", restaurantInfoErr.message);
+    }
+  }, [restaurantInfoErr]);
 
   // Handles any errors related to upsertRestaurantInfo
   useEffect(() => {
@@ -294,174 +303,179 @@ export default function RestaurantInfo({
         currentStep="Info"
       />
       {isSubmitting && <LoadingOverlay />}
-      <div className="container px-4 py-8 mx-auto">
-        <h1 className="mb-4 text-2xl font-semibold">
-          Enter basic information about the restaurant
-        </h1>
-        <p className="mb-6">
-          This page helps you enter basic information about your restaurant.
-        </p>
-        <form
-          onSubmit={handleSubmit(
-            restaurantInfo ? updateConfirm : handleSubmitRestaurantInfo
-          )}
-        >
-          <div className="mb-4">
-            <label className="block mb-2">Restaurant Name</label>
-            <input
-              className={getInputFormCls(
-                "w-full p-2 border",
-                errors.name,
-                touchedFields.name,
-                watchFields.name
-              )}
-              type="text"
-              maxLength={30}
-              {...register("name")}
-            />
-            {errors.name && (
-              <span className="text-red-500">
-                {errors.name?.message as string}
-              </span>
+      {isLoading ? (
+        <LoadingOverlay />
+      ) : (
+        <div className="container px-4 py-8 mx-auto">
+          <h1 className="mb-4 text-2xl font-semibold">
+            Enter basic information about the restaurant
+          </h1>
+          <p className="mb-6">
+            This page helps you enter basic information about your restaurant.
+          </p>
+          <form
+            onSubmit={handleSubmit(
+              restaurantInfo ? updateConfirm : handleSubmitRestaurantInfo
             )}
-          </div>
-          <div className="mb-4">
-            <label className="block mb-2">Branch Name</label>
-            <input
-              className={getInputFormCls(
-                "w-full p-2 border",
-                errors.branch,
-                touchedFields.branch,
-                watchFields.branch
-              )}
-              type="text"
-              maxLength={30}
-              {...register("branch")}
-            />
-            {errors.branch && (
-              <span className="text-red-500">
-                {errors.branch?.message as string}
-              </span>
-            )}
-          </div>
-          <div className="mb-4">
-            <label className="block mb-2">
-              Restaurant Phone Number (Please omit the -)
-            </label>
-            <input
-              className={`w-full p-2 border ${
-                errors.phoneNumber
-                  ? "border-red-500"
-                  : watchFields.phoneNumber &&
-                    (restaurantInfo?.phoneNumber === watchFields.phoneNumber ||
-                      checkDuplicatePhoneNumberResult?.isDuplicate === false)
-                  ? "border-green-500"
-                  : "border-gray-400"
-              } rounded`}
-              type="tel"
-              maxLength={11}
-              {...register("phoneNumber")}
-              onBlur={(e) => checkDuplicatePhoneNumber(e.target.value)}
-            />
-            {errors.phoneNumber && (
-              <span className="text-red-500">
-                {errors.phoneNumber?.message as string}
-              </span>
-            )}
-          </div>
-          <label className="block mb-2">
-            Japan Postal Code (Please omit the -)
-          </label>
-          <div className="mb-4">
-            <input
-              className={`w-full p-2 border ${
-                errors.postCode || postCodeResult?.results === null
-                  ? "border-red-500"
-                  : touchedFields.postCode &&
-                    watchFields.postCode &&
-                    postCodeResult?.results !== null
-                  ? "border-green-500"
-                  : "border-gray-400"
-              } rounded`}
-              type="text"
-              maxLength={7}
-              {...register("postCode")}
-            />
-            {errors.postCode && (
-              <span className="text-red-500">
-                {errors.postCode?.message as string}
-              </span>
-            )}
-            {postCodeResult?.results === null && (
-              <span className="text-red-500">
-                Post Code not found, Please try again
-              </span>
-            )}
-          </div>
-          <div className="mb-4">
-            <label className="block mb-2">Address</label>
-            <input
-              className={getInputFormCls(
-                "w-full p-2 border",
-                errors.address,
-                touchedFields.address,
-                watchFields.address
-              )}
-              type="text"
-              value={addressValue}
-              {...register("address")}
-              disabled
-            />
-            {errors.address && (
-              <span className="text-red-500">
-                {errors.address?.message as string}
-              </span>
-            )}
-          </div>
-          <div className="mb-4">
-            <label className="block mb-2">Rest of the Address</label>
-            <input
-              className={getInputFormCls(
-                "w-full p-2 border",
-                errors.restAddress,
-                touchedFields.restAddress,
-                watchFields.restAddress
-              )}
-              type="text"
-              maxLength={100}
-              {...register("restAddress")}
-            />
-            {errors.restAddress && (
-              <span className="text-red-500">
-                {errors.restAddress?.message as string}
-              </span>
-            )}
-          </div>
-          <button
-            className={`p-2 text-white bg-green-600 rounded ${
-              isValid &&
-              !isSubmitting &&
-              !checkPostCodeLoading &&
-              postCodeResult?.results !== null &&
-              (checkDuplicatePhoneNumberResult?.isDuplicate === false ||
-                restaurantInfo?.phoneNumber === watchFields.phoneNumber)
-                ? "hover:bg-green-700"
-                : "opacity-60 cursor-not-allowed"
-            }}`}
-            type="submit"
-            disabled={
-              !isValid ||
-              isSubmitting ||
-              checkPostCodeLoading ||
-              postCodeResult?.results === null ||
-              (checkDuplicatePhoneNumberResult?.isDuplicate &&
-                restaurantInfo?.phoneNumber !== watchFields.phoneNumber)
-            }
           >
-            Next
-          </button>
-        </form>
-      </div>
+            <div className="mb-4">
+              <label className="block mb-2">Restaurant Name</label>
+              <input
+                className={getInputFormCls(
+                  "w-full p-2 border",
+                  errors.name,
+                  touchedFields.name,
+                  watchFields.name
+                )}
+                type="text"
+                maxLength={30}
+                {...register("name")}
+              />
+              {errors.name && (
+                <span className="text-red-500">
+                  {errors.name?.message as string}
+                </span>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block mb-2">Branch Name</label>
+              <input
+                className={getInputFormCls(
+                  "w-full p-2 border",
+                  errors.branch,
+                  touchedFields.branch,
+                  watchFields.branch
+                )}
+                type="text"
+                maxLength={30}
+                {...register("branch")}
+              />
+              {errors.branch && (
+                <span className="text-red-500">
+                  {errors.branch?.message as string}
+                </span>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block mb-2">
+                Restaurant Phone Number (Please omit the -)
+              </label>
+              <input
+                className={`w-full p-2 border ${
+                  errors.phoneNumber
+                    ? "border-red-500"
+                    : watchFields.phoneNumber &&
+                      (restaurantInfo?.phoneNumber ===
+                        watchFields.phoneNumber ||
+                        checkDuplicatePhoneNumberResult?.isDuplicate === false)
+                    ? "border-green-500"
+                    : "border-gray-400"
+                } rounded`}
+                type="tel"
+                maxLength={11}
+                {...register("phoneNumber")}
+                onBlur={(e) => checkDuplicatePhoneNumber(e.target.value)}
+              />
+              {errors.phoneNumber && (
+                <span className="text-red-500">
+                  {errors.phoneNumber?.message as string}
+                </span>
+              )}
+            </div>
+            <label className="block mb-2">
+              Japan Postal Code (Please omit the -)
+            </label>
+            <div className="mb-4">
+              <input
+                className={`w-full p-2 border ${
+                  errors.postCode || postCodeResult?.results === null
+                    ? "border-red-500"
+                    : touchedFields.postCode &&
+                      watchFields.postCode &&
+                      postCodeResult?.results !== null
+                    ? "border-green-500"
+                    : "border-gray-400"
+                } rounded`}
+                type="text"
+                maxLength={7}
+                {...register("postCode")}
+              />
+              {errors.postCode && (
+                <span className="text-red-500">
+                  {errors.postCode?.message as string}
+                </span>
+              )}
+              {postCodeResult?.results === null && (
+                <span className="text-red-500">
+                  Post Code not found, Please try again
+                </span>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block mb-2">Address</label>
+              <input
+                className={getInputFormCls(
+                  "w-full p-2 border",
+                  errors.address,
+                  touchedFields.address,
+                  watchFields.address
+                )}
+                type="text"
+                value={addressValue}
+                {...register("address")}
+                disabled
+              />
+              {errors.address && (
+                <span className="text-red-500">
+                  {errors.address?.message as string}
+                </span>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block mb-2">Rest of the Address</label>
+              <input
+                className={getInputFormCls(
+                  "w-full p-2 border",
+                  errors.restAddress,
+                  touchedFields.restAddress,
+                  watchFields.restAddress
+                )}
+                type="text"
+                maxLength={100}
+                {...register("restAddress")}
+              />
+              {errors.restAddress && (
+                <span className="text-red-500">
+                  {errors.restAddress?.message as string}
+                </span>
+              )}
+            </div>
+            <button
+              className={`p-2 text-white bg-green-600 rounded ${
+                isValid &&
+                !isSubmitting &&
+                !checkPostCodeLoading &&
+                postCodeResult?.results !== null &&
+                (checkDuplicatePhoneNumberResult?.isDuplicate === false ||
+                  restaurantInfo?.phoneNumber === watchFields.phoneNumber)
+                  ? "hover:bg-green-700"
+                  : "opacity-60 cursor-not-allowed"
+              }}`}
+              type="submit"
+              disabled={
+                !isValid ||
+                isSubmitting ||
+                checkPostCodeLoading ||
+                postCodeResult?.results === null ||
+                (checkDuplicatePhoneNumberResult?.isDuplicate &&
+                  restaurantInfo?.phoneNumber !== watchFields.phoneNumber)
+              }
+            >
+              Next
+            </button>
+          </form>
+        </div>
+      )}
     </Layout>
   );
 }
@@ -483,17 +497,13 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       };
     }
 
-    const restaurantInfo = await getRestaurant(session.id);
-    if (restaurantInfo) {
-      return {
-        props: {
-          restaurantInfo,
-        },
-      };
-    }
-
+    const restaurantInfo = await getRestaurantAllInfo(session.id);
     return {
-      props: {},
+      props: {
+        fallback: {
+          "/api/v1/me/restaurants": restaurantInfo,
+        },
+      },
     };
   } catch (err) {
     // TODO: send error to sentry
@@ -504,4 +514,12 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       },
     };
   }
+}
+
+export default function Page({ fallback, initErr }: any) {
+  return (
+    <SWRConfig value={{ fallback }}>
+      <RestaurantInfo initErr={initErr} />
+    </SWRConfig>
+  );
 }

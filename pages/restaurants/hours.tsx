@@ -1,6 +1,13 @@
 import Layout from "@/components/Layout";
+import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
+import { IRestaurant, getRestaurantAllInfo } from "@/database";
+import { useConfirm } from "@/hooks/useConfirm";
+import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
+import { isFormChanged } from "@/utils/formHelper";
+import isEmpty from "@/utils/validation/isEmpty";
+import isEqualArrays from "@/utils/validation/isEqualArrays";
 import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { MobileTimePicker } from "@mui/x-date-pickers";
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
@@ -8,41 +15,24 @@ import { Restaurant } from "@prisma/client";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
+import { GetServerSidePropsContext } from "next";
+import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
-import { IPatchRestaurantInfoBody } from "../api/v1/restaurants/info";
-import { useToast } from "@/hooks/useToast";
-import isEmpty from "@/utils/validation/isEmpty";
-import { GetServerSidePropsContext } from "next";
-import { Session, getServerSession } from "next-auth";
+import useSWR, { SWRConfig } from "swr";
 import { authOptions } from "../api/auth/[...nextauth]";
-import { getRestaurant } from "@/database";
-import LoadingOverlay from "@/components/LoadingOverlay";
-import { useConfirm } from "@/hooks/useConfirm";
-import { hasNullUndefined } from "@/utils/checkNullUndefined";
-import { isFormChanged } from "@/utils/formHelper";
-import isEqualArrays from "@/utils/validation/isEqualArrays";
+import { IPatchRestaurantInfoBody } from "../api/v1/restaurants/info";
+import { ApiError } from "@/lib/shared/ApiError";
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
-type PrevRestaurantHours = {
-  startTime: string;
-  endTime: string;
-  lastOrder: string;
-  holidays: string[];
-};
-
 type RestaurantHoursProps = {
-  prevRestaurantHours: PrevRestaurantHours;
   initErr: Error;
 };
 
-export default function RestaurantHours({
-  prevRestaurantHours,
-  initErr,
-}: RestaurantHoursProps) {
+function RestaurantHours({ initErr }: RestaurantHoursProps) {
   const {
     register,
     handleSubmit,
@@ -57,6 +47,18 @@ export default function RestaurantHours({
       endTime: "00:00",
       lastOrder: "23:00",
     },
+  });
+  const {
+    data: restaurantInfo,
+    error: restaurantInfoErr,
+    isLoading,
+  } = useSWR<IRestaurant>("/api/v1/me/restaurants", {
+    onError: async (err: ApiError) => {
+      if (err.statusCode === 307 && err.redirectUrl) {
+        await router.replace(err.redirectUrl);
+        addToast("error", err.message);
+      }
+    }
   });
   const [updateRestaurantInfo, { error: updateRestaurantInfoErr }] =
     useMutation<Restaurant, IPatchRestaurantInfoBody>(
@@ -101,10 +103,18 @@ export default function RestaurantHours({
   };
 
   const handlePrevious = (formData: FieldValues) => {
+    if (!(restaurantInfo?.startTime && restaurantInfo?.endTime)) {
+      router.push("/restaurants/info");
+      return;
+    }
     updateConfirm(formData, "/restaurants/info");
   };
 
   const handleNext = (formData: FieldValues) => {
+    if (!(restaurantInfo?.startTime && restaurantInfo?.endTime)) {
+      handleSubmitRestaurantHours(formData, "/restaurants/tables");
+      return;
+    }
     updateConfirm(formData, "/restaurants/tables");
   };
 
@@ -113,13 +123,16 @@ export default function RestaurantHours({
       return;
     }
 
-    const { holidays, ...restaurantHours } = prevRestaurantHours;
-    if (
-      !isFormChanged(restaurantHours, formData) &&
-      isEqualArrays(holidays, days)
-    ) {
-      router.push(destination);
-      return;
+    if (restaurantInfo) {
+      const { holidays, ...prevRestaurantHours } = restaurantInfo;
+      const safeHolidays = Array.isArray(holidays) ? holidays : [];
+      if (
+        !isFormChanged(prevRestaurantHours, formData) &&
+        isEqualArrays(safeHolidays, days)
+      ) {
+        router.push(destination);
+        return;
+      }
     }
 
     showConfirm({
@@ -153,7 +166,7 @@ export default function RestaurantHours({
       await router.push(destination);
       addToast(
         "info",
-        prevRestaurantHours
+        restaurantInfo?.startTime && restaurantInfo?.endTime
           ? "店舗情報を正常に更新しました"
           : "店舗情報を正常に登録しました"
       );
@@ -181,26 +194,23 @@ export default function RestaurantHours({
   };
 
   useEffect(() => {
-    const { startTime, endTime, lastOrder, holidays } = prevRestaurantHours;
-    if (startTime) {
-      setValue("startTime", startTime);
+    if (restaurantInfo) {
+      const { startTime, endTime, lastOrder, holidays } = restaurantInfo;
+      if (startTime) {
+        setValue("startTime", startTime);
+      }
+      if (endTime) {
+        setValue("endTime", endTime);
+      }
+      if (lastOrder) {
+        setValue("lastOrder", lastOrder);
+      }
+      if (holidays) {
+        const safeHolidays = Array.isArray(holidays) ? holidays as string[] : [];
+        setDays(safeHolidays);
+      }
     }
-    if (endTime) {
-      setValue("endTime", endTime);
-    }
-    if (lastOrder) {
-      setValue("lastOrder", lastOrder);
-    }
-    if (holidays) {
-      setDays(holidays);
-    }
-  }, [
-    prevRestaurantHours.startTime,
-    prevRestaurantHours.endTime,
-    prevRestaurantHours.lastOrder,
-    prevRestaurantHours.holidays,
-    prevRestaurantHours,
-  ]);
+  }, [restaurantInfo]);
 
   useEffect(() => {
     if (unspecified) {
@@ -228,9 +238,17 @@ export default function RestaurantHours({
   useEffect(() => {
     if (initErr) {
       addToast("error", initErr.message);
-      router.reload();
     }
   }, [initErr]);
+
+  useEffect(() => {
+    if (restaurantInfoErr) {
+      if (restaurantInfoErr.redirectUrl || restaurantInfoErr.status === 404) {
+        return;
+      }
+      addToast("error", restaurantInfoErr.message);
+    }
+  }, [restaurantInfoErr]);
 
   return (
     <Layout>
@@ -239,153 +257,166 @@ export default function RestaurantHours({
         currentStep="Hours"
       />
       {isSubmitting && <LoadingOverlay />}
-      <div className="container px-4 py-8 mx-auto">
-        <h1 className="mb-4 text-2xl font-semibold">
-          Enter the restaurant&apos;s business hours and holidays
-        </h1>
-        <p className="mb-6">
-          This page helps you enter your restaurant&apos;s business hours and
-          holidays.
-        </p>
-        <form>
-          {/* Business hours */}
-          <div className="mb-4">
-            <label className="block mb-2">Business Hours</label>
-            <div className="flex">
-              <div className="">
-                <MobileTimePicker
-                  className="bg-white"
-                  label="Start Time"
-                  ampm={false}
-                  minutesStep={5}
-                  {...register("startTime")}
-                  value={dayjs(startTime, "HH:mm")}
-                  viewRenderers={{
-                    hours: renderTimeViewClock,
-                    minutes: renderTimeViewClock,
-                  }}
-                  onChange={(dateObj) => {
-                    if (dateObj) {
-                      const dayjsObj = dayjs(dateObj);
-                      const hour = dayjsObj.hour().toString().padStart(2, "0");
-                      const minute = dayjsObj
-                        .minute()
-                        .toString()
-                        .padStart(2, "0");
-                      setValue("startTime", `${hour}:${minute}`);
-                    }
-                  }}
-                />
-              </div>
-              <span className="mx-2"></span>
-              <div>
-                <MobileTimePicker
-                  className="bg-white"
-                  label="End Time"
-                  ampm={false}
-                  minutesStep={5}
-                  {...register("endTime")}
-                  // renderInput={(props) => <TextField {...props} />}
-                  value={dayjs(endTime, "HH:mm")}
-                  viewRenderers={{
-                    hours: renderTimeViewClock,
-                    minutes: renderTimeViewClock,
-                  }}
-                  onChange={(dateObj) => {
-                    if (dateObj) {
-                      const dayjsObj = dayjs(dateObj);
-                      const hour = dayjsObj.hour().toString().padStart(2, "0");
-                      const minute = dayjsObj
-                        .minute()
-                        .toString()
-                        .padStart(2, "0");
-                      setValue("endTime", `${hour}:${minute}`);
-                    }
-                  }}
-                />
+      {isLoading || restaurantInfoErr ? (
+        <LoadingOverlay />
+      ) : (
+        <div className="container px-4 py-8 mx-auto">
+          <h1 className="mb-4 text-2xl font-semibold">
+            Enter the restaurant&apos;s business hours and holidays
+          </h1>
+          <p className="mb-6">
+            This page helps you enter your restaurant&apos;s business hours and
+            holidays.
+          </p>
+          <form>
+            {/* Business hours */}
+            <div className="mb-4">
+              <label className="block mb-2">Business Hours</label>
+              <div className="flex">
+                <div className="">
+                  <MobileTimePicker
+                    className="bg-white"
+                    label="Start Time"
+                    ampm={false}
+                    minutesStep={5}
+                    {...register("startTime")}
+                    value={dayjs(startTime, "HH:mm")}
+                    viewRenderers={{
+                      hours: renderTimeViewClock,
+                      minutes: renderTimeViewClock,
+                    }}
+                    onChange={(dateObj) => {
+                      if (dateObj) {
+                        const dayjsObj = dayjs(dateObj);
+                        const hour = dayjsObj
+                          .hour()
+                          .toString()
+                          .padStart(2, "0");
+                        const minute = dayjsObj
+                          .minute()
+                          .toString()
+                          .padStart(2, "0");
+                        setValue("startTime", `${hour}:${minute}`);
+                      }
+                    }}
+                  />
+                </div>
+                <span className="mx-2"></span>
+                <div>
+                  <MobileTimePicker
+                    className="bg-white"
+                    label="End Time"
+                    ampm={false}
+                    minutesStep={5}
+                    {...register("endTime")}
+                    // renderInput={(props) => <TextField {...props} />}
+                    value={dayjs(endTime, "HH:mm")}
+                    viewRenderers={{
+                      hours: renderTimeViewClock,
+                      minutes: renderTimeViewClock,
+                    }}
+                    onChange={(dateObj) => {
+                      if (dateObj) {
+                        const dayjsObj = dayjs(dateObj);
+                        const hour = dayjsObj
+                          .hour()
+                          .toString()
+                          .padStart(2, "0");
+                        const minute = dayjsObj
+                          .minute()
+                          .toString()
+                          .padStart(2, "0");
+                        setValue("endTime", `${hour}:${minute}`);
+                      }
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          {/* Regular Holidays */}
-          <div className="mb-4">
-            <label className="block mb-2">Regular Holidays</label>
-            <Box sx={{ width: "100%" }}>
-              <ToggleButtonGroup
-                className="bg-white border border-gray-300 rounded-md"
-                color="primary"
-                value={days}
-                onChange={handleChangeDays}
-              >
-                {weekdays.map((day, index) => (
-                  <ToggleButton key={index} value={day}>
-                    {day}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-            </Box>
-          </div>
-          {/* Last Order */}
-          <div className="mb-4">
-            <label className="block mb-2">Last Order</label>
-            <MobileTimePicker
-              className={`${errors.lastOrder ? "bg-red-200" : "bg-white"}`}
-              ampm={false}
-              minutesStep={5}
-              sx={{ borderColor: "black" }}
-              {...register("lastOrder", {
-                validate: (value) =>
-                  validateTime(value) ||
-                  "Last Order must be within Business Hours",
-              })}
-              viewRenderers={{
-                hours: renderTimeViewClock,
-                minutes: renderTimeViewClock,
-              }}
-              value={dayjs(lastOrder, "HH:mm")}
-              onChange={(dateObj) => {
-                if (dateObj) {
-                  const dayjsObj = dayjs(dateObj);
-                  const hour = dayjsObj.hour().toString().padStart(2, "0");
-                  const minute = dayjsObj.minute().toString().padStart(2, "0");
-                  setValue("lastOrder", `${hour}:${minute}`);
-                }
-              }}
-              disabled={unspecified}
-            />
-            <span className="ml-2">
-              <input
-                type="checkbox"
-                className=""
-                checked={unspecified}
-                onChange={handleUnspecified}
+            {/* Regular Holidays */}
+            <div className="mb-4">
+              <label className="block mb-2">Regular Holidays</label>
+              <Box sx={{ width: "100%" }}>
+                <ToggleButtonGroup
+                  className="bg-white border border-gray-300 rounded-md"
+                  color="primary"
+                  value={days}
+                  onChange={handleChangeDays}
+                >
+                  {weekdays.map((day, index) => (
+                    <ToggleButton key={index} value={day}>
+                      {day}
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+              </Box>
+            </div>
+            {/* Last Order */}
+            <div className="mb-4">
+              <label className="block mb-2">Last Order</label>
+              <MobileTimePicker
+                className={`${errors.lastOrder ? "bg-red-200" : "bg-white"}`}
+                ampm={false}
+                minutesStep={5}
+                sx={{ borderColor: "black" }}
+                {...register("lastOrder", {
+                  validate: (value) =>
+                    validateTime(value) ||
+                    "Last Order must be within Business Hours",
+                })}
+                viewRenderers={{
+                  hours: renderTimeViewClock,
+                  minutes: renderTimeViewClock,
+                }}
+                value={dayjs(lastOrder, "HH:mm")}
+                onChange={(dateObj) => {
+                  if (dateObj) {
+                    const dayjsObj = dayjs(dateObj);
+                    const hour = dayjsObj.hour().toString().padStart(2, "0");
+                    const minute = dayjsObj
+                      .minute()
+                      .toString()
+                      .padStart(2, "0");
+                    setValue("lastOrder", `${hour}:${minute}`);
+                  }
+                }}
+                disabled={unspecified}
               />
-              <span className="ml-1">Unspecified</span>
-            </span>
-            {errors.lastOrder && (
-              <p className="text-red-600">{errors.lastOrder.message}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            className="p-2 mr-4 text-white rounded bg-sky-600 hover:bg-sky-700"
-            onClick={handleSubmit(handlePrevious)}
-          >
-            Previous
-          </button>
-          <button
-            className={`p-2 text-white bg-green-600 rounded ${
-              isEmpty(errors) && !isSubmitting
-                ? "hover:bg-green-700"
-                : "opacity-60 cursor-not-allowed"
-            }`}
-            type="button"
-            disabled={!isEmpty(errors) || isSubmitting}
-            onClick={handleSubmit(handleNext)}
-          >
-            Next
-          </button>
-        </form>
-      </div>
+              <span className="ml-2">
+                <input
+                  type="checkbox"
+                  className=""
+                  checked={unspecified}
+                  onChange={handleUnspecified}
+                />
+                <span className="ml-1">Unspecified</span>
+              </span>
+              {errors.lastOrder && (
+                <p className="text-red-600">{errors.lastOrder.message}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="p-2 mr-4 text-white rounded bg-sky-600 hover:bg-sky-700"
+              onClick={handleSubmit(handlePrevious)}
+            >
+              Previous
+            </button>
+            <button
+              className={`p-2 text-white bg-green-600 rounded ${
+                isEmpty(errors) && !isSubmitting
+                  ? "hover:bg-green-700"
+                  : "opacity-60 cursor-not-allowed"
+              }`}
+              type="button"
+              disabled={!isEmpty(errors) || isSubmitting}
+              onClick={handleSubmit(handleNext)}
+            >
+              Next
+            </button>
+          </form>
+        </div>
+      )}
     </Layout>
   );
 }
@@ -407,38 +438,13 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       };
     }
 
-    const restaurantInfo = await getRestaurant(session.id);
-    if (restaurantInfo) {
-      const prevStartTime = restaurantInfo.startTime;
-      const prevEndTime = restaurantInfo.endTime;
-      const prevHolidays =
-        typeof restaurantInfo.holidays === "string"
-          ? JSON.parse(restaurantInfo.holidays)
-          : [];
-      const prevLastOrder = restaurantInfo.lastOrder;
-
-      if (hasNullUndefined({ prevStartTime, prevEndTime, prevLastOrder })) {
-        return {
-          props: {},
-        };
-      }
-
-      const prevRestaurantHours = {
-        startTime: prevStartTime,
-        endTime: prevEndTime,
-        holidays: prevHolidays,
-        lastOrder: prevLastOrder,
-      };
-
-      return {
-        props: {
-          prevRestaurantHours,
-        },
-      };
-    }
-
+    const restaurantInfo = await getRestaurantAllInfo(session.id);
     return {
-      props: {},
+      props: {
+        fallback: {
+          "/api/v1/me/restaurants": restaurantInfo,
+        },
+      },
     };
   } catch (err) {
     // TODO: send error to sentry
@@ -449,4 +455,12 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       },
     };
   }
+}
+
+export default function Page({ fallback, initErr }: any) {
+  return (
+    <SWRConfig value={{ fallback }}>
+      <RestaurantHours initErr={initErr} />
+    </SWRConfig>
+  );
 }

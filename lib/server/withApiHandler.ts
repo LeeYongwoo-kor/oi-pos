@@ -54,7 +54,9 @@ export default function withApiHandler({
           `Error in ${handler.name}, Error occurred on endpoint: ${err.endpoint}`
         );
         if (err.redirectUrl) {
-          res.redirect(err.redirectUrl);
+          return res
+            .status(307)
+            .json({ statusCode: 307, message: err.message, redirectUrl: err.redirectUrl });
         }
 
         return res

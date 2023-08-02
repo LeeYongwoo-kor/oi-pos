@@ -21,6 +21,7 @@ import * as yup from "yup";
 import { authOptions } from "../api/auth/[...nextauth]";
 
 type RestaurantInfoProps = {
+  fallbackData: IRestaurant | null;
   initErr: Error;
 };
 interface IAddress {
@@ -112,7 +113,7 @@ const useCheckDuplicatePhoneNumber = (
   return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
 };
 
-function RestaurantInfo({ initErr }: RestaurantInfoProps) {
+function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
@@ -129,8 +130,8 @@ function RestaurantInfo({ initErr }: RestaurantInfoProps) {
   const {
     data: restaurantInfo,
     error: restaurantInfoErr,
-    isLoading,
-  } = useSWR<IRestaurant>("/api/v1/me/restaurants");
+    isValidating,
+  } = useSWR<IRestaurant>(fallbackData ? "/api/v1/me/restaurants" : null);
 
   const { postCodeResult, postCodeErr, checkPostCodeLoading } =
     useCheckPostCode(watchFields.postCode, errors);
@@ -175,7 +176,9 @@ function RestaurantInfo({ initErr }: RestaurantInfoProps) {
     }
 
     const paramData = formData as IPutRestaurantInfoBody;
-    const resultData = await upsertRestaurantInfo(paramData);
+    const resultData = await upsertRestaurantInfo(paramData, {
+      additionalKeys: ["/api/v1/me/restaurants"],
+    });
     if (resultData) {
       await router.push("/restaurants/hours");
       addToast(
@@ -303,7 +306,7 @@ function RestaurantInfo({ initErr }: RestaurantInfoProps) {
         currentStep="Info"
       />
       {isSubmitting && <LoadingOverlay />}
-      {isLoading ? (
+      {isValidating ? (
         <LoadingOverlay />
       ) : (
         <div className="container px-4 py-8 mx-auto">
@@ -517,9 +520,10 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
 }
 
 export default function Page({ fallback, initErr }: any) {
+  const fallbackData = fallback["/api/v1/me/restaurants"];
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantInfo initErr={initErr} />
+      <RestaurantInfo fallbackData={fallbackData} initErr={initErr} />
     </SWRConfig>
   );
 }

@@ -56,7 +56,11 @@ export default function withApiHandler({
         if (err.redirectUrl) {
           return res
             .status(307)
-            .json({ statusCode: 307, message: err.message, redirectUrl: err.redirectUrl });
+            .json({
+              statusCode: 307,
+              message: err.message,
+              redirectUrl: err.redirectUrl,
+            });
         }
 
         return res

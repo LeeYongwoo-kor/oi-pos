@@ -5,6 +5,7 @@ import { IRestaurant, getRestaurantAllInfo } from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
+import { ApiError } from "@/lib/shared/ApiError";
 import { isFormChanged } from "@/utils/formHelper";
 import isEmpty from "@/utils/validation/isEmpty";
 import isEqualArrays from "@/utils/validation/isEqualArrays";
@@ -23,7 +24,6 @@ import { FieldValues, useForm } from "react-hook-form";
 import useSWR, { SWRConfig } from "swr";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { IPatchRestaurantInfoBody } from "../api/v1/restaurants/info";
-import { ApiError } from "@/lib/shared/ApiError";
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -51,14 +51,14 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
   const {
     data: restaurantInfo,
     error: restaurantInfoErr,
-    isLoading,
+    isValidating,
   } = useSWR<IRestaurant>("/api/v1/me/restaurants", {
     onError: async (err: ApiError) => {
       if (err.statusCode === 307 && err.redirectUrl) {
         await router.replace(err.redirectUrl);
         addToast("error", err.message);
       }
-    }
+    },
   });
   const [updateRestaurantInfo, { error: updateRestaurantInfoErr }] =
     useMutation<Restaurant, IPatchRestaurantInfoBody>(
@@ -206,7 +206,9 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
         setValue("lastOrder", lastOrder);
       }
       if (holidays) {
-        const safeHolidays = Array.isArray(holidays) ? holidays as string[] : [];
+        const safeHolidays = Array.isArray(holidays)
+          ? (holidays as string[])
+          : [];
         setDays(safeHolidays);
       }
     }
@@ -250,6 +252,10 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
     }
   }, [restaurantInfoErr]);
 
+  if (restaurantInfoErr) {
+    return <LoadingOverlay />;
+  }
+
   return (
     <Layout>
       <StatusBar
@@ -257,7 +263,7 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
         currentStep="Hours"
       />
       {isSubmitting && <LoadingOverlay />}
-      {isLoading || restaurantInfoErr ? (
+      {isValidating ? (
         <LoadingOverlay />
       ) : (
         <div className="container px-4 py-8 mx-auto">

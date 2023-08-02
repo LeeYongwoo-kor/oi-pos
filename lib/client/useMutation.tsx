@@ -17,20 +17,57 @@ type UseMutationResult<T, U> = [
   (data: U, options?: UseMutationOptions) => Promise<T>,
   UseMutationState<T>
 ];
-type UseMutationOptions = {
+type UseMutationOptionBase = {
   retry?: boolean;
   dynamicUrl?: string;
-  isMutate?: boolean;
-  isOptimistic?: boolean;
-  isRevalidate?: boolean;
   headers?: Record<string, string>;
 };
+type UseMutationOptionsMutate = UseMutationOptionBase & {
+  isMutate?: true;
+  isOptimistic?: boolean;
+  isRevalidate?: boolean;
+  additionalKeys?: string[];
+};
+type UseMutationOptionsNonMutate = UseMutationOptionBase & {
+  isMutate: false;
+};
+type UseMutationOptions =
+  | UseMutationOptionsMutate
+  | UseMutationOptionsNonMutate;
 type SWRMutateOptions = {
   revalidate: boolean;
   populateCache: boolean;
   rollbackOnError: boolean;
   throwOnError: boolean;
   optimisticData?: unknown;
+};
+
+const handleOptions = (options: UseMutationOptions) => {
+  const mutateOptions: UseMutationOptionsMutate = {
+    isMutate: true,
+    retry: false,
+    dynamicUrl: "",
+    headers: {},
+    isOptimistic: false,
+    isRevalidate: true,
+    additionalKeys: [],
+  };
+
+  if (options.isMutate) {
+    return {
+      ...mutateOptions,
+      ...options,
+      isRevalidate: options.isRevalidate ?? true,
+    };
+  } else {
+    return {
+      ...mutateOptions,
+      ...options,
+      isOptimistic: false,
+      isRevalidate: true,
+      additionalKeys: [],
+    };
+  }
 };
 
 /**
@@ -64,15 +101,20 @@ export default function useMutation<T, U>(
     error: null,
   });
 
-  const mutation = async (data: U, options: UseMutationOptions = {}) => {
+  const mutation = async (
+    data: U,
+    options: UseMutationOptions = { isMutate: true }
+  ) => {
     const {
       retry,
       dynamicUrl,
-      isMutate = true,
-      isRevalidate = true,
-      isOptimistic = false,
-      headers = {},
-    } = options;
+      isMutate,
+      isRevalidate,
+      isOptimistic,
+      headers,
+      additionalKeys,
+    } = handleOptions(options);
+
     const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
     const mutateOptions: SWRMutateOptions = {
       revalidate: isRevalidate,
@@ -80,6 +122,7 @@ export default function useMutation<T, U>(
       rollbackOnError: true,
       throwOnError: true,
     };
+
     setState((prev) => ({ ...prev, loading: true }));
     try {
       const fetchData = async () => {
@@ -107,7 +150,12 @@ export default function useMutation<T, U>(
       }
 
       if (isMutate) {
-        await mutate(url, responseData, mutateOptions);
+        await Promise.all([
+          mutate(url, responseData, mutateOptions),
+          ...(additionalKeys?.map((key: string) =>
+            mutate(key, responseData, mutateOptions)
+          ) || []),
+        ]);
       }
 
       setState({ loading: false, data: responseData, error: null });

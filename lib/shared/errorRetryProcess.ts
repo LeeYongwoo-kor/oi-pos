@@ -1,4 +1,4 @@
-import { CustomError } from "../shared/CustomError";
+import { CustomError } from "./error/CustomError";
 
 type AsyncFunction<T> = () => Promise<T>;
 

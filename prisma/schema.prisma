@@ -136,18 +136,25 @@ model Restaurant {
 }
 
 model RestaurantTable {
-  id          String  @id @default(cuid())
+  id           String  @id @default(cuid())
+  qrCodeId     String  @unique
   restaurantId String  @map("restaurant_id")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime? @updatedAt
+  tableType    TableType @map("table_type")
+  number       Int
+  group        String? @default("")
+  nickname     String?
+  status       TableStatus @default(AVAILABLE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime? @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  tableTypeAssignments TableTypeAssignment[]
 
   @@map("restauranttable")
-  @@index([restaurantId])
+  @@index([restaurantId, qrCodeId])
+  @@unique([restaurantId, tableType, number])
 }
 
+// DEPRECATED: Integrate with RestaurantTable model
 model TableTypeAssignment {
   id                String  @id @default(cuid())
   restaurantTableId String  @map("restaurant_table_id")
@@ -156,11 +163,11 @@ model TableTypeAssignment {
   createdAt         DateTime @default(now())
   updatedAt         DateTime? @updatedAt
 
-  restaurantTable RestaurantTable @relation(fields: [restaurantTableId], references: [id], onDelete: Cascade)
+  // restaurantTable RestaurantTable @relation(fields: [restaurantTableId], references: [id], onDelete: Cascade)
 
   @@map("tabletypeassignment")
-  @@index([restaurantTableId])
-  @@unique([restaurantTableId, tableType])
+  // @@index([restaurantTableId])
+  // @@unique([restaurantTableId, tableType])
 }
 
 model MenuItem {
@@ -214,6 +221,13 @@ enum SubscriptionStatus {
   EXPIRED
   PENDING
   CANCELLED
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  UNAVAILABLE
 }
 
 enum TableType {

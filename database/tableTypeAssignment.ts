@@ -1,17 +1,25 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/ApiError";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import convertDatesToISOString from "@/utils/convertDatesToISOString";
 import { TableTypeAssignment } from "@prisma/client";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export type UpsertTableTypeParams = {
   restaurantTableId: string | null | undefined;
   tableType: TableType;
   number: number;
 };
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export async function getTableTypeAssignments(
   restaurantTableId: string | undefined | null
 ): Promise<TableTypeAssignment[] | null> {
@@ -33,6 +41,10 @@ export async function getTableTypeAssignments(
     : null;
 }
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export async function createTableTypeAssignment(
   restaurantTableId: string,
   tableType: TableType,
@@ -62,6 +74,10 @@ export async function createTableTypeAssignment(
   return convertDatesToISOString(newTableTypeAssignment);
 }
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export async function upsertTableTypeAssignment(
   tableTypeInfo: UpsertTableTypeParams
 ): Promise<TableTypeAssignment> {

@@ -2,7 +2,7 @@ import { PaypalStatus } from "@/constants/status";
 import useVerifyOrder from "@/hooks/fetching/useVerifyOrder";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { ApiError } from "@/lib/shared/ApiError";
+import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostSendInvoiceBody,
   IPostSendInvoiceResponse,
@@ -18,7 +18,7 @@ import {
   PayPalScriptProvider,
   usePayPalScriptReducer,
 } from "@paypal/react-paypal-js";
-import { Payment, Plan, Subscription } from "@prisma/client";
+import { PlanPayment, Plan, Subscription } from "@prisma/client";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 
@@ -49,7 +49,7 @@ const ButtonWrapper = ({
   const { addToast } = useToast();
   const { verifyOrder } = useVerifyOrder();
   const [createPayment, { error: createPaymentErr }] = useMutation<
-    Payment,
+    PlanPayment,
     IPostPaymentBody
   >("/api/v1/payments", "POST");
   const [createSubscription, { error: createSubscriptionErr }] = useMutation<

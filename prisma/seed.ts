@@ -1,6 +1,6 @@
 import { PlanId } from "@/constants/plan";
 import { upsertPlans } from "@/database";
-import { CurrecyType, PlanType, PrismaClient } from "@prisma/client";
+import { CurrencyType, PlanType, PrismaClient } from "@prisma/client";
 const seedPrisma = new PrismaClient();
 
 async function main() {
@@ -13,7 +13,7 @@ async function main() {
       maxMenus: 30,
       maxTables: 10,
       price: 0,
-      currency: CurrecyType.USD,
+      currency: CurrencyType.USD,
       duration: 7776000,
     },
     {
@@ -24,7 +24,7 @@ async function main() {
       maxMenus: 500,
       maxTables: 200,
       price: 4.99,
-      currency: CurrecyType.USD,
+      currency: CurrencyType.USD,
       duration: 2678400,
     },
     {
@@ -35,7 +35,7 @@ async function main() {
       maxMenus: 500,
       maxTables: 200,
       price: 49.99,
-      currency: CurrecyType.USD,
+      currency: CurrencyType.USD,
       duration: 31536000,
     },
   ];

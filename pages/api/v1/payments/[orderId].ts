@@ -1,12 +1,12 @@
 import { Method } from "@/constants/fetch";
 import {
-  createPayment,
-  deletePayments,
-  getPaymentByOrderId,
-  updatePaymentStatus,
+  createPlanPayment,
+  deletePlanPayments,
+  getPlanPaymentByOrderId,
+  updatePlanPaymentStatus,
 } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { NotFoundError } from "@/lib/shared/ApiError";
+import { NotFoundError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IGetPaymentQuery {
@@ -32,7 +32,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.GET) {
     const { orderId } = req.query as IGetPaymentQuery;
 
-    const payment = await getPaymentByOrderId(orderId);
+    const payment = await getPlanPaymentByOrderId(orderId);
     if (!payment) {
       throw new NotFoundError("Payment not found with the given orderId");
     }
@@ -44,7 +44,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { planId, orderId, status, amount, currency }: IPostPaymentBody =
       req.body;
 
-    const newPayment = await createPayment(
+    const newPayment = await createPlanPayment(
       planId,
       orderId,
       status,
@@ -57,14 +57,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (req.method === Method.PATCH) {
     const { orderId, newStatus }: IPatchPaymentBody = req.body;
-    await updatePaymentStatus(orderId, newStatus);
+    await updatePlanPaymentStatus(orderId, newStatus);
 
     return res.status(204).end();
   }
 
   if (req.method === Method.DELETE) {
     const { orderId }: IDeletePaymentBody = req.body;
-    await deletePayments(orderId);
+    await deletePlanPayments(orderId);
 
     return res.status(204).end();
   }

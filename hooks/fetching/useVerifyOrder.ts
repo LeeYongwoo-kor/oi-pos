@@ -4,7 +4,7 @@ import {
   IVerifyOrderResponse,
   IVerifyPaymentBody,
 } from "@/pages/api/v1/payments/verify";
-import { Payment } from "@prisma/client";
+import { PlanPayment } from "@prisma/client";
 
 export default function useVerifyOrder() {
   const [verifyMutation, verifyState] = useMutation<
@@ -12,7 +12,7 @@ export default function useVerifyOrder() {
     IVerifyPaymentBody
   >("/api/v1/payments/verify", "POST");
   const [updatePaymentMutation, updatePaymentState] = useMutation<
-    Payment,
+    PlanPayment,
     IPatchPaymentBody
   >("/api/v1/payments", "PATCH");
 

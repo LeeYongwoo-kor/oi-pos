@@ -1,5 +1,5 @@
 import { PaypalStatus } from "@/constants/status";
-import { getPaymentByOrderId } from "@/database";
+import { getPlanPaymentByOrderId } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { apiClient } from "@/lib/services/paypal";
 import {
@@ -7,8 +7,8 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
-} from "@/lib/shared/ApiError";
-import checkNullUndefined from "@/utils/checkNullUndefined";
+} from "@/lib/shared/error/ApiError";
+import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IVerifyPaymentBody {
@@ -31,7 +31,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     );
   }
 
-  const payment = await getPaymentByOrderId(orderId);
+  const payment = await getPlanPaymentByOrderId(orderId);
   if (!payment) {
     throw new NotFoundError(
       "Payment information not found for the provided orderId. Please try again later"

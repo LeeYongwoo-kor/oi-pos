@@ -83,14 +83,14 @@ model Plan {
   name        String
   description String?
   price       Float
-  currency    CurrecyType
+  currency    CurrencyType
   duration    Int
   maxMenus    Int
   maxTables   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   subscription Subscription[]
-  payment     Payment[]
+  payment     PlanPayment[]
 
   @@map("plans")
 }
@@ -146,10 +146,11 @@ model RestaurantTable {
   status       TableStatus @default(AVAILABLE)
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
+  orders       Order[]
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  @@map("restauranttable")
+  @@map("restauranttables")
   @@index([restaurantId, qrCodeId])
   @@unique([restaurantId, tableType, number])
 }
@@ -179,26 +180,73 @@ model MenuItem {
   category    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
+  orderItems  OrderItem[]
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  @@map("menuitem")
+  @@map("menuitems")
   @@index([restaurantId])
 }
 
-model Payment {
+model PlanPayment {
   id           String  @id @default(cuid())
-  orderId      String  @map("order_id") @unique
+  planOrderId  String  @map("plan_order_id") @unique
   planId       String @map("plan_id")
   status       String
   amount       Float
-  currency     CurrecyType
+  currency     CurrencyType
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
   plan         Plan     @relation(fields: [planId], references: [id])
 
-  @@map("payment")
+  @@map("planpayments")
   @@index([planId])
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  tableId       String   @map("table_id")
+  status        OrderStatus
+  totalAmount   Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime? @updatedAt
+  orderItems    OrderItem[]
+  orderPayment  OrderPayment?
+
+  table       RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@map("orders")
+  @@index([tableId])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String @map("order_id")
+  menuItemId String @map("menu_item_id")
+  status    OrderItemStatus
+  quantity  Int
+  price     Float
+
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("orderitems")
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model OrderPayment {
+  id           String   @id @default(cuid())
+  orderId      String   @map("order_id") @unique
+  paymentType  PaymentType
+  totalAmount  Float
+  currency     CurrencyType
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime? @updatedAt
+
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_payments")
 }
 
 enum UserRole {
@@ -230,6 +278,19 @@ enum TableStatus {
   UNAVAILABLE
 }
 
+enum OrderStatus {
+  PENDING
+  ORDERED
+  COMPLETED
+}
+
+enum OrderItemStatus {
+  PLACED
+  ACCEPTED
+  CANCELLED
+  COMPLETED
+}
+
 enum TableType {
   TABLE
   COUNTER
@@ -241,7 +302,15 @@ enum PlanType {
   YEARLY
 }
 
-enum CurrecyType {
+enum PaymentType {
+  CASH
+  VISA
+  MASTERCARD
+  PAYPAY
+  LINEPAY
+}
+
+enum CurrencyType {
   USD
   JPY
 }

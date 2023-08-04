@@ -1,40 +1,40 @@
 import prisma from "@/lib/services/prismadb";
-import { Payment } from "@prisma/client";
-import checkNullUndefined from "@/utils/checkNullUndefined";
+import { PlanPayment } from "@prisma/client";
+import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
-import { ValidationError } from "@/lib/shared/CustomError";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 
-export async function getPaymentByOrderId(
+export async function getPlanPaymentByOrderId(
   orderId: string | undefined
-): Promise<Payment | null> {
+): Promise<PlanPayment | null> {
   if (!orderId) {
     return null;
   }
 
-  const payment = await prismaRequestHandler(
-    prisma.payment.findUnique({
+  const planPayment = await prismaRequestHandler(
+    prisma.planPayment.findUnique({
       where: {
-        orderId,
+        planOrderId: orderId,
       },
       include: { plan: true },
     }),
-    "getPaymentByOrderId"
+    "getPlanPaymentByOrderId"
   );
 
-  return payment;
+  return planPayment;
 }
 
-export async function getAllPayments(): Promise<Payment[] | null> {
+export async function getAllplanPayments(): Promise<PlanPayment[] | null> {
   return null;
 }
 
-export async function createPayment(
+export async function createPlanPayment(
   planId: string,
   orderId: string,
   status: string,
   amount: number,
   currency: Currency
-): Promise<Payment> {
+): Promise<PlanPayment> {
   const { hasNullUndefined } = checkNullUndefined({
     planId,
     orderId,
@@ -44,60 +44,62 @@ export async function createPayment(
   });
 
   if (hasNullUndefined) {
-    throw new ValidationError("Failed to create payment. Please try again");
+    throw new ValidationError("Failed to create planPayment. Please try again");
   }
 
-  const newPayment = await prismaRequestHandler(
-    prisma.payment.create({
+  const newPlanPayment = await prismaRequestHandler(
+    prisma.planPayment.create({
       data: {
         planId,
-        orderId,
+        planOrderId: orderId,
         status,
         amount,
         currency,
       },
     }),
-    "createPayment"
+    "createPlanPayment"
   );
 
-  return newPayment;
+  return newPlanPayment;
 }
 
-export async function updatePaymentStatus(
+export async function updatePlanPaymentStatus(
   orderId: string,
   newStatus: PaypalStatusType
-): Promise<Payment> {
+): Promise<PlanPayment> {
   const { hasNullUndefined } = checkNullUndefined({ orderId, newStatus });
   if (hasNullUndefined) {
     throw new ValidationError(
-      "Failed to update payment status. Please try again"
+      "Failed to update planPayment status. Please try again"
     );
   }
 
-  const updatedPayment = await prismaRequestHandler(
-    prisma.payment.update({
-      where: { orderId },
+  const updatedPlanPayment = await prismaRequestHandler(
+    prisma.planPayment.update({
+      where: { planOrderId: orderId },
       data: { status: newStatus },
     }),
-    "updatePaymentStatus"
+    "updatePlanPaymentStatus"
   );
 
-  return updatedPayment;
+  return updatedPlanPayment;
 }
 
-export async function deletePayments(
+export async function deletePlanPayments(
   orderId: string | unknown
 ): Promise<{ count: number } | null> {
   if (!orderId) {
-    throw new ValidationError("Failed to delete payments. Please try again");
+    throw new ValidationError(
+      "Failed to delete planPayments. Please try again"
+    );
   }
 
-  const deletedPayment = await prismaRequestHandler(
-    prisma.payment.deleteMany({
-      where: { orderId },
+  const deletedPlanPayment = await prismaRequestHandler(
+    prisma.planPayment.deleteMany({
+      where: { planOrderId: orderId },
     }),
-    "deletePayments"
+    "deletePlanPayments"
   );
 
-  return deletedPayment;
+  return deletedPlanPayment;
 }

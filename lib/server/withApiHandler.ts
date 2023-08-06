@@ -2,7 +2,7 @@ import {
   ApiError,
   MethodNotAllowedError,
   UnauthorizedError,
-} from "@/lib/shared/ApiError";
+} from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 import { getSession } from "next-auth/react";
@@ -54,13 +54,11 @@ export default function withApiHandler({
           `Error in ${handler.name}, Error occurred on endpoint: ${err.endpoint}`
         );
         if (err.redirectUrl) {
-          return res
-            .status(307)
-            .json({
-              statusCode: 307,
-              message: err.message,
-              redirectUrl: err.redirectUrl,
-            });
+          return res.status(307).json({
+            statusCode: 307,
+            message: err.message,
+            redirectUrl: err.redirectUrl,
+          });
         }
 
         return res

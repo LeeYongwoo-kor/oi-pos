@@ -1,6 +1,13 @@
 import { JWT } from "next-auth/jwt";
 import { withAuth } from "next-auth/middleware";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  AUTH_ERROR_URL,
+  DASHBOARD_URL,
+  PLAN_URL,
+  RESTAURANT_URL,
+} from "./constants/url";
+import { AUTH_QUERY_PARAMS } from "./constants/errorMessage/auth";
 
 interface IAuthorizedOptions {
   req: NextRequest;
@@ -14,7 +21,7 @@ export default withAuth(
     if (token !== null && token.errorName) {
       return NextResponse.redirect(
         new URL(
-          `/errors/${token.errorName}?errorMessage=${token.message}&allowAccess=true`,
+          `${AUTH_ERROR_URL.BASE}/${token.errorName}?${AUTH_QUERY_PARAMS.ERROR_MESSAGE}=${token.message}&${AUTH_QUERY_PARAMS.ALLOW_ACCESS}}=true`,
           req.url
         )
       );
@@ -37,4 +44,10 @@ export default withAuth(
   }
 );
 
-export const config = { matcher: ["/plans/:path*", "/dashboard"] };
+export const config = {
+  matcher: [
+    `${PLAN_URL.BASE}/:path*`,
+    DASHBOARD_URL.BASE,
+    `${RESTAURANT_URL.BASE}/:path*`,
+  ],
+};

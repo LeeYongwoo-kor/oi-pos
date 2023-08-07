@@ -1,13 +1,13 @@
-import { TOAST_MESSAGE_CLOSE_DELAY } from "@/constants";
+import { ToastKind } from "@/constants/message/toast";
+import { TOAST_MESSAGE_CLOSE_DELAY } from "@/constants/numeric";
 import { useToast } from "@/hooks/useToast";
 import { joinCls } from "@/utils/cssHelper";
 import React, { useEffect } from "react";
 
-export type ToastKind = "preserve" | "error" | "success" | "info";
-
+export type ToastKindType = (typeof ToastKind)[keyof typeof ToastKind];
 export type ToastType = {
   id: string;
-  type: ToastKind;
+  type: ToastKindType;
   message: string;
 };
 
@@ -18,7 +18,7 @@ interface ToastProps extends ToastType {
 const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    if (type !== "preserve") {
+    if (type !== ToastKind.PRESERVE) {
       timeoutId = setTimeout(() => {
         onDismiss(id);
       }, TOAST_MESSAGE_CLOSE_DELAY);
@@ -31,7 +31,7 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
   }, [type, id, onDismiss]);
 
   const bgColor =
-    type === "error"
+    type === ToastKind.ERROR
       ? "bg-red-600"
       : type === "success"
       ? "bg-green-600"
@@ -47,12 +47,12 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
         <span
           className={joinCls(
             "text-base",
-            type === "preserve" ? "text-black" : "text-white"
+            type === ToastKind.PRESERVE ? "text-black" : "text-white"
           )}
         >
           {message}
         </span>
-        {type === "preserve" && (
+        {type === ToastKind.PRESERVE && (
           <button onClick={() => onDismiss(id)} className="text-xl font-bold">
             &times;
           </button>

@@ -1,12 +1,11 @@
 import React from "react";
 
-type Step = string;
-type StatusBarProps<Steps extends Step[]> = {
-  steps: [...Steps];
+type StatusBarProps<Steps extends readonly string[]> = {
+  steps: Steps;
   currentStep: Steps[number];
 };
 
-export function StatusBar<T extends Step[]>({
+export function StatusBar<T extends readonly string[]>({
   steps,
   currentStep,
 }: StatusBarProps<T>) {

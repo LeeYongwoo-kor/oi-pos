@@ -1,4 +1,12 @@
+import {
+  EMAIL_ENDPOINT,
+  PAYMENT_ENDPOINT,
+  SUBSCRIPTION_ENDPOINT,
+} from "@/constants/endpoint";
+import { Method } from "@/constants/fetch";
+import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { PaypalStatus } from "@/constants/status";
+import { RESTAURANT_URL } from "@/constants/url";
 import useVerifyOrder from "@/hooks/fetching/useVerifyOrder";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
@@ -6,19 +14,19 @@ import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostSendInvoiceBody,
   IPostSendInvoiceResponse,
-} from "@/pages/api/v1/email/send-invoice";
+} from "@/pages/api/v1/emails/send-invoice";
 import {
   IDeletePaymentBody,
   IPostPaymentBody,
 } from "@/pages/api/v1/payments/[orderId]";
-import { IPostSubscriptionBody } from "@/pages/api/v1/subscription";
+import { IPostSubscriptionBody } from "@/pages/api/v1/subscriptions";
 import { useNavigation } from "@/providers/NavigationContext";
 import {
   PayPalButtons,
   PayPalScriptProvider,
   usePayPalScriptReducer,
 } from "@paypal/react-paypal-js";
-import { PlanPayment, Plan, Subscription } from "@prisma/client";
+import { PlanPayment, Plan, Subscription, CurrencyType } from "@prisma/client";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 
@@ -51,19 +59,19 @@ const ButtonWrapper = ({
   const [createPayment, { error: createPaymentErr }] = useMutation<
     PlanPayment,
     IPostPaymentBody
-  >("/api/v1/payments", "POST");
+  >(PAYMENT_ENDPOINT.BASE, Method.POST);
   const [createSubscription, { error: createSubscriptionErr }] = useMutation<
     Subscription,
     IPostSubscriptionBody
-  >("/api/v1/subscription", "POST");
+  >(SUBSCRIPTION_ENDPOINT.BASE, Method.POST);
   const [sendInvoice, { error: sendInvoiceErr }] = useMutation<
     IPostSendInvoiceResponse,
     IPostSendInvoiceBody
-  >("/api/v1/email/send-invoice", "POST");
+  >(EMAIL_ENDPOINT.SEND_INVOICE, Method.POST);
   const [deletePayment, { error: deletePaymentErr }] = useMutation<
     { count: number } | null,
     IDeletePaymentBody
-  >("/api/v1/payments", "DELETE");
+  >(PAYMENT_ENDPOINT.BASE, Method.DELETE);
   const router = useRouter();
 
   useEffect(() => {
@@ -147,8 +155,8 @@ const ButtonWrapper = ({
               throw sendInvoiceErr;
             }
 
-            router.replace("/restaurants/info").then(() => {
-              showToastMessage("success", "You have successfully registered!");
+            router.replace(RESTAURANT_URL.SETUP.INFO).then(() => {
+              showToastMessage("success", TOAST_MESSAGE.REGISTERATION.SUCCESS);
             });
           });
         }}
@@ -184,7 +192,7 @@ export default function Checkout({ plan }: CheckoutProps) {
         options={{
           "client-id": process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!,
           components: "buttons",
-          currency: plan?.currency ? plan.currency : "USD",
+          currency: plan?.currency ? plan.currency : CurrencyType.USD,
           locale: "ja_JP",
         }}
       >

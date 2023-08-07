@@ -1,23 +1,23 @@
-import { ToastKind, ToastType } from "@/components/ui/Toast";
+import { nanoid } from "nanoid";
+import { ToastKindType, ToastType } from "@/components/ui/Toast";
 import { useCallback } from "react";
 import { useRecoilState } from "recoil";
-import { v4 as uuidv4 } from "uuid";
-import { toastState } from "./state/toastState";
+import { toastState } from "../recoil/state/toastState";
 
 export interface UseToastReturn {
   toasts: ToastType[];
-  addToast: (type: ToastKind, message: string) => void;
+  addToast: (type: ToastKindType, message: string) => void;
   dismissToast: (id: string) => void;
 }
 
 export const useToast = (): UseToastReturn => {
   const [toasts, setToasts] = useRecoilState<ToastType[]>(toastState);
 
-  const addToast = useCallback((type: ToastKind, message: string) => {
+  const addToast = useCallback((type: ToastKindType, message: string) => {
     if (typeof window === "undefined") {
       return;
     }
-    const id = uuidv4();
+    const id = nanoid();
     setToasts((prevToasts) => [...prevToasts, { id, type, message }]);
   }, []);
 

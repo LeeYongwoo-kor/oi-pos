@@ -1,4 +1,4 @@
-import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants";
+import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants/numeric";
 import errorRetryProcess from "./errorRetryProcess";
 
 export function withErrorRetry<T>(

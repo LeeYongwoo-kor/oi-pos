@@ -1,3 +1,4 @@
+import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { useConfirm } from "@/hooks/useConfirm";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
@@ -17,8 +18,8 @@ export default function NavigationBar({
 
   const openConfirm = () => {
     showConfirm({
-      title: "ログアウト",
-      message: "ログアウトしま～す。よろしいでしょうか？",
+      title: CONFIRM_DIALOG_MESSAGE.LOGOUT.TITLE,
+      message: CONFIRM_DIALOG_MESSAGE.LOGOUT.MESSAGE,
       onConfirm: () => {
         // clear cache on logout
         mutate(() => true, undefined, { revalidate: false });

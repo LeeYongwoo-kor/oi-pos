@@ -1,6 +1,12 @@
 import Layout from "@/components/Layout";
 import Loader from "@/components/Loader";
-import { PlanId } from "@/constants/plan";
+import { PLAN_ENDPOINT, SUBSCRIPTION_ENDPOINT } from "@/constants/endpoint";
+import {
+  AUTH_EXPECTED_ERROR,
+  AUTH_QUERY_PARAMS,
+} from "@/constants/errorMessage/auth";
+import { PLAN_ID } from "@/constants/plan";
+import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
 import { getAllPlans, getSubscription } from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
@@ -14,6 +20,7 @@ import { useEffect, useState } from "react";
 import Modal from "react-modal";
 import useSWR, { SWRConfig } from "swr";
 import { authOptions } from "../api/auth/[...nextauth]";
+import { Method } from "@/constants/fetch";
 
 const Checkout = dynamic(() => import("@/components/Checkout"), {
   loading: () => <Loader />,
@@ -27,12 +34,14 @@ const PlanRegister = () => {
     setIsClientRender(true);
   }, []);
 
-  const { data: subscription } = useSWR<Subscription>("/api/v1/subscription");
+  const { data: subscription } = useSWR<Subscription>(
+    SUBSCRIPTION_ENDPOINT.BASE
+  );
   const {
     data: plans,
     isLoading: isLoadingPlans,
     isValidating: isValidatingPlans,
-  } = useSWR<Plan[]>("/api/v1/plans");
+  } = useSWR<Plan[]>(PLAN_ENDPOINT.BASE);
 
   // The following condition will be true only in the initial render after SSR
   // TODO: Remove this condition after testing
@@ -51,7 +60,7 @@ const PlanRegister = () => {
   const [createSubscription, { error: createSubscriptionErr }] = useMutation<
     Subscription,
     { planId: "10001" }
-  >("/api/v1/subscription", "POST");
+  >(SUBSCRIPTION_ENDPOINT.BASE, Method.POST);
   const router = useRouter();
 
   const [isModalOpen, setModalOpen] = useState(false);
@@ -72,7 +81,7 @@ const PlanRegister = () => {
       addToast("error", "Failed to load plans. Please try again later.");
       return;
     }
-    if (selectPlan.id === PlanId.TRIAL_PLAN) {
+    if (selectPlan.id === PLAN_ID.TRIAL_PLAN) {
       handleTrialRegistration();
       return;
     }
@@ -87,17 +96,17 @@ const PlanRegister = () => {
 
   const handleConfirm = async () => {
     if (subscription) {
-      await router.replace("/restaurants/info");
+      await router.replace(RESTAURANT_URL.SETUP.INFO);
       addToast("info", "You already have a subscription");
       return;
     }
 
-    const resultData = await createSubscription({ planId: PlanId.TRIAL_PLAN });
+    const resultData = await createSubscription({ planId: PLAN_ID.TRIAL_PLAN });
     if (!resultData) {
       return;
     }
 
-    await router.replace("/restaurants/info");
+    await router.replace(RESTAURANT_URL.SETUP.INFO);
     // showToastMessage("success", "You have successfully registered!");
     addToast("success", "You have successfully registered!");
   };
@@ -152,10 +161,10 @@ const PlanRegister = () => {
                   <ul className="pl-6 mb-6 list-disc">
                     <li>Limited to {plan.maxMenus} menus</li>
                     <li>Up to {plan.maxTables} registered tables</li>
-                    {plan.id === PlanId.TRIAL_PLAN && (
+                    {plan.id === PLAN_ID.TRIAL_PLAN && (
                       <li>Basic menu design template</li>
                     )}
-                    {plan.id !== PlanId.TRIAL_PLAN && (
+                    {plan.id !== PLAN_ID.TRIAL_PLAN && (
                       <>
                         <li>Various menu design templates</li>
                         <li>Real-time chat with customers</li>
@@ -193,7 +202,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     if (!session) {
       return {
         redirect: {
-          destination: "/auth/signin?error=Unauthorized",
+          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
           permanent: false,
         },
       };
@@ -207,8 +216,8 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     return {
       props: {
         fallback: {
-          "/api/v1/plans": plans,
-          "/api/v1/subscription": subscription,
+          [PLAN_ENDPOINT.BASE]: plans,
+          [SUBSCRIPTION_ENDPOINT.BASE]: subscription,
         },
       },
     };

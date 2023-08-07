@@ -1,19 +1,18 @@
 import {
   getMenuItem,
   getRestaurant,
-  getRestaurantTable,
   getSubscription,
   getUserById,
   updateSubscriptionStatus,
 } from "@/database";
-import { withErrorRetry } from "@/lib/server/withErrorRetry";
+import { withErrorRetry } from "@/lib/shared/withErrorRetry";
 import {
   ApiError,
   ForbiddenError,
   GoneError,
   NotFoundError,
   UnauthorizedError,
-} from "@/lib/shared/ApiError";
+} from "@/lib/shared/error/ApiError";
 import {
   MenuItem,
   Restaurant,
@@ -24,6 +23,7 @@ import {
   UserStatus,
 } from "@prisma/client";
 import { JWT } from "next-auth/jwt";
+import { PLAN_URL, RESTAURANT_URL } from "@/constants/url";
 
 export async function verifyUserInformation(token: JWT): Promise<JWT> {
   try {
@@ -45,7 +45,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new NotFoundError(
         "You don't have subscription. Please register your subscription first.",
         undefined,
-        "/plans/register"
+        PLAN_URL.REGISTER
       );
     }
 
@@ -56,7 +56,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new ForbiddenError(
         "Your subscription is cancelled or pending. Please contact support team.",
         undefined,
-        "/plans/register"
+        PLAN_URL.REGISTER
       );
     }
 
@@ -64,7 +64,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new GoneError(
         "Your subscription has expired. Please renew your subscription.",
         undefined,
-        "/plans/register"
+        PLAN_URL.REGISTER
       );
     }
 
@@ -78,7 +78,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new GoneError(
         "Your subscription has expired. Please renew your subscription.",
         undefined,
-        "/plans/register"
+        PLAN_URL.REGISTER
       );
     }
 
@@ -90,7 +90,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new NotFoundError(
         "You don't register restaurant information yet. Please register restaurant information.",
         undefined,
-        "/restaurants/info"
+        RESTAURANT_URL.SETUP.INFO
       );
     }
 
@@ -99,7 +99,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new NotFoundError(
         "You don't register restaurant hours. Please register restaurant hours.",
         undefined,
-        "/restaurants/hours"
+        RESTAURANT_URL.SETUP.HOURS
       );
     }
 
@@ -111,7 +111,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new NotFoundError(
         "You don't register restaurant table. Please register restaurant table.",
         undefined,
-        "/restaurants/table"
+        RESTAURANT_URL.SETUP.TABLES
       );
     }
 
@@ -123,7 +123,7 @@ export async function verifyUserInformation(token: JWT): Promise<JWT> {
       throw new NotFoundError(
         "You don't register menu. Please register menu.",
         undefined,
-        "/menus"
+        RESTAURANT_URL.SETUP.MENUS
       );
     }
 

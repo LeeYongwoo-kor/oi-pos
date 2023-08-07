@@ -1,3 +1,5 @@
+import { AUTH_EXPECTED_ERROR } from "@/constants/errorMessage/auth";
+import { AUTH_URL } from "@/constants/url";
 import { useError } from "@/providers/ErrorContext";
 import { GetServerSideProps } from "next";
 import { signOut } from "next-auth/react";
@@ -17,7 +19,7 @@ export default function ErrorPage({ errorName, message }: ErrorPageProps) {
     if (errorName) {
       setError({ errorName, errorMessage: message });
       signOut({ redirect: false }).then(() => {
-        router.replace("/auth/signin");
+        router.replace(AUTH_URL.LOGIN);
       });
     }
   }, [errorName, message, setError, router]);
@@ -32,7 +34,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   if (!errorName) {
     return {
       props: {
-        errorName: "InvalidError",
+        errorName: AUTH_EXPECTED_ERROR.INVALID_ERROR,
       },
     };
   }
@@ -40,7 +42,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   if (!allowAccess) {
     return {
       props: {
-        errorName: "NotAllowedAccess",
+        errorName: AUTH_EXPECTED_ERROR.NOT_ALLOWED_ACCESS,
       },
     };
   }
@@ -48,7 +50,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   if (allowAccess !== "true") {
     return {
       props: {
-        errorName: "NotAllowedAccess",
+        errorName: AUTH_EXPECTED_ERROR.NOT_ALLOWED_ACCESS,
       },
     };
   }

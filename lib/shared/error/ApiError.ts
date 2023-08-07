@@ -1,4 +1,3 @@
-import { LOGIN_PATH } from "@/constants";
 import { CustomError, CustomErrorType } from "./CustomError";
 import {
   ApiErrorBuilder,
@@ -14,6 +13,7 @@ import {
   UnexpectedErrorBuilder,
   ValidationErrorBuilder,
 } from "./builder/ApiErrorBuilder";
+import { AUTH_URL } from "@/constants/url";
 
 export interface ApiErrorType extends CustomErrorType {
   endpoint?: string;
@@ -78,7 +78,7 @@ class UnauthorizedError extends ApiError {
     redirectUrl?: string,
     endpoint?: string
   ) {
-    super(message, 401, originalError, redirectUrl || LOGIN_PATH, endpoint);
+    super(message, 401, originalError, redirectUrl || AUTH_URL.LOGIN, endpoint);
     this.name = "UnauthorizedError";
   }
 

@@ -1,10 +1,10 @@
-import { ToastKind } from "@/components/ui/Toast";
+import { ToastKindType } from "@/components/ui/Toast";
 import { ReactNode, createContext, useContext, useState } from "react";
 
 export type NavigationContextType = {
   toastMessage: string;
-  toastKind: ToastKind;
-  showToastMessage: (type: ToastKind, message: string) => void;
+  toastKind: ToastKindType;
+  showToastMessage: (type: ToastKindType, message: string) => void;
   hideToastMessage: () => void;
 };
 
@@ -18,9 +18,9 @@ interface NavigationProviderProps {
 
 function useNavigationContextValue() {
   const [toastMessage, setToastMessage] = useState("");
-  const [toastKind, setToastKind] = useState<ToastKind>("info");
+  const [toastKind, setToastKind] = useState<ToastKindType>("info");
 
-  const showToastMessage = (kind: ToastKind, message: string) => {
+  const showToastMessage = (kind: ToastKindType, message: string) => {
     if (typeof window === "undefined") {
       console.warn(
         "showToastMessage should not be used in a non-client environment"

@@ -1,7 +1,7 @@
 import withApiHandler from "@/lib/server/withApiHandler";
 import { getSubscription, upsertSubscription } from "@/database";
 import { NextApiRequest, NextApiResponse } from "next";
-import { NotFoundError } from "@/lib/shared/ApiError";
+import { NotFoundError } from "@/lib/shared/error/ApiError";
 import { Method } from "@/constants/fetch";
 import { Session } from "next-auth";
 

@@ -1,6 +1,6 @@
-import { hasNullUndefined } from "@/utils/checkNullUndefined";
+import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import sgMail from "@sendgrid/mail";
-import { UnexpectedError, ValidationError } from "../shared/ApiError";
+import { UnexpectedError, ValidationError } from "../shared/error/ApiError";
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 

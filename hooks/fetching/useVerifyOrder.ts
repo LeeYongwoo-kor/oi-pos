@@ -1,3 +1,5 @@
+import { PAYMENT_ENDPOINT } from "@/constants/endpoint";
+import { Method } from "@/constants/fetch";
 import useMutation from "@/lib/client/useMutation";
 import { IPatchPaymentBody } from "@/pages/api/v1/payments/[orderId]";
 import {
@@ -10,11 +12,11 @@ export default function useVerifyOrder() {
   const [verifyMutation, verifyState] = useMutation<
     IVerifyOrderResponse,
     IVerifyPaymentBody
-  >("/api/v1/payments/verify", "POST");
+  >(PAYMENT_ENDPOINT.VERIFY, Method.POST);
   const [updatePaymentMutation, updatePaymentState] = useMutation<
     PlanPayment,
     IPatchPaymentBody
-  >("/api/v1/payments", "PATCH");
+  >(PAYMENT_ENDPOINT.BASE, Method.PATCH);
 
   const verifyOrder = async (orderId: string) => {
     // verify order

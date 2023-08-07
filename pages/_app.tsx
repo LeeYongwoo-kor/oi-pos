@@ -1,8 +1,9 @@
 import AuthenticationHandler from "@/components/handlers/AuthenticationHandler";
 import MessageContainer from "@/components/ui/Message";
 import ToastContainer from "@/components/ui/Toast";
-import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants";
-import { CustomErrorType } from "@/lib/shared/CustomError";
+import { ME_ENDPOINT } from "@/constants/endpoint";
+import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants/numeric";
+import { CustomErrorType } from "@/lib/shared/error/CustomError";
 import { ErrorProvider } from "@/providers/ErrorContext";
 import { LoadingProvider } from "@/providers/LoadingContext";
 import { NavigationProvider } from "@/providers/NavigationContext";
@@ -49,7 +50,7 @@ export default function App({
                 if (!String(err?.statusCode).startsWith("5")) return;
 
                 // Never retry on /api/v1/me/users
-                if (key === "/api/v1/me/users") return;
+                if (key === ME_ENDPOINT.USER) return;
 
                 // Only retry up to 5 times
                 if (retryCount >= ERROR_RETRY_COUNT) return;

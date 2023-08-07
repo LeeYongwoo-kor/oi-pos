@@ -1,5 +1,11 @@
-import useError from "@/hooks/context/useError";
-import useToast from "@/hooks/context/useToast";
+import {
+  AUTH_CALLBACK_ERROR_MESSAGE,
+  AUTH_EXPECTED_ERROR_MESSAGE,
+  AuthCallbackErrorType,
+  AuthExpectedErrorType,
+} from "@/constants/errorMessage/auth";
+import useToastAuthError from "@/hooks/context/useToastAuthError";
+import { useError } from "@/providers/ErrorContext";
 import { GetServerSidePropsContext } from "next";
 import { getServerSession } from "next-auth";
 import { signIn } from "next-auth/react";
@@ -8,7 +14,6 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { authOptions } from "../api/auth/[...nextauth]";
-import useToastError from "@/hooks/context/useToastError";
 
 type SigninProps = {
   callbackError: string;
@@ -17,43 +22,21 @@ interface IEmail {
   email: string;
 }
 
-const callbackErrors: { [key: string]: string } = {
-  Signin: "Try signing with a different account.",
-  OAuthSignin: "Try signing with a different account.",
-  OAuthCallback: "Try signing with a different account.",
-  OAuthCreateAccount: "Try signing with a different account.",
-  EmailCreateAccount: "Try signing with a different account.",
-  Callback: "Try signing with a different account.",
-  OAuthAccountNotLinked:
-    "To confirm your identity, sign in with the same account you used originally.",
-  EmailSignin: "Check your email address.",
-  CredentialsSignin:
-    "Sign in failed. Check the details you provided are correct.",
-  default: "Unable to sign in.",
-};
+function isExpectedErrorName(name?: string): name is AuthExpectedErrorType {
+  return name ? name in AUTH_EXPECTED_ERROR_MESSAGE : false;
+}
 
-const expectedErrors: { [key: string]: string } = {
-  "email-already-in-use":
-    "The email is already in use. Please use a different email.",
-  "prisma-error": "The signin process failed. Please try again later.",
-  // new custom errors
-  RefreshAccessTokenError:
-    "Unable to refresh access token, Please sign in again.",
-  Unauthorized: "Unauthorized access, Please sign in again.",
-  UnsupportedProviderError: "Unsupported provider, Please sign in again.",
-  UpdateUserError: "Unable to update your account, Please try again.",
-  NotAllowedAccess: "You are not allowed to access that page. Please sign in.",
-  InvalidError: "Invalid Error Occured, Please try again.",
-};
-
-function getExpctedError(errorName: string): string | undefined {
-  return expectedErrors[errorName];
+function getExpectedError(errorName: AuthExpectedErrorType): string {
+  return (
+    AUTH_EXPECTED_ERROR_MESSAGE[errorName] ||
+    AUTH_EXPECTED_ERROR_MESSAGE.DEFAULT
+  );
 }
 
 const Signin = ({ callbackError }: SigninProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { error } = useError();
-  const toastError = useToastError();
+  const toastAuthError = useToastAuthError();
   const {
     register,
     handleSubmit,
@@ -70,14 +53,12 @@ const Signin = ({ callbackError }: SigninProps) => {
   };
 
   useEffect(() => {
-    if (errorName) {
-      toastError(
-        getExpctedError(errorName) ||
-          errorMessage ||
-          "Unexpected Error Occured. Please try again."
-      );
+    if (errorName && isExpectedErrorName(errorName)) {
+      toastAuthError(getExpectedError(errorName));
+    } else if (errorMessage) {
+      toastAuthError(errorMessage);
     }
-  }, [errorName, errorMessage, toastError]);
+  }, [errorName, errorMessage]);
 
   return (
     <main>
@@ -126,11 +107,6 @@ const Signin = ({ callbackError }: SigninProps) => {
                   {errors.email.message}
                 </p>
               )}
-              {/* {signinError && (
-                <p className="mt-1 text-xs text-red-500">
-                  Error: {signinErrors[signinError]}
-                </p>
-              )} */}
             </div>
             <button
               disabled={isSubmitting}
@@ -195,7 +171,8 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     return {
       props: {
         callbackError:
-          callbackErrors[error as string] ?? callbackErrors.default,
+          AUTH_CALLBACK_ERROR_MESSAGE[error as AuthCallbackErrorType] ??
+          AUTH_CALLBACK_ERROR_MESSAGE.DEFAULT,
       },
     };
   }

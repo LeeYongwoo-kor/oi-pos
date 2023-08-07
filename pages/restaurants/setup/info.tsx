@@ -1,12 +1,24 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
-import { RESTAURANT_INFO } from "@/constants/errorMessage";
+import { ME_ENDPOINT, RESTAURANT_ENDPOINT } from "@/constants/endpoint";
+import {
+  AUTH_EXPECTED_ERROR,
+  AUTH_QUERY_PARAMS,
+} from "@/constants/errorMessage/auth";
+import { RESTAURANT_INFO_ERROR } from "@/constants/errorMessage/validation";
+import { EXTERNAL_ENDPOINT } from "@/constants/external";
+import { Method } from "@/constants/fetch";
+import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
+import { TOAST_MESSAGE } from "@/constants/message/toast";
+import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
+import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
 import { IRestaurant, getRestaurantAllInfo } from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/info";
+import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/infos";
 import { getInputFormCls } from "@/utils/cssHelper";
 import { isFormChanged } from "@/utils/formHelper";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -18,7 +30,6 @@ import { useEffect, useState } from "react";
 import { FieldErrors, FieldValues, useForm } from "react-hook-form";
 import useSWR, { SWRConfig } from "swr";
 import * as yup from "yup";
-import { authOptions } from "../api/auth/[...nextauth]";
 
 type RestaurantInfoProps = {
   fallbackData: IRestaurant | null;
@@ -44,37 +55,37 @@ interface ZipcodeApiResponse {
 const schema = yup.object().shape({
   name: yup
     .string()
-    .required(RESTAURANT_INFO.NAME_REQUIRED)
-    .max(30, RESTAURANT_INFO.NAME_MAX)
+    .required(RESTAURANT_INFO_ERROR.NAME_REQUIRED)
+    .max(30, RESTAURANT_INFO_ERROR.NAME_MAX)
     .matches(
       /^(?=.*\S)[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\w\s-]*$/,
-      RESTAURANT_INFO.NAME_SPECIAL_CHAR
+      RESTAURANT_INFO_ERROR.NAME_SPECIAL_CHAR
     ),
   branch: yup
     .string()
-    .required(RESTAURANT_INFO.BRANCH_REQUIRED)
-    .max(30, RESTAURANT_INFO.BRANCH_MAX)
+    .required(RESTAURANT_INFO_ERROR.BRANCH_REQUIRED)
+    .max(30, RESTAURANT_INFO_ERROR.BRANCH_MAX)
     .matches(
       /^(?=.*\S)[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\w\s-]*$/,
-      RESTAURANT_INFO.BRANCH_SPECIAL_CHAR
+      RESTAURANT_INFO_ERROR.BRANCH_SPECIAL_CHAR
     ),
   phoneNumber: yup
     .string()
-    .required(RESTAURANT_INFO.PHONE_REQUIRED)
-    .matches(/^0\d{9,10}$/, RESTAURANT_INFO.PHONE_INVALID),
+    .required(RESTAURANT_INFO_ERROR.PHONE_REQUIRED)
+    .matches(/^0\d{9,10}$/, RESTAURANT_INFO_ERROR.PHONE_INVALID),
   postCode: yup
     .string()
-    .required(RESTAURANT_INFO.POST_CODE_REQUIRED)
-    .max(7, RESTAURANT_INFO.POST_CODE_MAX)
-    .matches(/^\d{7}$/, RESTAURANT_INFO.POST_CODE_INVALID),
+    .required(RESTAURANT_INFO_ERROR.POST_CODE_REQUIRED)
+    .max(7, RESTAURANT_INFO_ERROR.POST_CODE_MAX)
+    .matches(/^\d{7}$/, RESTAURANT_INFO_ERROR.POST_CODE_INVALID),
   address: yup.string(),
   restAddress: yup
     .string()
-    .required(RESTAURANT_INFO.REST_ADDRESS_REQUIRED)
-    .max(50, RESTAURANT_INFO.REST_ADDRESS_MAX)
+    .required(RESTAURANT_INFO_ERROR.REST_ADDRESS_REQUIRED)
+    .max(50, RESTAURANT_INFO_ERROR.REST_ADDRESS_MAX)
     .matches(
       /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF a-zA-Z0-9\s,.'-]*$/,
-      RESTAURANT_INFO.REST_ADDRESS_SPECIAL_CHAR
+      RESTAURANT_INFO_ERROR.REST_ADDRESS_SPECIAL_CHAR
     ),
 });
 
@@ -88,7 +99,7 @@ const useCheckPostCode = (
     isLoading: checkPostCodeLoading,
   } = useSWR<ZipcodeApiResponse>(
     !errors.postCode && postCode && postCode.length === 7
-      ? `https://zip-cloud.appspot.com/api/search?zipcode=${postCode}`
+      ? `${EXTERNAL_ENDPOINT.ZIP_CLOUD_SEARCH}?zipcode=${postCode}`
       : null,
     { keepPreviousData: true }
   );
@@ -106,7 +117,7 @@ const useCheckDuplicatePhoneNumber = (
     isDuplicate: boolean;
   }>(
     !errors.phoneNumber && phoneNumber && phoneNumber.length >= 10
-      ? `/api/v1/restaurants/check-phone-number/${phoneNumber}`
+      ? `${RESTAURANT_ENDPOINT.CHECK_PHONE_NUMBER}/${phoneNumber}`
       : null
   );
 
@@ -131,7 +142,7 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
     data: restaurantInfo,
     error: restaurantInfoErr,
     isValidating,
-  } = useSWR<IRestaurant>(fallbackData ? "/api/v1/me/restaurants" : null);
+  } = useSWR<IRestaurant>(fallbackData ? `${ME_ENDPOINT.RESTAURANT}` : null);
 
   const { postCodeResult, postCodeErr, checkPostCodeLoading } =
     useCheckPostCode(watchFields.postCode, errors);
@@ -139,8 +150,8 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
     useCheckDuplicatePhoneNumber(watchFields.phoneNumber, errors);
   const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
     useMutation<Restaurant, IPutRestaurantInfoBody>(
-      "/api/v1/restaurants/info",
-      "PUT"
+      RESTAURANT_ENDPOINT.INFO,
+      Method.PUT
     );
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -153,18 +164,18 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
     }
 
     if (restaurantInfo && !isFormChanged(restaurantInfo, formData)) {
-      router.push("/restaurants/hours");
+      router.push(RESTAURANT_URL.SETUP.HOURS);
       return;
     }
 
     showConfirm({
-      title: "店舗情報の更新",
-      message: "変更された情報があります。変更内容を保存しますか？",
-      confirmText: "保存する",
-      cancelText: "保存しない",
+      title: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.TITLE,
+      message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
+      confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
+      cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
       onConfirm: () => handleSubmitRestaurantInfo(formData),
       onCancel: () => {
-        router.push("/restaurants/hours");
+        router.push(RESTAURANT_URL.SETUP.HOURS);
         return;
       },
     });
@@ -177,15 +188,15 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
 
     const paramData = formData as IPutRestaurantInfoBody;
     const resultData = await upsertRestaurantInfo(paramData, {
-      additionalKeys: ["/api/v1/me/restaurants"],
+      additionalKeys: [ME_ENDPOINT.RESTAURANT],
     });
     if (resultData) {
-      await router.push("/restaurants/hours");
+      await router.push(RESTAURANT_URL.SETUP.HOURS);
       addToast(
         "info",
         restaurantInfo
-          ? "店舗情報を正常に更新しました"
-          : "店舗情報を正常に登録しました"
+          ? TOAST_MESSAGE.INFO.UPDATE_SUCCESS
+          : TOAST_MESSAGE.INFO.REGISTRATION_SUCCESS
       );
     }
   };
@@ -201,9 +212,9 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
     if (checkDuplicatePhoneNumberResult?.isDuplicate) {
       setError("phoneNumber", {
         type: "manual",
-        message: RESTAURANT_INFO.PHONE_DUPLICATE,
+        message: RESTAURANT_INFO_ERROR.PHONE_DUPLICATE,
       });
-      addToast("error", RESTAURANT_INFO.PHONE_DUPLICATE);
+      addToast("error", RESTAURANT_INFO_ERROR.PHONE_DUPLICATE);
     }
   };
 
@@ -294,17 +305,14 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
   useEffect(() => {
     if (!checkPostCodeLoading && postCodeResult?.results === null) {
       setAddressValue("");
-      addToast("error", "Post Code not found, Please try again");
+      addToast("error", RESTAURANT_INFO_ERROR.POST_CODE_NOT_FOUND);
       resetField("address");
     }
   }, [checkPostCodeLoading, postCodeResult]);
 
   return (
     <Layout>
-      <StatusBar
-        steps={["Info", "Hours", "Tables", "Menus", "Complete"]}
-        currentStep="Info"
-      />
+      <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Info" />
       {isSubmitting && <LoadingOverlay />}
       {isValidating ? (
         <LoadingOverlay />
@@ -494,7 +502,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     if (!session) {
       return {
         redirect: {
-          destination: "/auth/signin?error=Unauthorized",
+          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
           permanent: false,
         },
       };
@@ -504,7 +512,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     return {
       props: {
         fallback: {
-          "/api/v1/me/restaurants": restaurantInfo,
+          [ME_ENDPOINT.RESTAURANT]: restaurantInfo,
         },
       },
     };
@@ -520,7 +528,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
 }
 
 export default function Page({ fallback, initErr }: any) {
-  const fallbackData = fallback["/api/v1/me/restaurants"];
+  const fallbackData = fallback[ME_ENDPOINT.RESTAURANT];
   return (
     <SWRConfig value={{ fallback }}>
       <RestaurantInfo fallbackData={fallbackData} initErr={initErr} />

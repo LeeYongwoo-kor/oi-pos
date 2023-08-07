@@ -1,7 +1,19 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
+import { ME_ENDPOINT, RESTAURANT_ENDPOINT } from "@/constants/endpoint";
+import {
+  AUTH_EXPECTED_ERROR,
+  AUTH_QUERY_PARAMS,
+} from "@/constants/errorMessage/auth";
+import { RESTAURANT_TABLES_ERROR } from "@/constants/errorMessage/validation";
+import { Method } from "@/constants/fetch";
+import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
+import { TOAST_MESSAGE } from "@/constants/message/toast";
+import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "@/constants/numeric";
+import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
 import { TableType } from "@/constants/type";
+import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
 import { IRestaurant, getRestaurantAllInfo } from "@/database";
 import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -9,7 +21,7 @@ import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { IPostRestaurantTableBody } from "@/pages/api/v1/restaurants/table";
+import { IPostRestaurantTableBody } from "@/pages/api/v1/restaurants/tables";
 import convertStringsToNumbers from "@/utils/converter/convertStringsToNumbers";
 import { isFormChanged } from "@/utils/formHelper";
 import isEmpty from "@/utils/validation/isEmpty";
@@ -44,7 +56,7 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     data: restaurantInfo,
     error: restaurantInfoErr,
     isValidating,
-  } = useSWR<IRestaurant>("/api/v1/me/restaurants", {
+  } = useSWR<IRestaurant>(ME_ENDPOINT.RESTAURANT, {
     onError: async (err: ApiError) => {
       if (err.statusCode === 307 && err.redirectUrl) {
         await router.replace(err.redirectUrl);
@@ -56,15 +68,13 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     createOrDeleteRestaurantTables,
     { error: createOrDeleteRestaurantTablesErr },
   ] = useMutation<Restaurant, IPostRestaurantTableBody>(
-    "/api/v1/restaurants/table",
-    "POST"
+    RESTAURANT_ENDPOINT.TABLE,
+    Method.POST
   );
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
   const router = useRouter();
   const withLoading = useLoading();
-
-  console.log("restaurantInfo", restaurantInfo);
 
   const prevTableNumber = restaurantInfo?.restaurantTables?.filter(
     (data) => data.tableType === TableType.TABLE
@@ -81,19 +91,22 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
   const handleNext = async (formData: FieldValues) => {
     if (!restaurantInfo?.restaurantTables) {
       withLoading(() =>
-        handleCreateOrDeleteRestaurantTables(formData, "/menus")
+        handleCreateOrDeleteRestaurantTables(
+          formData,
+          RESTAURANT_URL.SETUP.MENUS
+        )
       );
       return;
     }
-    handleConfirm(formData, "/menus");
+    handleConfirm(formData, RESTAURANT_URL.SETUP.MENUS);
   };
 
   const handlePrevious = (formData: FieldValues) => {
     if (!restaurantInfo?.restaurantTables) {
-      router.push("/restaurants/hours");
+      router.push(RESTAURANT_URL.SETUP.HOURS);
       return;
     }
-    handleConfirm(formData, "/restaurants/hours");
+    handleConfirm(formData, RESTAURANT_URL.SETUP.HOURS);
   };
 
   const handleConfirm = (formData: FieldValues, destination: string) => {
@@ -115,10 +128,10 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     }
 
     showConfirm({
-      title: "店舗情報の更新",
-      message: "変更された情報があります。変更内容を保存しますか？",
-      confirmText: "保存する",
-      cancelText: "保存しない",
+      title: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.TITLE,
+      message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
+      confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
+      cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
       onConfirm: () =>
         withLoading(() =>
           handleCreateOrDeleteRestaurantTables(formData, destination)
@@ -147,15 +160,15 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     } as IPostRestaurantTableBody;
 
     const resultData = await createOrDeleteRestaurantTables(paramData, {
-      additionalKeys: ["/api/v1/me/restaurants"],
+      additionalKeys: [ME_ENDPOINT.RESTAURANT],
     });
     if (resultData) {
       await router.push(destination);
       addToast(
         "info",
         restaurantInfo?.restaurantTables
-          ? "店舗情報を正常に更新しました"
-          : "店舗情報を正常に登録しました"
+          ? TOAST_MESSAGE.INFO.UPDATE_SUCCESS
+          : TOAST_MESSAGE.INFO.REGISTRATION_SUCCESS
       );
     }
   };
@@ -202,10 +215,7 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
 
   return (
     <Layout>
-      <StatusBar
-        steps={["Info", "Hours", "Tables", "Menus", "Complete"]}
-        currentStep="Tables"
-      />
+      <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Tables" />
       {isSubmitting && <LoadingOverlay />}
       {isValidating ? (
         <LoadingOverlay />
@@ -225,18 +235,18 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
                 className="w-1/2 px-3 py-2 text-gray-700 placeholder-gray-500 bg-white border border-gray-300 rounded-md focus:border-indigo-500 focus:outline-none"
                 type="number"
                 min={0}
-                max={200}
+                max={TABLE_NUMBER_MAX}
                 maxLength={3}
                 {...register("tableNumber", {
-                  required: "Table number is required",
+                  required: RESTAURANT_TABLES_ERROR.TABLE_NUMBER_REQUIRED,
                   valueAsNumber: true,
                   min: {
                     value: 0,
-                    message: "Table number must be a positive number",
+                    message: RESTAURANT_TABLES_ERROR.TABLE_NUMBER_POSITIVE,
                   },
                   max: {
-                    value: 200,
-                    message: "Table number must be less than 200",
+                    value: TABLE_NUMBER_MAX,
+                    message: RESTAURANT_TABLES_ERROR.TABLE_NUMBER_MAX,
                   },
                 })}
                 onInput={(e) => {
@@ -244,8 +254,8 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
                   if (input.value.length > 3) {
                     input.value = input.value.slice(0, 3);
                   }
-                  if (Number(input.value) > 200) {
-                    setValue("tableNumber", 200);
+                  if (Number(input.value) > TABLE_NUMBER_MAX) {
+                    setValue("tableNumber", TABLE_NUMBER_MAX);
                   }
                 }}
               />
@@ -259,18 +269,18 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
                 className="w-1/2 px-3 py-2 text-gray-700 placeholder-gray-500 bg-white border border-gray-300 rounded-md focus:border-indigo-500 focus:outline-none"
                 type="number"
                 min={0}
-                max={100}
+                max={COUNTER_NUMBER_MAX}
                 maxLength={3}
                 {...register("counterNumber", {
-                  required: "Counter number is required",
+                  required: RESTAURANT_TABLES_ERROR.COUNTER_NUMBER_REQUIRED,
                   valueAsNumber: true,
                   min: {
                     value: 0,
-                    message: "Counter number must be a positive number",
+                    message: RESTAURANT_TABLES_ERROR.COUNTER_NUMBER_POSITIVE,
                   },
                   max: {
-                    value: 200,
-                    message: "Counter number must be less than 200",
+                    value: COUNTER_NUMBER_MAX,
+                    message: RESTAURANT_TABLES_ERROR.COUNTER_NUMBER_MAX,
                   },
                 })}
                 onInput={(e) => {
@@ -278,8 +288,8 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
                   if (input.value.length > 3) {
                     input.value = input.value.slice(0, 3);
                   }
-                  if (Number(input.value) > 100) {
-                    setValue("counterNumber", 100);
+                  if (Number(input.value) > COUNTER_NUMBER_MAX) {
+                    setValue("counterNumber", COUNTER_NUMBER_MAX);
                   }
                 }}
               />
@@ -332,7 +342,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     if (!session) {
       return {
         redirect: {
-          destination: "/auth/signin?error=Unauthorized",
+          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
           permanent: false,
         },
       };
@@ -342,7 +352,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     return {
       props: {
         fallback: {
-          "/api/v1/me/restaurants": restaurantInfo,
+          [ME_ENDPOINT.RESTAURANT]: restaurantInfo,
         },
       },
     };

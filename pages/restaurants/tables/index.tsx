@@ -7,16 +7,13 @@ import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { ApiError } from "@/lib/shared/ApiError";
+import { ApiError } from "@/lib/shared/error/ApiError";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import {
-  IPostRestaurantTableBody,
-  IPutRestaurantTableBody,
-} from "@/pages/api/v1/restaurants/table";
-import convertStringsToNumbers from "@/utils/convertStringsToNumbers";
+import { IPostRestaurantTableBody } from "@/pages/api/v1/restaurants/table";
+import convertStringsToNumbers from "@/utils/converter/convertStringsToNumbers";
 import { isFormChanged } from "@/utils/formHelper";
 import isEmpty from "@/utils/validation/isEmpty";
-import { Restaurant, TableTypeAssignment } from "@prisma/client";
+import { Restaurant } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
 import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
@@ -55,29 +52,26 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
       }
     },
   });
-  const [createRestaurantTable, { error: createRestaurantTableErr }] =
-    useMutation<Restaurant, IPostRestaurantTableBody>(
-      "/api/v1/restaurants/table",
-      "POST"
-    );
-  const [upsertRestaurantTable, { error: upsertRestaurantInfoErr }] =
-    useMutation<TableTypeAssignment, IPutRestaurantTableBody[]>(
-      "/api/v1/restaurants/table",
-      "PUT"
-    );
+  const [
+    createOrDeleteRestaurantTables,
+    { error: createOrDeleteRestaurantTablesErr },
+  ] = useMutation<Restaurant, IPostRestaurantTableBody>(
+    "/api/v1/restaurants/table",
+    "POST"
+  );
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
   const router = useRouter();
   const withLoading = useLoading();
 
-  const prevTableNumber =
-    restaurantInfo?.restaurantTables[0]?.tableTypeAssignments?.filter(
-      (data) => data.tableType === TableType.TABLE
-    )[0]?.number;
-  const prevCounterNumber =
-    restaurantInfo?.restaurantTables[0]?.tableTypeAssignments?.filter(
-      (data) => data.tableType === TableType.COUNTER
-    )[0]?.number;
+  console.log("restaurantInfo", restaurantInfo);
+
+  const prevTableNumber = restaurantInfo?.restaurantTables?.filter(
+    (data) => data.tableType === TableType.TABLE
+  ).length;
+  const prevCounterNumber = restaurantInfo?.restaurantTables?.filter(
+    (data) => data.tableType === TableType.COUNTER
+  ).length;
 
   const isValid =
     (Number(tableNumber) > 0 || Number(counterNumber) > 0) &&
@@ -85,15 +79,17 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     counterNumber !== undefined;
 
   const handleNext = async (formData: FieldValues) => {
-    if (isEmpty(restaurantInfo?.restaurantTables[0])) {
-      withLoading(() => handleCreateRestaurantTables(formData));
+    if (!restaurantInfo?.restaurantTables) {
+      withLoading(() =>
+        handleCreateOrDeleteRestaurantTables(formData, "/menus")
+      );
       return;
     }
     handleConfirm(formData, "/menus");
   };
 
   const handlePrevious = (formData: FieldValues) => {
-    if (isEmpty(restaurantInfo?.restaurantTables[0])) {
+    if (!restaurantInfo?.restaurantTables) {
       router.push("/restaurants/hours");
       return;
     }
@@ -124,7 +120,9 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
       confirmText: "保存する",
       cancelText: "保存しない",
       onConfirm: () =>
-        withLoading(() => handleUpsertRestaurantTables(formData, destination)),
+        withLoading(() =>
+          handleCreateOrDeleteRestaurantTables(formData, destination)
+        ),
       onCancel: () => {
         router.push(destination);
         return;
@@ -132,7 +130,10 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     });
   };
 
-  const handleCreateRestaurantTables = async (formData: FieldValues) => {
+  const handleCreateOrDeleteRestaurantTables = async (
+    formData: FieldValues,
+    destination: string
+  ) => {
     if (isSubmitting || !isValid || !isEmpty(errors)) {
       return;
     }
@@ -145,53 +146,17 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
       },
     } as IPostRestaurantTableBody;
 
-    const resultData = await createRestaurantTable(paramData);
+    const resultData = await createOrDeleteRestaurantTables(paramData, {
+      additionalKeys: ["/api/v1/me/restaurants"],
+    });
     if (resultData) {
-      await router.push("/menus");
-      addToast("info", "店舗情報を正常に登録しました");
-    }
-  };
-
-  const handleUpsertRestaurantTables = async (
-    formData: FieldValues,
-    destination: string
-  ) => {
-    if (isSubmitting || !isValid || !isEmpty(errors)) {
-      return;
-    }
-
-    let tableParamData = null;
-    let counterParamData = null;
-
-    if (formData?.tableNumber !== prevTableNumber) {
-      tableParamData = {
-        restaurantTableId: restaurantInfo?.restaurantTables[0].id,
-        tableType: TableType.TABLE,
-        number: formData?.tableNumber,
-      } as IPutRestaurantTableBody;
-    }
-
-    if (formData?.counterNumber !== prevCounterNumber) {
-      counterParamData = {
-        restaurantTableId: restaurantInfo?.restaurantTables[0].id,
-        tableType: TableType.COUNTER,
-        number: formData?.counterNumber,
-      } as IPutRestaurantTableBody;
-    }
-
-    const paramData = [
-      tableParamData,
-      counterParamData,
-    ] as IPutRestaurantTableBody[];
-
-    if (tableParamData || counterParamData) {
-      const resultData = await upsertRestaurantTable(paramData);
-      if (resultData) {
-        await router.push(destination);
-        addToast("info", "店舗情報を正常に更新しました");
-      }
-    } else {
-      router.push(destination);
+      await router.push(destination);
+      addToast(
+        "info",
+        restaurantInfo?.restaurantTables
+          ? "店舗情報を正常に更新しました"
+          : "店舗情報を正常に登録しました"
+      );
     }
   };
 
@@ -211,16 +176,10 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
   }, [restaurantInfo, prevTableNumber, prevCounterNumber]);
 
   useEffect(() => {
-    if (createRestaurantTableErr) {
-      addToast("error", createRestaurantTableErr.message);
+    if (createOrDeleteRestaurantTablesErr) {
+      addToast("error", createOrDeleteRestaurantTablesErr.message);
     }
-  }, [createRestaurantTableErr]);
-
-  useEffect(() => {
-    if (upsertRestaurantInfoErr) {
-      addToast("error", upsertRestaurantInfoErr.message);
-    }
-  }, [upsertRestaurantInfoErr]);
+  }, [createOrDeleteRestaurantTablesErr]);
 
   useEffect(() => {
     if (initErr) {

@@ -1,10 +1,13 @@
 import { Method } from "@/constants/fetch";
 import {
-  createRestaurantTableAndAssignment,
+  createOrDeleteRestaurantTables,
+  getRestaurantTablesById,
   upsertTableTypeAssignments,
 } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
+import { TableType } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
+import { ValidationError } from "yup";
 
 export interface ISeatingConfig {
   tableNumber: number;
@@ -23,12 +26,24 @@ export interface IPutRestaurantTableBody {
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.POST) {
     const { restaurantId, seatingConfig }: IPostRestaurantTableBody = req.body;
-    const newTableType = await createRestaurantTableAndAssignment(
+    if (seatingConfig?.tableNumber < 0 && seatingConfig?.counterNumber < 0) {
+      throw new ValidationError(
+        "Cannot put 0 or negative number in tableNumber and counterNumber at the same time"
+      );
+    }
+    await createOrDeleteRestaurantTables(
       restaurantId,
-      seatingConfig
+      TableType.TABLE,
+      seatingConfig.tableNumber
+    );
+    await createOrDeleteRestaurantTables(
+      restaurantId,
+      TableType.COUNTER,
+      seatingConfig.counterNumber
     );
 
-    return res.status(201).json(newTableType);
+    const restaurantTable = await getRestaurantTablesById(restaurantId);
+    return res.status(201).json(restaurantTable);
   }
   if (req.method === Method.PUT) {
     const body: IPutRestaurantTableBody[] = req.body;

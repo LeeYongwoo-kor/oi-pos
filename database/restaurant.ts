@@ -1,10 +1,14 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import { prismaRequestWithDateConversion } from "@/lib/server/prismaRequestWithDateConversion";
+import { prismaRequestWithDateConversionForGet } from "@/lib/server/prismaRequestWithDateConversionForGet";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/ApiError";
-import checkNullUndefined from "@/utils/checkNullUndefined";
-import convertDatesToISOString from "@/utils/convertDatesToISOString";
-import { Restaurant } from "@prisma/client";
+import { ValidationError } from "@/lib/shared/error/ApiError";
+import checkNullUndefined from "@/utils/validation/checkNullUndefined";
+import { Prisma, Restaurant, RestaurantTable } from "@prisma/client";
 
+export type IRestaurant = Restaurant & {
+  restaurantTables: RestaurantTable[];
+};
 export interface UpsertRestaurantInfoParams {
   userId: string | undefined | null;
   name: string;
@@ -22,7 +26,7 @@ export async function getRestaurant(
     return null;
   }
 
-  const restaurant = await prismaRequestHandler(
+  return prismaRequestWithDateConversionForGet(
     prisma.restaurant.findUnique({
       where: {
         userId,
@@ -30,34 +34,26 @@ export async function getRestaurant(
     }),
     "getRestaurant"
   );
-
-  return restaurant ? convertDatesToISOString(restaurant) : null;
 }
 
 export async function getRestaurantAllInfo(
   userId: string | undefined | null
-): Promise<Restaurant | null> {
+): Promise<IRestaurant | null> {
   if (!userId) {
     return null;
   }
 
-  const restaurant = await prismaRequestHandler(
+  return prismaRequestWithDateConversionForGet(
     prisma.restaurant.findUnique({
       where: {
         userId,
       },
       include: {
-        restaurantTables: {
-          include: {
-            tableTypeAssignments: true,
-          },
-        },
+        restaurantTables: true,
       },
     }),
     "getRestaurantAllInfo"
   );
-
-  return restaurant ? convertDatesToISOString(restaurant) : null;
 }
 
 export async function getAllRestaurantPhoneNumbers(): Promise<
@@ -84,7 +80,7 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
     throw new ValidationError("failed to create restaurant");
   }
 
-  const newRestaurant = await prismaRequestHandler(
+  return prismaRequestWithDateConversion(
     prisma.restaurant.create({
       data: {
         userId,
@@ -92,8 +88,6 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
     }),
     "createRestaurant"
   );
-
-  return convertDatesToISOString(newRestaurant);
 }
 
 export async function upsertRestaurantInfo(
@@ -117,7 +111,7 @@ export async function upsertRestaurantInfo(
     restAddress: restaurantInfo.restAddress,
   };
 
-  const newRestaurantInfo = await prismaRequestHandler(
+  return prismaRequestWithDateConversion(
     prisma.restaurant.upsert({
       where: {
         userId: upsertRestaurantInfoData.userId,
@@ -127,8 +121,6 @@ export async function upsertRestaurantInfo(
     }),
     "upsertRestaurantInfo"
   );
-
-  return convertDatesToISOString(newRestaurantInfo);
 }
 
 export async function updateRestaurantInfo<
@@ -142,20 +134,13 @@ export async function updateRestaurantInfo<
     );
   }
 
-  const updateInfo = {
-    ...restaurantInfo,
-    holidays: JSON.stringify(restaurantInfo.holidays),
-  };
-
-  const newRestaurantInfo = await prismaRequestHandler(
+  return prismaRequestWithDateConversion(
     prisma.restaurant.update({
       where: {
         userId,
       },
-      data: updateInfo,
+      data: restaurantInfo as Prisma.RestaurantUpdateInput,
     }),
     "updateRestaurantInfo"
   );
-
-  return convertDatesToISOString(newRestaurantInfo);
 }

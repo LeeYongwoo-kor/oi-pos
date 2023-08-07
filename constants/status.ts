@@ -1,3 +1,11 @@
+export const RESTAURANT_SETUP_STEPS = [
+  "Info",
+  "Hours",
+  "Tables",
+  "Menus",
+  "Complete",
+] as const;
+
 const SubscriptionStatus = {
   ACTIVE: "ACTIVE",
   TRIAL: "TRIAL",

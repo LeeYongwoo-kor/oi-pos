@@ -1,41 +1,83 @@
 import { TableType } from "@/constants/type";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import { prismaRequestWithDateConversion } from "@/lib/server/prismaRequestWithDateConversion";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/ApiError";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import {
   IPutRestaurantTableBody,
   ISeatingConfig,
-} from "@/pages/api/v1/restaurants/table";
+} from "@/pages/api/v1/restaurants/tables";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
+  Order,
+  OrderStatus,
   Plan,
   Restaurant,
   RestaurantTable,
+  TableStatus,
   TableTypeAssignment,
 } from "@prisma/client";
+import { nanoid } from "nanoid";
 import { CreatePlanParams, upsertPlan } from "./plan";
-import { createRestaurant } from "./restaurant";
 import { createRestaurantTable } from "./restaurantTable";
 import {
   createTableTypeAssignment,
   upsertTableTypeAssignment,
 } from "./tableTypeAssignment";
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export async function createRestaurantAndTable(
   userId: string
-): Promise<(Restaurant | RestaurantTable)[]> {
-  const result = await prismaRequestHandler(
-    prisma.$transaction(async () => {
-      const restaurant = await createRestaurant(userId);
-      const restaurantTable = await createRestaurantTable(restaurant.id);
-      return [restaurant, restaurantTable];
+): Promise<Restaurant> {
+  if (!userId) {
+    throw new ValidationError(
+      "Failed to create restaurant and restaurant table"
+    );
+  }
+
+  return await prismaRequestHandler(
+    prisma.$transaction(async (tx) => {
+      // Create a new restaurant
+      const restaurant = await tx.restaurant.create({
+        data: {
+          userId,
+          restaurantTables: {
+            create: {
+              qrCodeId: nanoid(),
+              tableType: TableType.TABLE,
+              number: 1,
+            },
+          },
+        },
+        include: {
+          restaurantTables: true,
+        },
+      });
+
+      // Create a new restaurant table using the ID of the new restaurant
+      // const restaurantTable = await tx.restaurantTable.create({
+      //   data: {
+      //     restaurantId: restaurant.id,
+      //     qrCodeId: nanoid(),
+      //     tableType: TableType.TABLE,
+      //     number: 1,
+      //   },
+      // });
+
+      // Return the new restaurant and the new restaurant table
+      return restaurant;
     }),
     "createRestaurantAndTable"
   );
-
-  return result;
 }
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export async function createRestaurantTableAndAssignment(
   restaurantId: string,
   seatingConfig: ISeatingConfig
@@ -59,7 +101,12 @@ export async function createRestaurantTableAndAssignment(
         );
       }
 
-      const restaurantTable = await createRestaurantTable(restaurantId);
+      const restaurantTable = await createRestaurantTable(
+        restaurantId,
+        nanoid(),
+        TableType.TABLE,
+        1
+      );
       if (tableNumber) {
         if (!isPositiveInteger(tableNumber)) {
           throw new ValidationError("TableNumber is not a positive number");
@@ -91,6 +138,10 @@ export async function createRestaurantTableAndAssignment(
   return result;
 }
 
+/**
+ * @deprecated
+ * This function is no longer used and will be removed in a future release
+ */
 export async function upsertTableTypeAssignments(
   assignments: IPutRestaurantTableBody[]
 ): Promise<TableTypeAssignment[]> {
@@ -131,4 +182,79 @@ export async function upsertPlans(plans: CreatePlanParams[]): Promise<Plan[]> {
   );
 
   return result;
+}
+
+export async function activateOrder(restaurantTableId: string): Promise<Order> {
+  if (!restaurantTableId) {
+    throw new ValidationError(
+      "Failed to activate order for restaurant table. Please try again"
+    );
+  }
+
+  return await prismaRequestWithDateConversion(
+    prisma.$transaction(async (tx) => {
+      // Create a new order
+      const order = await tx.order.create({
+        data: {
+          tableId: restaurantTableId,
+          status: OrderStatus.ORDERED,
+        },
+      });
+
+      // Update the restaurant table to be occupied
+      await tx.restaurantTable.update({
+        where: {
+          id: restaurantTableId,
+        },
+        data: {
+          status: TableStatus.OCCUPIED,
+        },
+      });
+
+      // Return the order
+      return order;
+    }),
+    "activateOrder"
+  );
+}
+
+export async function reserveOrder(
+  restaurantTableId: string,
+  customerName: string
+): Promise<Order> {
+  if (!restaurantTableId) {
+    throw new ValidationError(
+      "Failed to reserve order for restaurant table. Please try again"
+    );
+  }
+
+  if (!customerName) {
+    throw new ValidationError("Customer name is required. Please try again");
+  }
+
+  return await prismaRequestWithDateConversion(
+    prisma.$transaction(async (tx) => {
+      // Create a new order
+      const order = await tx.order.create({
+        data: {
+          tableId: restaurantTableId,
+          status: OrderStatus.PENDING,
+        },
+      });
+
+      // Update the restaurant table to be reserved
+      await tx.restaurantTable.update({
+        where: {
+          id: restaurantTableId,
+        },
+        data: {
+          status: TableStatus.RESERVED,
+        },
+      });
+
+      // Return the order
+      return order;
+    }),
+    "reserveOrder"
+  );
 }

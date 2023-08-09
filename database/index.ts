@@ -8,3 +8,4 @@ export * from "./transactions";
 export * from "./user";
 export * from "./verificationToken";
 export * from "./menuItem";
+export * from "./order";

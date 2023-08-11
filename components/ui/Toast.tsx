@@ -43,7 +43,7 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
     <div
       className={`flex animate-fadeInUp mt-4 p-4 shadow-lg rounded-lg ${bgColor} w-96 h-20 z-50 transform transition-all duration-300 translate-y-0`}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between w-full">
         <span
           className={joinCls(
             "text-base",

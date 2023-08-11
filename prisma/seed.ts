@@ -1,4 +1,18 @@
-import { PlanId } from "@/constants/plan";
+import {
+  COUNTER_NUMBER_MAX,
+  MENU_NUMBER_MAX,
+  MONTHLY_DURATION,
+  MONTHLY_PRICE,
+  PLAN_ID,
+  TABLE_NUMBER_MAX,
+  TRIAL_COUNTER_NUMBER_MAX,
+  TRIAL_DURATION,
+  TRIAL_MENU_NUMBER_MAX,
+  TRIAL_PRICE,
+  TRIAL_TABLE_NUMBER_MAX,
+  YEARLY_DURATION,
+  YEARLY_PRICE,
+} from "@/constants/plan";
 import { upsertPlans } from "@/database";
 import { CurrencyType, PlanType, PrismaClient } from "@prisma/client";
 const seedPrisma = new PrismaClient();
@@ -6,37 +20,37 @@ const seedPrisma = new PrismaClient();
 async function main() {
   const plans = [
     {
-      id: PlanId.TRIAL_PLAN,
+      id: PLAN_ID.TRIAL_PLAN,
       planType: PlanType.FREE_TRIAL,
       name: "Try riding YOSHI",
       description: "90-Day Free Trial",
-      maxMenus: 30,
-      maxTables: 10,
-      price: 0,
+      maxMenus: TRIAL_MENU_NUMBER_MAX,
+      maxTables: TRIAL_TABLE_NUMBER_MAX + TRIAL_COUNTER_NUMBER_MAX,
+      price: TRIAL_PRICE,
       currency: CurrencyType.USD,
-      duration: 7776000,
+      duration: TRIAL_DURATION,
     },
     {
-      id: PlanId.MONTHLY_PLAN,
+      id: PLAN_ID.MONTHLY_PLAN,
       planType: PlanType.MONTHLY,
       name: "Have fun with YOSHI every month",
       description: "Monthly Paid",
-      maxMenus: 500,
-      maxTables: 200,
-      price: 4.99,
+      maxMenus: MENU_NUMBER_MAX,
+      maxTables: TABLE_NUMBER_MAX + COUNTER_NUMBER_MAX,
+      price: MONTHLY_PRICE,
       currency: CurrencyType.USD,
-      duration: 2678400,
+      duration: MONTHLY_DURATION,
     },
     {
-      id: PlanId.YEARLY_PLAN,
+      id: PLAN_ID.YEARLY_PLAN,
       planType: PlanType.YEARLY,
       name: "YOSHI is your friend every year!",
       description: "1 Year Paid",
-      maxMenus: 500,
-      maxTables: 200,
-      price: 49.99,
+      maxMenus: MENU_NUMBER_MAX,
+      maxTables: TABLE_NUMBER_MAX + COUNTER_NUMBER_MAX,
+      price: YEARLY_PRICE,
       currency: CurrencyType.USD,
-      duration: 31536000,
+      duration: YEARLY_DURATION,
     },
   ];
 

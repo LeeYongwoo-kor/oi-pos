@@ -1,4 +1,4 @@
-import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "../numeric";
+import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "../plan";
 
 export const RESTAURANT_INFO_ERROR = {
   NAME_REQUIRED: "Restaurant Name is required",

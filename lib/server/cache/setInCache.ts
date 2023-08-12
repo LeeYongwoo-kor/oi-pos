@@ -1,0 +1,28 @@
+import { DEFAULT_REDIS_TTL_SEC } from "@/constants/numeric";
+import redis from "@/lib/services/redis";
+import { UnauthorizedError } from "@/lib/shared/error/ApiError";
+
+export default async function setInCache<T>(
+  key: string,
+  value: T,
+  sessionId: string | undefined | null,
+  ttl?: number
+): Promise<void> {
+  // If session is null, throw an unauthorized error
+  if (!sessionId) {
+    throw new UnauthorizedError("Unauthorized. You must be signed in");
+  }
+
+  try {
+    // Store the computed value in Redis with optional TTL
+    await redis.set(
+      `user:${sessionId}:${key}`,
+      JSON.stringify(value),
+      "EX",
+      ttl ? ttl : DEFAULT_REDIS_TTL_SEC
+    );
+  } catch (err) {
+    // Send the error to Sentry
+    console.error(err);
+  }
+}

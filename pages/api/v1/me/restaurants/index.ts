@@ -1,6 +1,9 @@
+import { ME_ENDPOINT } from "@/constants/endpoint";
+import { RESTAURANT_URL } from "@/constants/url";
 import { getRestaurantAllInfo } from "@/database";
+import getFromCache from "@/lib/server/cache/getFromCache";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { NotFoundError } from "@/lib/shared/ApiError";
+import { NotFoundError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 
@@ -9,14 +12,17 @@ async function handler(
   res: NextApiResponse,
   session?: Session | null
 ) {
-  const restaurant = await getRestaurantAllInfo(session?.id);
+  const restaurant = await getFromCache(
+    ME_ENDPOINT.RESTAURANT,
+    session?.id,
+    () => getRestaurantAllInfo(session?.id)
+  );
   if (!restaurant) {
-    throw new NotFoundError(
-      "Restaurant not found. Please create restaurant first",
-      undefined,
-      "/restaurants/info",
-      "api/v1/me/restaurants"
-    );
+    throw NotFoundError.builder()
+      .setMessage("Restaurant not found. Please create restaurant first")
+      .setRedirectUrl(RESTAURANT_URL.SETUP.INFO)
+      .setEndpoint(ME_ENDPOINT.RESTAURANT)
+      .build();
   }
 
   return res.status(200).json(restaurant);

@@ -1,12 +1,15 @@
+import { ME_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import {
   createOrDeleteRestaurantTables,
-  getRestaurantTablesById,
+  getRestaurantAllInfoById,
   upsertTableTypeAssignments,
 } from "@/database";
+import setInCache from "@/lib/server/cache/setInCache";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { TableType } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
+import { Session } from "next-auth";
 import { ValidationError } from "yup";
 
 export interface ISeatingConfig {
@@ -23,7 +26,11 @@ export interface IPutRestaurantTableBody {
   number: number;
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session?: Session | null
+) {
   if (req.method === Method.POST) {
     const { restaurantId, seatingConfig }: IPostRestaurantTableBody = req.body;
     if (seatingConfig?.tableNumber < 0 && seatingConfig?.counterNumber < 0) {
@@ -42,8 +49,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       seatingConfig.counterNumber
     );
 
-    const restaurantTable = await getRestaurantTablesById(restaurantId);
-    return res.status(201).json(restaurantTable);
+    const restaurant = await getRestaurantAllInfoById(restaurantId);
+    await setInCache(ME_ENDPOINT.RESTAURANT, restaurant, session?.id);
+    return res.status(201).json(restaurant);
   }
   if (req.method === Method.PUT) {
     const body: IPutRestaurantTableBody[] = req.body;

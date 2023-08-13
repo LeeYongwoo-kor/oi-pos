@@ -151,6 +151,7 @@ model RestaurantTable {
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@map("restauranttables")
+  @@index([id])
   @@index([restaurantId, qrCodeId])
   @@unique([restaurantId, tableType, number])
 }
@@ -174,18 +175,34 @@ model TableTypeAssignment {
 model MenuItem {
   id          String  @id @default(cuid())
   restaurantId String  @map("restaurant_id")
+  categoryId  String?
   name        String?
   description String?
   price       Float?
-  category    String?
+  imageUrl    String?
+  status      MenuItemStatus @default(ARCHIVED)
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   orderItems  OrderItem[]
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@map("menuitems")
   @@index([restaurantId])
+  @@index([categoryId])
+}
+
+model MenuCategory {
+  id          String  @id @default(cuid())
+  name        String?
+  description String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime? @updatedAt
+  menuItems   MenuItem[]
+
+  @@map("menucategories")
 }
 
 model PlanPayment {
@@ -207,7 +224,7 @@ model Order {
   id            String   @id @default(cuid())
   tableId       String   @map("table_id")
   status        OrderStatus
-  totalAmount   Float
+  customerName  String?  @map("customer_name")
   createdAt     DateTime @default(now())
   updatedAt     DateTime? @updatedAt
   orderItems    OrderItem[]
@@ -249,6 +266,20 @@ model OrderPayment {
   @@map("order_payments")
 }
 
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  startTime   DateTime
+  endTime     DateTime
+  status      AnnouncementStatus @default(ACTIVE)
+  audience    AudienceType
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime? @updatedAt
+
+  @@map("announcements")
+}
+
 enum UserRole {
   ADMIN
   OWNER
@@ -281,6 +312,7 @@ enum TableStatus {
 enum OrderStatus {
   PENDING
   ORDERED
+  CANCELLED
   COMPLETED
 }
 
@@ -289,6 +321,15 @@ enum OrderItemStatus {
   ACCEPTED
   CANCELLED
   COMPLETED
+}
+
+enum MenuItemStatus {
+  AVAILABLE
+  UNAVAILABLE
+  ARCHIVED
+  SEASONAL
+  LIMITED
+  COMING_SOON
 }
 
 enum TableType {
@@ -313,4 +354,15 @@ enum PaymentType {
 enum CurrencyType {
   USD
   JPY
+}
+
+enum AnnouncementStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AudienceType {
+  USERS
+  OWNERS
+  BOTH
 }

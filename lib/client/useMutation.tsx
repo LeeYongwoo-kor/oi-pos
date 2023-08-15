@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useSWRConfig } from "swr";
-import { ApiError, ApiErrorType } from "../shared/ApiError";
-import { withErrorRetry } from "../server/withErrorRetry";
+import { ApiError, ApiErrorType } from "../shared/error/ApiError";
+import { withErrorRetry } from "../shared/withErrorRetry";
+import isEmpty from "@/utils/validation/isEmpty";
 
 type ApiErrorState = {
   message: string;
@@ -24,9 +25,8 @@ type UseMutationOptionBase = {
 };
 type UseMutationOptionsMutate = UseMutationOptionBase & {
   isMutate?: true;
-  isOptimistic?: boolean;
-  isRevalidate?: boolean;
   additionalKeys?: string[];
+  optimisticData?: any;
 };
 type UseMutationOptionsNonMutate = UseMutationOptionBase & {
   isMutate: false;
@@ -34,40 +34,30 @@ type UseMutationOptionsNonMutate = UseMutationOptionBase & {
 type UseMutationOptions =
   | UseMutationOptionsMutate
   | UseMutationOptionsNonMutate;
-type SWRMutateOptions = {
-  revalidate: boolean;
-  populateCache: boolean;
-  rollbackOnError: boolean;
-  throwOnError: boolean;
-  optimisticData?: unknown;
-};
 
 const handleOptions = (options: UseMutationOptions) => {
   const mutateOptions: UseMutationOptionsMutate = {
-    isMutate: true,
     retry: false,
     dynamicUrl: "",
     headers: {},
-    isOptimistic: false,
-    isRevalidate: true,
+    isMutate: true,
     additionalKeys: [],
+    optimisticData: null,
   };
 
-  if (options.isMutate) {
+  if (options.isMutate === false) {
     return {
       ...mutateOptions,
       ...options,
-      isRevalidate: options.isRevalidate ?? true,
-    };
-  } else {
-    return {
-      ...mutateOptions,
-      ...options,
-      isOptimistic: false,
-      isRevalidate: true,
       additionalKeys: [],
+      optimisticData: null,
     };
   }
+
+  return {
+    ...mutateOptions,
+    ...options,
+  };
 };
 
 /**
@@ -109,19 +99,16 @@ export default function useMutation<T, U>(
       retry,
       dynamicUrl,
       isMutate,
-      isRevalidate,
-      isOptimistic,
       headers,
       additionalKeys,
+      optimisticData,
     } = handleOptions(options);
 
     const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
-    const mutateOptions: SWRMutateOptions = {
-      revalidate: isRevalidate,
-      populateCache: true,
-      rollbackOnError: true,
-      throwOnError: true,
-    };
+
+    if (!isEmpty(optimisticData)) {
+      mutate(url, optimisticData, false);
+    }
 
     setState((prev) => ({ ...prev, loading: true }));
     try {
@@ -144,17 +131,10 @@ export default function useMutation<T, U>(
       const fetchDataWithRetry = retry ? withErrorRetry(fetchData) : fetchData;
       const responseData = await fetchDataWithRetry();
 
-      if (isOptimistic) {
-        mutateOptions.optimisticData = responseData;
-        mutateOptions.revalidate = false;
-      }
-
       if (isMutate) {
         await Promise.all([
-          mutate(url, responseData, mutateOptions),
-          ...(additionalKeys?.map((key: string) =>
-            mutate(key, responseData, mutateOptions)
-          ) || []),
+          mutate(url, true),
+          ...(additionalKeys?.map((key: string) => mutate(key)) || []),
         ]);
       }
 
@@ -170,9 +150,8 @@ export default function useMutation<T, U>(
       if (err instanceof ApiError) {
         errorMessage = err.message;
         statusCode = err.statusCode || 500;
-      } else {
-        errorMessage = err.message;
       }
+
       setState({
         loading: false,
         data: undefined,

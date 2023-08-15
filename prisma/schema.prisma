@@ -125,6 +125,8 @@ model Restaurant {
   endTime     String? @map("end_time")
   holidays    Json? @default("[]")
   lastOrder   String? @map("last_order")
+  logoUrl     String? @map("logo_url")
+  logoVersion Int @default(0) @map("logo_version")
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   restaurantTables RestaurantTable[]
@@ -181,11 +183,13 @@ model MenuItem {
   description   String?
   price         Float?
   imageUrl      String? @map("image_url")
+  imageVersion  Int @default(0) @map("image_version")
   displayOrder  Int @default(0) @map("display_order")
   status        MenuItemStatus @default(ARCHIVED)
   createdAt     DateTime @default(now())
   updatedAt     DateTime? @updatedAt
   orderItems    OrderItem[]
+  menuItemOptions MenuItemOption[]
 
   restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -223,6 +227,34 @@ model MenuCategory {
   menuItems     MenuItem[]
 
   @@map("menucategories")
+}
+
+model MenuOption {
+  id               String @id @default(cuid())
+  name             String
+  description      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime? @updatedAt
+  menuItemOptions  MenuItemOption[]
+  orderItemOptions OrderItemOption[]
+
+  @@map("menuoptions")
+}
+
+model MenuItemOption {
+  menuItemId   String
+  menuOptionId String
+  price        Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime? @updatedAt
+
+  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuOption MenuOption @relation(fields: [menuOptionId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, menuOptionId])
+  @@map("menuitemoptions")
+  @@index([menuItemId])
+  @@index([menuOptionId])
 }
 
 model PlanPayment {
@@ -263,6 +295,7 @@ model OrderItem {
   status    OrderItemStatus
   quantity  Int
   price     Float
+  selectedOptions OrderItemOption[]
 
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem  MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
@@ -270,6 +303,22 @@ model OrderItem {
   @@map("orderitems")
   @@index([orderId])
   @@index([menuItemId])
+}
+
+model OrderItemOption {
+  orderItemId  String
+  menuOptionId String
+  price        Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime? @updatedAt
+
+  orderItem   OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  menuOption  MenuOption @relation(fields: [menuOptionId], references: [id], onDelete: Cascade)
+
+  @@id([orderItemId, menuOptionId])
+  @@map("orderitemoptions")
+  @@index([orderItemId])
+  @@index([menuOptionId])
 }
 
 model OrderPayment {

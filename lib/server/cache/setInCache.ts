@@ -1,6 +1,7 @@
 import { DEFAULT_REDIS_TTL_SEC } from "@/constants/numeric";
 import redis from "@/lib/services/redis";
 import { UnauthorizedError } from "@/lib/shared/error/ApiError";
+import { RedisError } from "@/lib/shared/error/RedisError";
 
 export default async function setInCache<T>(
   key: string,
@@ -15,12 +16,16 @@ export default async function setInCache<T>(
 
   try {
     // Store the computed value in Redis with optional TTL
-    await redis.set(
-      `user:${sessionId}:${key}`,
-      JSON.stringify(value),
-      "EX",
-      ttl ? ttl : DEFAULT_REDIS_TTL_SEC
-    );
+    await redis
+      .set(
+        `user:${sessionId}:${key}`,
+        JSON.stringify(value),
+        "EX",
+        ttl ? ttl : DEFAULT_REDIS_TTL_SEC
+      )
+      .catch(() => {
+        throw new RedisError("Error setting value in cache");
+      });
   } catch (err) {
     // Send the error to Sentry
     console.error(err);

@@ -1,5 +1,6 @@
 import redis from "@/lib/services/redis";
 import { UnauthorizedError } from "@/lib/shared/error/ApiError";
+import { RedisError } from "@/lib/shared/error/RedisError";
 
 export default async function getFromCache<T>(
   key: string,
@@ -13,7 +14,11 @@ export default async function getFromCache<T>(
 
   try {
     // Try to get the value from Redis
-    const cachedValue = await redis.get(`user:${sessionId}:${key}`);
+    const cachedValue = await redis
+      .get(`user:${sessionId}:${key}`)
+      .catch(() => {
+        throw new RedisError("Error getting value from cache");
+      });
     if (cachedValue) {
       return JSON.parse(cachedValue);
     }

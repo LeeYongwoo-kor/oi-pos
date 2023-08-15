@@ -173,34 +173,54 @@ model TableTypeAssignment {
 }
 
 model MenuItem {
-  id          String  @id @default(cuid())
-  restaurantId String  @map("restaurant_id")
-  categoryId  String?
-  name        String?
-  description String?
-  price       Float?
-  imageUrl    String?
-  status      MenuItemStatus @default(ARCHIVED)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime? @updatedAt
-  orderItems  OrderItem[]
+  id            String  @id @default(cuid())
+  restaurantId  String  @map("restaurant_id")
+  categoryId    String  @map("category_id")
+  subCategoryId String? @map("sub_category_id")
+  name          String?
+  description   String?
+  price         Float?
+  imageUrl      String? @map("image_url")
+  displayOrder  Int @default(0) @map("display_order")
+  status        MenuItemStatus @default(ARCHIVED)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime? @updatedAt
+  orderItems    OrderItem[]
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category   MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subCategory MenuSubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
 
   @@map("menuitems")
   @@index([restaurantId])
   @@index([categoryId])
+  @@index([subCategoryId])
+}
+
+model MenuSubCategory {
+  id           String   @id @default(cuid())
+  categoryId   String   @map("category_id")
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime? @updatedAt
+  menuItems    MenuItem[]
+
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("menusubcategories")
+  @@index([categoryId])
 }
 
 model MenuCategory {
-  id          String  @id @default(cuid())
-  name        String?
-  description String?
-  imageUrl    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime? @updatedAt
-  menuItems   MenuItem[]
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  imageUrl      String?   @map("image_url")
+  displayOrder  Int @default(0) @map("display_order")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime? @updatedAt
+  subCategories MenuSubCategory[]
+  menuItems     MenuItem[]
 
   @@map("menucategories")
 }

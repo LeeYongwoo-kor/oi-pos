@@ -6,6 +6,7 @@ import {
   AUTH_EXPECTED_ERROR,
   AUTH_QUERY_PARAMS,
 } from "@/constants/errorMessage/auth";
+import { COMMON_ERROR } from "@/constants/errorMessage/client";
 import { RESTAURANT_INFO_ERROR } from "@/constants/errorMessage/validation";
 import { EXTERNAL_ENDPOINT } from "@/constants/external";
 import { Method } from "@/constants/fetch";
@@ -13,10 +14,12 @@ import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
 import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
-import { IRestaurant, getRestaurantAllInfo } from "@/database";
+import { IRestaurant, getRestaurant } from "@/database";
+import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
+import { ApiError } from "@/lib/shared/error/ApiError";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/infos";
 import { getInputFormCls } from "@/utils/cssHelper";
@@ -33,7 +36,7 @@ import * as yup from "yup";
 
 type RestaurantInfoProps = {
   fallbackData: IRestaurant | null;
-  initErr: Error;
+  initErrMsg: string;
 };
 interface IAddress {
   address1: string;
@@ -124,7 +127,7 @@ const useCheckDuplicatePhoneNumber = (
   return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
 };
 
-function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
+function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
@@ -157,9 +160,15 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
   const { showConfirm } = useConfirm();
   const [addressValue, setAddressValue] = useState("");
   const router = useRouter();
+  const withLoading = useLoading();
 
-  const updateConfirm = (formData: FieldValues) => {
+  const handleNext = (formData: FieldValues) => {
     if (isSubmitting || !isValid) {
+      return;
+    }
+
+    if (!restaurantInfo) {
+      withLoading(() => handleSubmitRestaurantInfo(formData));
       return;
     }
 
@@ -173,7 +182,7 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
       message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
-      onConfirm: () => handleSubmitRestaurantInfo(formData),
+      onConfirm: () => withLoading(() => handleSubmitRestaurantInfo(formData)),
       onCancel: () => {
         router.push(RESTAURANT_URL.SETUP.HOURS);
         return;
@@ -236,10 +245,10 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
 
   // If error occurs when SSR, reload the page
   useEffect(() => {
-    if (initErr) {
-      addToast("error", initErr.message);
+    if (initErrMsg) {
+      addToast("error", initErrMsg);
     }
-  }, [initErr]);
+  }, [initErrMsg]);
 
   // Handles any errors related to restaurantInfo
   useEffect(() => {
@@ -324,11 +333,7 @@ function RestaurantInfo({ fallbackData, initErr }: RestaurantInfoProps) {
           <p className="mb-6">
             This page helps you enter basic information about your restaurant.
           </p>
-          <form
-            onSubmit={handleSubmit(
-              restaurantInfo ? updateConfirm : handleSubmitRestaurantInfo
-            )}
-          >
+          <form onSubmit={handleSubmit(handleNext)}>
             <div className="mb-4">
               <label className="block mb-2">Restaurant Name</label>
               <input
@@ -508,7 +513,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       };
     }
 
-    const restaurantInfo = await getRestaurantAllInfo(session.id);
+    const restaurantInfo = await getRestaurant(session.id);
     return {
       props: {
         fallback: {
@@ -517,21 +522,23 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       },
     };
   } catch (err) {
-    // TODO: send error to sentry
+    // TODO: Send error to Sentry
+    const errMessage =
+      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
     console.error(err);
     return {
       props: {
-        initErr: err,
+        initErrMsg: errMessage,
       },
     };
   }
 }
 
-export default function Page({ fallback, initErr }: any) {
+export default function Page({ fallback, initErrMsg }: any) {
   const fallbackData = fallback[ME_ENDPOINT.RESTAURANT];
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantInfo fallbackData={fallbackData} initErr={initErr} />
+      <RestaurantInfo fallbackData={fallbackData} initErrMsg={initErrMsg} />
     </SWRConfig>
   );
 }

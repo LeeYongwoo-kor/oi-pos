@@ -6,13 +6,15 @@ import {
   AUTH_EXPECTED_ERROR,
   AUTH_QUERY_PARAMS,
 } from "@/constants/errorMessage/auth";
+import { COMMON_ERROR } from "@/constants/errorMessage/client";
 import { RESTAURANT_HOURS_ERROR } from "@/constants/errorMessage/validation";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
 import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
-import { IRestaurant, getRestaurantAllInfo } from "@/database";
+import { IRestaurant, getRestaurant } from "@/database";
+import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
@@ -40,10 +42,10 @@ dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
 type RestaurantHoursProps = {
-  initErr: Error;
+  initErrMsg: string;
 };
 
-function RestaurantHours({ initErr }: RestaurantHoursProps) {
+function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
   const {
     register,
     handleSubmit,
@@ -91,6 +93,7 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
   const [unspecified, setUnspecified] = useState(false);
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
+  const withLoading = useLoading();
 
   const sortDays = (days: string[]) => {
     return days.sort((a, b) => {
@@ -123,7 +126,9 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
 
   const handleNext = (formData: FieldValues) => {
     if (!(restaurantInfo?.startTime && restaurantInfo?.endTime)) {
-      handleSubmitRestaurantHours(formData, RESTAURANT_URL.SETUP.TABLES);
+      withLoading(() =>
+        handleSubmitRestaurantHours(formData, RESTAURANT_URL.SETUP.TABLES)
+      );
       return;
     }
     updateConfirm(formData, RESTAURANT_URL.SETUP.TABLES);
@@ -151,7 +156,8 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
       message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
-      onConfirm: () => handleSubmitRestaurantHours(formData, destination),
+      onConfirm: () =>
+        withLoading(() => handleSubmitRestaurantHours(formData, destination)),
       onCancel: () => {
         router.push(destination);
         return;
@@ -251,10 +257,10 @@ function RestaurantHours({ initErr }: RestaurantHoursProps) {
   }, [updateRestaurantInfoErr]);
 
   useEffect(() => {
-    if (initErr) {
-      addToast("error", initErr.message);
+    if (initErrMsg) {
+      addToast("error", initErrMsg);
     }
-  }, [initErr]);
+  }, [initErrMsg]);
 
   useEffect(() => {
     if (restaurantInfoErr) {
@@ -454,7 +460,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       };
     }
 
-    const restaurantInfo = await getRestaurantAllInfo(session.id);
+    const restaurantInfo = await getRestaurant(session.id);
     return {
       props: {
         fallback: {
@@ -463,20 +469,22 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       },
     };
   } catch (err) {
-    // TODO: send error to sentry
+    // TODO: Send error to Sentry
+    const errMessage =
+      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
     console.error(err);
     return {
       props: {
-        initErr: err,
+        initErrMsg: errMessage,
       },
     };
   }
 }
 
-export default function Page({ fallback, initErr }: any) {
+export default function Page({ fallback, initErrMsg }: any) {
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantHours initErr={initErr} />
+      <RestaurantHours initErrMsg={initErrMsg} />
     </SWRConfig>
   );
 }

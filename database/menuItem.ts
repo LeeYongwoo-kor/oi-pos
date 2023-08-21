@@ -1,24 +1,63 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { MenuItem } from "@prisma/client";
+import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
+import { MenuItem, MenuItemStatus } from "@prisma/client";
+import { ValidationError } from "yup";
 
-export async function getMenuItem(
-  restaurantId: string | null | undefined
-): Promise<MenuItem | null> {
-  if (!restaurantId) {
+export interface CreateMenuItemParams {
+  categoryId: string;
+  subCategoryId?: string;
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl?: string;
+  displayOrder?: number;
+  status?: MenuItemStatus;
+}
+
+export async function getAllMenuItemsByCategoryIdAndSub(
+  menuCategoryId: string | null | undefined,
+  menuSubCategoryId?: string | null
+): Promise<MenuItem[] | null> {
+  if (!menuCategoryId) {
     return null;
   }
 
-  const menuItem = await prismaRequestHandler(
-    prisma.menuItem.findUnique({
+  return prismaRequestHandler(
+    prisma.menuItem.findMany({
       where: {
-        id: restaurantId,
+        categoryId: menuCategoryId,
+        subCategoryId: menuSubCategoryId,
       },
     }),
-    "getMenuItem"
+    "getAllMenuItemsByCategoryIdAndSub"
   );
+}
 
-  return menuItem;
+export async function createMenuItem(
+  menuItemInfo: CreateMenuItemParams
+): Promise<MenuItem> {
+  if (hasNullUndefined(menuItemInfo)) {
+    throw new ValidationError(
+      "Failed to create menu item. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.menuItem.create({
+      data: {
+        categoryId: menuItemInfo.categoryId,
+        subCategoryId: menuItemInfo.subCategoryId,
+        name: menuItemInfo.name,
+        description: menuItemInfo.description,
+        price: menuItemInfo.price,
+        imageUrl: menuItemInfo.imageUrl,
+        displayOrder: menuItemInfo.displayOrder,
+        status: menuItemInfo.status,
+      },
+    }),
+    "createMenuItem"
+  );
 }
 
 export async function getAllMenuItems(): Promise<MenuItem[] | null> {

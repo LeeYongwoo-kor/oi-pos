@@ -9,3 +9,4 @@ export * from "./user";
 export * from "./verificationToken";
 export * from "./menuItem";
 export * from "./order";
+export * from "./menuCategory";

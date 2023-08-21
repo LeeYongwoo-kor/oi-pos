@@ -1,14 +1,16 @@
 import { TableType } from "@/constants/type";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
-import { prismaRequestWithDateConversion } from "@/lib/server/prismaRequestWithDateConversion";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import {
   IPutRestaurantTableBody,
   ISeatingConfig,
 } from "@/pages/api/v1/restaurants/tables";
+import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
+  MenuCategory,
+  MenuSubCategory,
   Order,
   OrderStatus,
   Plan,
@@ -17,7 +19,8 @@ import {
   TableStatus,
   TableTypeAssignment,
 } from "@prisma/client";
-import { nanoid } from "nanoid";
+import { CreateMenuCategoryParams } from "./menuCategory";
+import { CreateMenuSubCategoryParams } from "./menuSubCategory";
 import { CreatePlanParams, upsertPlan } from "./plan";
 import { createRestaurantTable } from "./restaurantTable";
 import {
@@ -46,7 +49,7 @@ export async function createRestaurantAndTable(
           userId,
           restaurantTables: {
             create: {
-              qrCodeId: nanoid(),
+              qrCodeId: "test",
               tableType: TableType.TABLE,
               number: 1,
             },
@@ -103,7 +106,7 @@ export async function createRestaurantTableAndAssignment(
 
       const restaurantTable = await createRestaurantTable(
         restaurantId,
-        nanoid(),
+        "test",
         TableType.TABLE,
         1
       );
@@ -191,7 +194,7 @@ export async function activateOrder(restaurantTableId: string): Promise<Order> {
     );
   }
 
-  return await prismaRequestWithDateConversion(
+  return await prismaRequestHandler(
     prisma.$transaction(async (tx) => {
       // Create a new order
       const order = await tx.order.create({
@@ -232,7 +235,7 @@ export async function reserveOrder(
     throw new ValidationError("Customer name is required. Please try again");
   }
 
-  return await prismaRequestWithDateConversion(
+  return await prismaRequestHandler(
     prisma.$transaction(async (tx) => {
       // Create a new order
       const order = await tx.order.create({
@@ -256,5 +259,58 @@ export async function reserveOrder(
       return order;
     }),
     "reserveOrder"
+  );
+}
+
+export async function createMenuCategoryWithSub(
+  menuCategryInfo: CreateMenuCategoryParams,
+  subCategoryInfo?: CreateMenuSubCategoryParams[]
+): Promise<[MenuCategory, MenuSubCategory[] | undefined]> {
+  return await prismaRequestHandler(
+    prisma.$transaction(async (tx) => {
+      let subMenuCategory: MenuSubCategory[] | undefined;
+
+      if (hasNullUndefined(menuCategryInfo)) {
+        throw new ValidationError(
+          "Failed to create menu category. Please try again later"
+        );
+      }
+
+      if (subCategoryInfo) {
+        subCategoryInfo.forEach((subCategory) => {
+          if (hasNullUndefined(subCategory)) {
+            throw new ValidationError(
+              "Failed to create menu category with subCategories. Please try again later"
+            );
+          }
+        });
+      }
+
+      const menuCategory = await tx.menuCategory.create({
+        data: {
+          restaurantId: menuCategryInfo.restaurantId,
+          name: menuCategryInfo.name,
+          description: menuCategryInfo.description,
+          imageUrl: menuCategryInfo.imageUrl,
+          displayOrder: menuCategryInfo.displayOrder,
+        },
+      });
+
+      if (subCategoryInfo) {
+        subMenuCategory = await Promise.all(
+          subCategoryInfo.map((subCategory) =>
+            tx.menuSubCategory.create({
+              data: {
+                categoryId: menuCategory.id,
+                name: subCategory.name,
+              },
+            })
+          )
+        );
+      }
+
+      return [menuCategory, subMenuCategory];
+    }),
+    "createMenuCategoryWithSub"
   );
 }

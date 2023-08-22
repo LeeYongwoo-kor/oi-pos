@@ -3,6 +3,50 @@
 @tailwind utilities;
 
 @layer base {
+  input:focus {
+    outline: none;
+  }
+
+  textarea:focus {
+    outline: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hover-wrapper:hover .overlay {
+    background: rgba(0, 0, 0, 0.5);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+  }
+
+  .hover-wrapper:hover .edit-icon {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+  }
+
+  .hover-wrapper:hover::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px dashed white;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 30;
+  }
+
   .ReactModal__Overlay {
     display: flex;
     align-items: center;

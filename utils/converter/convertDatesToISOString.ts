@@ -5,7 +5,8 @@ export default function convertDatesToISOString<T extends Record<string, any>>(
     return obj;
   }
 
-  const newObj: Record<string, any> = { ...obj };
+  const isArrayLike = Array.isArray(obj);
+  const newObj: Record<string, any> = isArrayLike ? [] : { ...obj };
 
   for (const [key, _] of Object.entries(newObj)) {
     if (newObj[key] instanceof Date) {

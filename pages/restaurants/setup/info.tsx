@@ -22,6 +22,7 @@ import useMutation from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/infos";
+import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import { getInputFormCls } from "@/utils/cssHelper";
 import { isFormChanged } from "@/utils/formHelper";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -513,7 +514,9 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       };
     }
 
-    const restaurantInfo = await getRestaurant(session.id);
+    const restaurantInfo = await convertDatesToISOString(
+      getRestaurant(session.id)
+    );
     return {
       props: {
         fallback: {

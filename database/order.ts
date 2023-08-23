@@ -1,5 +1,4 @@
-import { prismaRequestWithDateConversion } from "@/lib/server/prismaRequestWithDateConversion";
-import { prismaRequestWithDateConversionForGet } from "@/lib/server/prismaRequestWithDateConversionForGet";
+import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
@@ -12,7 +11,7 @@ export async function getOrdersByTableId(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.order.findMany({
       where: {
         tableId: restaurantTableId,
@@ -29,7 +28,7 @@ export async function getActiveOrderById(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.order.findFirst({
       where: {
         id: orderId,
@@ -52,7 +51,7 @@ export async function getActiveOrderByTableId(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.order.findFirst({
       where: {
         tableId: restaurantTableId,
@@ -75,7 +74,7 @@ export async function getCompletedOrdersByTableId(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.order.findMany({
       where: {
         tableId: restaurantTableId,
@@ -98,7 +97,7 @@ export async function createOrder(
     throw new ValidationError("Failed to create order");
   }
 
-  return prismaRequestWithDateConversion(
+  return prismaRequestHandler(
     prisma.order.create({
       data: {
         tableId: restaurantTableId,
@@ -119,7 +118,7 @@ export async function updateOrderById<
     throw new ValidationError("Failed to update order. Please try again later");
   }
 
-  return prismaRequestWithDateConversion(
+  return prismaRequestHandler(
     prisma.order.update({
       where: {
         id: orderId,

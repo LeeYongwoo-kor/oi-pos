@@ -1,11 +1,11 @@
-import { PlanId } from "@/constants/plan";
+import { PLAN_ID } from "@/constants/plan";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/error/ApiError";
+import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import { Plan, Subscription, SubscriptionStatus } from "@prisma/client";
-import { hasNullUndefined } from "../utils/checkNullUndefined";
+import { hasNullUndefined } from "../utils/validation/checkNullUndefined";
 import { getPlanDuration } from "./plan";
-import { ValidationError } from "@/lib/shared/CustomError";
-import convertDatesToISOString from "@/utils/convertDatesToISOString";
 
 export async function getSubscription(
   userId: string | undefined | null
@@ -22,7 +22,7 @@ export async function getSubscription(
     "getSubscription"
   );
 
-  return subscription ? convertDatesToISOString(subscription) : null;
+  return subscription;
 }
 
 export async function getAllSubscriptions(): Promise<Subscription[] | null> {
@@ -50,7 +50,7 @@ export async function upsertSubscription(
 
   // Determine the subscription status
   const subscriptionStatus =
-    planId == PlanId.TRIAL_PLAN
+    planId == PLAN_ID.TRIAL_PLAN
       ? SubscriptionStatus.TRIAL
       : SubscriptionStatus.ACTIVE;
 
@@ -77,7 +77,7 @@ export async function upsertSubscription(
     "upsertSubscription"
   );
 
-  return convertDatesToISOString(newSubscription);
+  return newSubscription;
 }
 
 export async function updateSubscriptionStatus(

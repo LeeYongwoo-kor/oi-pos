@@ -1,6 +1,6 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/CustomError";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import { Account } from "@prisma/client";
 import { Account as NextAuthAccount } from "next-auth/core/types";
 

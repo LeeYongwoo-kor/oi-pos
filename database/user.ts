@@ -1,7 +1,7 @@
 import { UserRoleType } from "@/constants/type";
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { ValidationError } from "@/lib/shared/CustomError";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import { User } from "@prisma/client";
 
 export async function getUserById(

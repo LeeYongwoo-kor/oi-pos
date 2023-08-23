@@ -6,11 +6,12 @@ import {
   AUTH_EXPECTED_ERROR,
   AUTH_QUERY_PARAMS,
 } from "@/constants/errorMessage/auth";
+import { COMMON_ERROR } from "@/constants/errorMessage/client";
 import { RESTAURANT_TABLES_ERROR } from "@/constants/errorMessage/validation";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { TOAST_MESSAGE } from "@/constants/message/toast";
-import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "@/constants/numeric";
+import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "@/constants/plan";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
 import { TableType } from "@/constants/type";
 import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
@@ -22,6 +23,7 @@ import useMutation from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { IPostRestaurantTableBody } from "@/pages/api/v1/restaurants/tables";
+import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import convertStringsToNumbers from "@/utils/converter/convertStringsToNumbers";
 import { isFormChanged } from "@/utils/formHelper";
 import isEmpty from "@/utils/validation/isEmpty";
@@ -34,10 +36,10 @@ import { FieldValues, useForm } from "react-hook-form";
 import useSWR, { SWRConfig } from "swr";
 
 type RestaurantInfoProps = {
-  initErr: Error;
+  initErrMsg: string;
 };
 
-function RestaurantsTables({ initErr }: RestaurantInfoProps) {
+function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
@@ -89,7 +91,7 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
     counterNumber !== undefined;
 
   const handleNext = async (formData: FieldValues) => {
-    if (!restaurantInfo?.restaurantTables) {
+    if (isEmpty(restaurantInfo?.restaurantTables)) {
       withLoading(() =>
         handleCreateOrDeleteRestaurantTables(
           formData,
@@ -102,10 +104,6 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
   };
 
   const handlePrevious = (formData: FieldValues) => {
-    if (!restaurantInfo?.restaurantTables) {
-      router.push(RESTAURANT_URL.SETUP.HOURS);
-      return;
-    }
     handleConfirm(formData, RESTAURANT_URL.SETUP.HOURS);
   };
 
@@ -195,10 +193,10 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
   }, [createOrDeleteRestaurantTablesErr]);
 
   useEffect(() => {
-    if (initErr) {
-      addToast("error", initErr.message);
+    if (initErrMsg) {
+      addToast("error", initErrMsg);
     }
-  }, [initErr]);
+  }, [initErrMsg]);
 
   useEffect(() => {
     if (restaurantInfoErr) {
@@ -230,7 +228,9 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
           </p>
           <form>
             <div className="mb-4">
-              <label className="block mb-2">Number of Tables (1-200)</label>
+              <label className="block mb-2">
+                Number of Tables (1-{TABLE_NUMBER_MAX})
+              </label>
               <input
                 className="w-1/2 px-3 py-2 text-gray-700 placeholder-gray-500 bg-white border border-gray-300 rounded-md focus:border-indigo-500 focus:outline-none"
                 type="number"
@@ -264,7 +264,9 @@ function RestaurantsTables({ initErr }: RestaurantInfoProps) {
               )}
             </div>
             <div className="mb-4">
-              <label className="block mb-2">Number of Counters (1-100)</label>
+              <label className="block mb-2">
+                Number of Counters (1-{COUNTER_NUMBER_MAX})
+              </label>
               <input
                 className="w-1/2 px-3 py-2 text-gray-700 placeholder-gray-500 bg-white border border-gray-300 rounded-md focus:border-indigo-500 focus:outline-none"
                 type="number"
@@ -348,7 +350,9 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       };
     }
 
-    const restaurantInfo = await getRestaurantAllInfo(session.id);
+    const restaurantInfo = await convertDatesToISOString(
+      getRestaurantAllInfo(session.id)
+    );
     return {
       props: {
         fallback: {
@@ -357,20 +361,22 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
       },
     };
   } catch (err) {
-    // TODO: send error to sentry
+    // TODO: Send error to Sentry
+    const errMessage =
+      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
     console.error(err);
     return {
       props: {
-        initErr: err,
+        initErrMsg: errMessage,
       },
     };
   }
 }
 
-export default function Page({ fallback, initErr }: any) {
+export default function Page({ fallback, initErrMsg }: any) {
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantsTables initErr={initErr} />
+      <RestaurantsTables initErrMsg={initErrMsg} />
     </SWRConfig>
   );
 }

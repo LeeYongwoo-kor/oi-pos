@@ -1,9 +1,9 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
-import { prismaRequestWithDateConversion } from "@/lib/server/prismaRequestWithDateConversion";
-import { prismaRequestWithDateConversionForGet } from "@/lib/server/prismaRequestWithDateConversionForGet";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
-import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
+import checkNullUndefined, {
+  hasNullUndefined,
+} from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import { Prisma, RestaurantTable, TableType } from "@prisma/client";
@@ -27,7 +27,7 @@ export async function getRestaurantTablesById(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.restaurantTable.findMany({
       where: {
         restaurantId,
@@ -48,7 +48,7 @@ export async function getRestaurantTablesByIdAndType(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.restaurantTable.findMany({
       where: {
         restaurantId,
@@ -59,6 +59,23 @@ export async function getRestaurantTablesByIdAndType(
       },
     }),
     "getRestaurantTablesByIdAndType"
+  );
+}
+
+export async function getRestaurantTableByQrCodeId(
+  qrCodeId: string | undefined | null
+): Promise<RestaurantTable | null> {
+  if (!qrCodeId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.restaurantTable.findUnique({
+      where: {
+        qrCodeId,
+      },
+    }),
+    "getRestaurantTableByQrCodeId"
   );
 }
 
@@ -100,7 +117,7 @@ export async function createRestaurantTable(
     throw new ValidationError("Failed to create restaurant table");
   }
 
-  return prismaRequestWithDateConversion(
+  return prismaRequestHandler(
     prisma.restaurantTable.create({
       data: {
         restaurantId,
@@ -129,6 +146,30 @@ export async function createRestaurantTables(
   );
 
   return createdRestaurantTables;
+}
+
+export async function updateRestaurantTable<
+  T extends Partial<
+    Omit<RestaurantTable, "id" | "qrCodeId" | "restaurantId" | "number">
+  >
+>(tableId: string | undefined | null, updateInfo: T): Promise<RestaurantTable> {
+  const { hasNullUndefined } = checkNullUndefined(updateInfo);
+
+  if (!tableId || hasNullUndefined) {
+    throw new ValidationError(
+      "Failed to update restaurant table. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.restaurantTable.update({
+      where: {
+        id: tableId,
+      },
+      data: updateInfo as Prisma.RestaurantTableUpdateInput,
+    }),
+    "updateRestaurantTable"
+  );
 }
 
 export async function deleteRestaurantTables(

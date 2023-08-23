@@ -1,14 +1,12 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
-import { prismaRequestWithDateConversion } from "@/lib/server/prismaRequestWithDateConversion";
-import { prismaRequestWithDateConversionForGet } from "@/lib/server/prismaRequestWithDateConversionForGet";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import { Prisma, Restaurant, RestaurantTable } from "@prisma/client";
 
-export type IRestaurant = Restaurant & {
+export interface IRestaurant extends Restaurant {
   restaurantTables: RestaurantTable[];
-};
+}
 export interface UpsertRestaurantInfoParams {
   userId: string | undefined | null;
   name: string;
@@ -26,7 +24,7 @@ export async function getRestaurant(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.restaurant.findUnique({
       where: {
         userId,
@@ -43,7 +41,7 @@ export async function getRestaurantAllInfo(
     return null;
   }
 
-  return prismaRequestWithDateConversionForGet(
+  return prismaRequestHandler(
     prisma.restaurant.findUnique({
       where: {
         userId,
@@ -53,6 +51,26 @@ export async function getRestaurantAllInfo(
       },
     }),
     "getRestaurantAllInfo"
+  );
+}
+
+export async function getRestaurantAllInfoById(
+  restaurantId: string | undefined | null
+): Promise<IRestaurant | null> {
+  if (!restaurantId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.restaurant.findUnique({
+      where: {
+        id: restaurantId,
+      },
+      include: {
+        restaurantTables: true,
+      },
+    }),
+    "getRestaurantAllInfoById"
   );
 }
 
@@ -80,7 +98,7 @@ export async function createRestaurant(userId: string): Promise<Restaurant> {
     throw new ValidationError("failed to create restaurant");
   }
 
-  return prismaRequestWithDateConversion(
+  return prismaRequestHandler(
     prisma.restaurant.create({
       data: {
         userId,
@@ -111,7 +129,7 @@ export async function upsertRestaurantInfo(
     restAddress: restaurantInfo.restAddress,
   };
 
-  return prismaRequestWithDateConversion(
+  return prismaRequestHandler(
     prisma.restaurant.upsert({
       where: {
         userId: upsertRestaurantInfoData.userId,
@@ -134,7 +152,7 @@ export async function updateRestaurantInfo<
     );
   }
 
-  return prismaRequestWithDateConversion(
+  return prismaRequestHandler(
     prisma.restaurant.update({
       where: {
         userId,

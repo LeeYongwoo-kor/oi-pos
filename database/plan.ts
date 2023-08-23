@@ -1,9 +1,9 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import checkNullUndefined from "@/utils/checkNullUndefined";
-import convertDatesToISOString from "@/utils/convertDatesToISOString";
+import checkNullUndefined from "@/utils/validation/checkNullUndefined";
+import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import { Plan, PlanType as PlanDbType } from "@prisma/client";
-import { ValidationError } from "yup";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 
 export type CreatePlanParams = {
   id: PlanType;
@@ -68,14 +68,10 @@ export async function getAllPlans(): Promise<Plan[] | null> {
 }
 
 export async function upsertPlan(plansParam: CreatePlanParams): Promise<Plan> {
-  const { hasNullUndefined, nullOrUndefinedKeys } =
-    checkNullUndefined(plansParam);
+  const { hasNullUndefined } = checkNullUndefined(plansParam);
 
   if (hasNullUndefined) {
-    throw new ValidationError(
-      "Failed to create plans. Please try again",
-      nullOrUndefinedKeys
-    );
+    throw new ValidationError("Failed to create plans. Please try again later");
   }
 
   const plan = await prismaRequestHandler(

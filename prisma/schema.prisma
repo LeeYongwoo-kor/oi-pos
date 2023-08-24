@@ -81,8 +81,8 @@ model Plan {
   id          String  @id
   planType    PlanType @unique
   name        String
-  description String?
-  price       Float
+  description String? @db.Text
+  price       Float @db.Double
   currency    CurrencyType
   duration    Int
   maxMenus    Int
@@ -130,7 +130,7 @@ model Restaurant {
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   restaurantTables RestaurantTable[]
-  menuItems   MenuItem[]
+  menuCategories MenuCategory[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -176,27 +176,24 @@ model TableTypeAssignment {
 
 model MenuItem {
   id            String  @id @default(cuid())
-  restaurantId  String  @map("restaurant_id")
   categoryId    String  @map("category_id")
   subCategoryId String? @map("sub_category_id")
-  name          String?
-  description   String?
-  price         Float?
+  name          String
+  description   String? @db.Text
+  price         Float  @db.Double
   imageUrl      String? @map("image_url")
-  imageVersion  Int @default(0) @map("image_version")
-  displayOrder  Int @default(0) @map("display_order")
+  imageVersion  Int @default(0) @map("image_version") @db.SmallInt
+  displayOrder  Int @default(0) @map("display_order") @db.TinyInt
   status        MenuItemStatus @default(ARCHIVED)
   createdAt     DateTime @default(now())
   updatedAt     DateTime? @updatedAt
   orderItems    OrderItem[]
   menuItemOptions MenuItemOption[]
 
-  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  subCategory MenuSubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+  subCategory MenuSubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
 
   @@map("menuitems")
-  @@index([restaurantId])
   @@index([categoryId])
   @@index([subCategoryId])
 }
@@ -204,7 +201,7 @@ model MenuItem {
 model MenuSubCategory {
   id           String   @id @default(cuid())
   categoryId   String   @map("category_id")
-  name         String?
+  name         String
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
   menuItems    MenuItem[]
@@ -216,23 +213,27 @@ model MenuSubCategory {
 }
 
 model MenuCategory {
-  id            String    @id @default(cuid())
+  id            String  @id @default(cuid())
+  restaurantId  String  @map("restaurant_id")
   name          String
-  description   String?
-  imageUrl      String?   @map("image_url")
+  description   String? @db.Text
+  imageUrl      String? @map("image_url")
+  imageVersion  Int @default(0) @map("image_version") @db.SmallInt
   displayOrder  Int @default(0) @map("display_order")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime? @updatedAt
   subCategories MenuSubCategory[]
   menuItems     MenuItem[]
 
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   @@map("menucategories")
+  @@index([restaurantId])
 }
 
 model MenuOption {
   id               String @id @default(cuid())
   name             String
-  description      String?
+  description      String? @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime? @updatedAt
   menuItemOptions  MenuItemOption[]
@@ -244,7 +245,7 @@ model MenuOption {
 model MenuItemOption {
   menuItemId   String
   menuOptionId String
-  price        Float
+  price        Float @db.Double
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
 
@@ -294,7 +295,7 @@ model OrderItem {
   menuItemId String @map("menu_item_id")
   status    OrderItemStatus
   quantity  Int
-  price     Float
+  price     Float @db.Double
   selectedOptions OrderItemOption[]
 
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -308,7 +309,7 @@ model OrderItem {
 model OrderItemOption {
   orderItemId  String
   menuOptionId String
-  price        Float
+  price        Float @db.Double
   createdAt    DateTime @default(now())
   updatedAt    DateTime? @updatedAt
 

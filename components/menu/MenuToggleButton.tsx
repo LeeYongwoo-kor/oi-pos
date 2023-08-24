@@ -2,6 +2,8 @@ import {
   editingState,
   menuOpenState,
   mobileState,
+  showCategoryEditState,
+  showMenuEditState,
 } from "@/recoil/state/menuState";
 import {
   faMobileAlt,
@@ -9,12 +11,15 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useRecoilState, useSetRecoilState } from "recoil";
+import { useRecoilState, useRecoilValue, useSetRecoilState } from "recoil";
 
 export default function MenuToggleButton() {
+  const showEditMenu = useRecoilValue(showMenuEditState);
+  const showEditCategory = useRecoilValue(showCategoryEditState);
   const [isEditing, setIsEditing] = useRecoilState(editingState);
   const [isMobile, setIsMobile] = useRecoilState(mobileState);
   const setIsMenuOpen = useSetRecoilState(menuOpenState);
+
   return (
     <div className="flex items-center justify-between w-full p-4 text-white">
       <div className="space-x-3">
@@ -26,16 +31,23 @@ export default function MenuToggleButton() {
             id="isEditing"
             onChange={() => setIsEditing(!isEditing)}
             className="hidden"
+            disabled={showEditMenu}
           />
           <label
             htmlFor="isEditing"
             className={`block h-5 overflow-hidden bg-gray-300 transform transition-colors rounded-full cursor-pointer toggle-label ${
-              isEditing ? "bg-green-200" : "bg-blue-200"
+              showEditMenu || showEditCategory
+                ? "bg-gray-300"
+                : isEditing
+                ? "bg-green-300"
+                : "bg-blue-400"
             }`}
           >
             <span
               className={`block h-5 w-5 rounded-full shadow transform transition-transform ${
-                isEditing
+                showEditMenu || showEditCategory
+                  ? "bg-gray-400"
+                  : isEditing
                   ? "translate-x-0 bg-green-500"
                   : "translate-x-full bg-blue-500"
               } ease-in-out duration-200`}

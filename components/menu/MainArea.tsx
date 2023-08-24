@@ -1,7 +1,8 @@
+import { menuItemsSelector } from "@/recoil/selector/menuSelector";
 import {
   editingState,
   mobileState,
-  showEditState,
+  showMenuEditState,
 } from "@/recoil/state/menuState";
 import {
   faCirclePlus,
@@ -15,46 +16,10 @@ import { useRecoilValue, useSetRecoilState } from "recoil";
 export default function MainArea() {
   const isMobile = useRecoilValue(mobileState);
   const isEditing = useRecoilValue(editingState);
-  const showEditMenu = useSetRecoilState(showEditState);
+  const showEditMenu = useSetRecoilState(showMenuEditState);
   const responsiveStyle = isMobile ? "grid-cols-2" : "grid-cols-3";
-  const dishes = [
-    {
-      id: 1,
-      name: "Beef Burger",
-      price: 5.99,
-      image: "/menus/yoshi-demo/Lunch/beef-burger.jpg",
-    },
-    {
-      id: 2,
-      name: "Tomato Pasta",
-      price: 6.99,
-      image: "/menus/yoshi-demo/Lunch/tomato-pasta.jpg",
-    },
-    {
-      id: 3,
-      name: "Beef Burger",
-      price: 5.99,
-      image: "/menus/yoshi-demo/Lunch/beef-burger.jpg",
-    },
-    {
-      id: 4,
-      name: "Tomato Pasta",
-      price: 6.99,
-      image: "/menus/yoshi-demo/Lunch/tomato-pasta.jpg",
-    },
-    {
-      id: 5,
-      name: "Beef Burger",
-      price: 5.99,
-      image: "/menus/yoshi-demo/Lunch/beef-burger.jpg",
-    },
-    {
-      id: 6,
-      name: "Tomato Pasta",
-      price: 6.99,
-      image: "/menus/yoshi-demo/Lunch/tomato-pasta.jpg",
-    },
-  ];
+  const dishes = useRecoilValue(menuItemsSelector);
+
   const handleEditMenu = () => {
     if (!isEditing) {
       return;
@@ -69,7 +34,7 @@ export default function MainArea() {
       {dishes.map((dish) => (
         <div
           key={dish.id}
-          className={`relative flex flex-col rounded-lg shadow-md ${
+          className={`relative flex flex-col rounded-lg shadow-md mb-1 ${
             isEditing ? "cursor-pointer hover-wrapper" : ""
           }`}
         >
@@ -90,10 +55,13 @@ export default function MainArea() {
           {isEditing && <div onClick={handleEditMenu} className="overlay" />}
           <div className="relative h-40">
             <Image
-              src={`https://${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_DOMAIN}${dish.image}`}
+              src={`https://${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_DOMAIN}${
+                dish.imageUrl || ""
+              }`}
               alt={dish.name}
               fill
               className="object-cover rounded-lg"
+              draggable={false}
             />
           </div>
           <div className="flex justify-between">
@@ -103,7 +71,7 @@ export default function MainArea() {
                 ${dish.price}
               </p>
             </div>
-            <div className="w-16 py-2 mr-1">
+            <div className="py-3 mr-2 w-14">
               <button className="w-full h-full text-white bg-red-500 rounded-full hover:bg-red-600">
                 <FontAwesomeIcon icon={faPlus} />
               </button>

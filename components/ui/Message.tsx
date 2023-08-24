@@ -1,4 +1,4 @@
-import { messageLoadingState, messageState } from "@/hooks/state/messageState";
+import { messageLoadingState, messageState } from "@/recoil/state/messageState";
 import { joinCls } from "@/utils/cssHelper";
 import React, { useEffect, useRef } from "react";
 import { useRecoilState, useResetRecoilState } from "recoil";
@@ -55,7 +55,7 @@ const Message = ({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black opacity-50"></div>
       <div
         ref={dialogRef}

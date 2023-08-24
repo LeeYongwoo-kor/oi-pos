@@ -4,7 +4,7 @@ import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import { MenuCategory, MenuItem, MenuSubCategory } from "@prisma/client";
 import { ValidationError } from "yup";
 
-export interface ICategory extends MenuCategory {
+export interface IMenuCategory extends MenuCategory {
   menuItems: MenuItem[];
   subCategories: MenuSubCategory[];
 }
@@ -12,6 +12,7 @@ export interface CreateMenuCategoryParams {
   restaurantId: string;
   name: string;
   imageUrl: string;
+  imageVersion?: number;
   description?: string;
   displayOrder?: number;
 }
@@ -53,6 +54,7 @@ export async function createMenuCategory(
         name: menuCategryInfo.name,
         description: menuCategryInfo.description,
         imageUrl: menuCategryInfo.imageUrl,
+        imageVersion: menuCategryInfo.imageVersion,
         displayOrder: menuCategryInfo.displayOrder,
       },
     }),

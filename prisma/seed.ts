@@ -13,7 +13,15 @@ import {
   YEARLY_DURATION,
   YEARLY_PRICE,
 } from "@/constants/plan";
-import { upsertPlans } from "@/database";
+import {
+  CreateMenuCategoryParams,
+  CreateMenuItemParams,
+  createMenuCategoryWithSub,
+  createMenuItem,
+  getAllPlans,
+  upsertPlans,
+} from "@/database";
+import isEmpty from "@/utils/validation/isEmpty";
 import { CurrencyType, PlanType, PrismaClient } from "@prisma/client";
 const seedPrisma = new PrismaClient();
 
@@ -54,9 +62,131 @@ async function main() {
     },
   ];
 
-  const createPlansResult = await upsertPlans(plans);
-  // log result
-  console.log(createPlansResult);
+  const allPlans = await getAllPlans();
+  if (isEmpty(allPlans)) {
+    const createPlansResult = await upsertPlans(plans);
+    // log result
+    console.log("Success create plans: ", createPlansResult);
+  }
+
+  const menuCategoriesDemo: CreateMenuCategoryParams[] = [
+    {
+      restaurantId: "yoshi-demo", // !!!: Change this to your restaurant id
+      name: "Lunch",
+      description: "Delicious lunch meals",
+      imageUrl: "/menus/yoshi-demo/_category_Lunch.jpg",
+    },
+    {
+      restaurantId: "yoshi-demo", // !!!: Change this to your restaurant id
+      name: "Drink",
+      description: "Refreshing drinks",
+      imageUrl: "/menus/yoshi-demo/_category_Drink.jpg",
+    },
+    {
+      restaurantId: "yoshi-demo", // !!!: Change this to your restaurant id
+      name: "Dessert",
+      description: "Sweet desserts",
+      imageUrl: "/menus/yoshi-demo/_category_Dessert.jpg",
+    },
+  ];
+
+  const menuSubCategoriesLunchDemo = [
+    {
+      name: "Burger",
+    },
+    {
+      name: "Pasta",
+    },
+  ];
+
+  const menuSubCategoriesDrinkDemo = [
+    {
+      name: "Coffee",
+    },
+    {
+      name: "Soft Drink",
+    },
+  ];
+
+  const [lunchCategory, lunchSubCategory] = await createMenuCategoryWithSub(
+    menuCategoriesDemo[0],
+    menuSubCategoriesLunchDemo
+  );
+  if (lunchCategory && lunchSubCategory) {
+    // log result
+    console.log(
+      "Success create category and subs: ",
+      lunchCategory,
+      lunchSubCategory
+    );
+  }
+  const [drinkCategory, drinkSubCategory] = await createMenuCategoryWithSub(
+    menuCategoriesDemo[1],
+    menuSubCategoriesDrinkDemo
+  );
+  if (drinkCategory && drinkSubCategory) {
+    // log result
+    console.log(
+      "Success create category and subs: ",
+      drinkCategory,
+      drinkSubCategory
+    );
+  }
+  const [dessertCategory] = await createMenuCategoryWithSub(
+    menuCategoriesDemo[2]
+  );
+  if (dessertCategory) {
+    // log result
+    console.log("Success create category: ", dessertCategory);
+  }
+
+  const menuItemsDemo: CreateMenuItemParams[] = [
+    {
+      categoryId: lunchCategory.id,
+      subCategoryId: lunchSubCategory && lunchSubCategory[0].id,
+      name: "Beef Burger",
+      description: "Beef Burger with cheese",
+      price: 890,
+      imageUrl: "/menus/yoshi-demo/Lunch/beef-burger.jpg",
+    },
+    {
+      categoryId: lunchCategory.id,
+      subCategoryId: lunchSubCategory && lunchSubCategory[1].id,
+      name: "Tomato Pasta",
+      description: "Tomato Pasta with cheese",
+      price: 1200,
+      imageUrl: "/menus/yoshi-demo/Lunch/tomato-pasta.jpg",
+    },
+    {
+      categoryId: drinkCategory.id,
+      subCategoryId: drinkSubCategory && drinkSubCategory[0].id,
+      name: "Coffee Latte",
+      description: "Coffee Latte with milk",
+      price: 500,
+      imageUrl: "/menus/yoshi-demo/Drink/coffee-latte.jpg",
+    },
+    {
+      categoryId: drinkCategory.id,
+      subCategoryId: drinkSubCategory && drinkSubCategory[1].id,
+      name: "Coke",
+      description: "Coke with ice",
+      price: 350,
+      imageUrl: "/menus/yoshi-demo/Drink/coke.jpg",
+    },
+    {
+      categoryId: dessertCategory.id,
+      name: "Chocolate Cake",
+      description: "Chocolate Cake using Belgian chocolate",
+      price: 1500,
+      imageUrl: "/menus/yoshi-demo/Dessert/chocolate-cake.jpg",
+    },
+  ];
+
+  menuItemsDemo.forEach(async (menuItem: CreateMenuItemParams) => {
+    const createMenuItemResult = await createMenuItem(menuItem);
+    // log result
+    console.log("Success create menu item: ", createMenuItemResult);
+  });
 }
 
 main()

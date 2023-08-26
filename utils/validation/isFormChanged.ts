@@ -1,7 +1,7 @@
 import { FieldValues } from "react-hook-form";
-import isEmpty from "./validation/isEmpty";
+import isEmpty from "./isEmpty";
 
-export const isFormChanged = <T extends Record<string, any>>(
+const isFormChanged = <T extends Record<string, any>>(
   originData: T,
   formData: FieldValues
 ): boolean => {
@@ -11,3 +11,5 @@ export const isFormChanged = <T extends Record<string, any>>(
     return originData[key] !== formData[key];
   });
 };
+
+export default isFormChanged;

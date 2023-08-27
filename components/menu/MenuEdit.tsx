@@ -1,30 +1,32 @@
-import { mobileState, showEditState } from "@/recoil/state/menuState";
+import { mobileState, showMenuEditState } from "@/recoil/state/menuState";
 import { MenuItemStatus } from "@prisma/client";
 import { useState } from "react";
 import { useRecoilValue, useSetRecoilState } from "recoil";
 
 export default function MenuEdit() {
-  const isVisible = useRecoilValue(showEditState);
-  const closeEditMenu = useSetRecoilState(showEditState);
+  const isVisible = useRecoilValue(showMenuEditState);
+  const closeEditMenu = useSetRecoilState(showMenuEditState);
   const isMobile = useRecoilValue(mobileState);
   const [activeTab, setActiveTab] = useState("essential");
   const [menuItemStatus, setMenuItemStatus] = useState<MenuItemStatus>(
     MenuItemStatus.AVAILABLE
   );
+
   const handleCloseMenu = () => {
     closeEditMenu(false);
   };
+
   return (
     <div
-      className={`absolute inset-0 top-5 transform transition-transform duration-300 ease-in-out ${
-        isVisible ? "z-10" : "z-0"
+      className={`absolute inset-0 top-4 transform transition-transform duration-300 ease-in-out ${
+        isVisible ? "z-30" : "z-0"
       }`}
       style={{
         transform: `translateY(${isVisible ? "0%" : "100%"})`,
       }}
     >
       {isVisible && (
-        <div className="flex flex-col overflow-y-scroll max-h-full min-h-full p-4 bg-white shadow-2xl shadow-black rounded-t-[2rem] scrollbar-hide">
+        <div className="flex flex-col overflow-y-scroll h-full max-h-[47rem] p-4 bg-white rounded-t-[2rem] scrollbar-hide">
           <div className="flex justify-between mb-12">
             <button
               onClick={handleCloseMenu}
@@ -90,7 +92,10 @@ export default function MenuEdit() {
                 <div className="w-full h-10 mt-2 bg-gray-200 border-b-2" />
               </div>
               <div className="self-end space-x-2">
-                <button className="px-6 py-2 text-black transition duration-200 bg-gray-200 rounded hover:bg-gray-300">
+                <button
+                  onClick={handleCloseMenu}
+                  className="px-6 py-2 text-black transition duration-200 bg-gray-200 rounded hover:bg-gray-300"
+                >
                   Cancel
                 </button>
                 <button className="px-6 py-2 text-white transition duration-200 bg-green-500 rounded hover:bg-green-600">
@@ -100,37 +105,48 @@ export default function MenuEdit() {
             </div>
           )}
           {activeTab === "optional" && (
-            <div className="grid grid-flow-col gap-4 mt-3 auto-cols-auto">
-              <div></div>
-              {Object.keys(MenuItemStatus).map((status, idx) => (
-                <label key={idx} className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="menuItemStatus"
-                    value={status}
-                    checked={menuItemStatus === status}
-                    onChange={() => setMenuItemStatus(status as MenuItemStatus)}
-                    className="hidden"
-                  />
-                  <div
-                    className={`flex items-center px-2 py-1 border-2 rounded ${
-                      menuItemStatus === status
-                        ? "border-blue-500"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    <span
-                      className={`block w-4 h-4 rounded-full ${
-                        menuItemStatus === status
-                          ? "bg-blue-500"
-                          : "bg-gray-300"
-                      }`}
-                    ></span>
-                    <span className="ml-2 text-sm">{status}</span>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <>
+              <div className="flex-wrap mt-2 indent-2">
+                <label className="">Menu Status:</label>
+              </div>
+              <div className="flex p-2 mt-2 border-2 rounded">
+                <div className="flex flex-wrap space-x-2">
+                  {Object.keys(MenuItemStatus).map((status, idx) => (
+                    <label
+                      key={idx}
+                      className="flex items-center p-1 cursor-pointer"
+                    >
+                      <input
+                        type="radio"
+                        name="menuItemStatus"
+                        value={status}
+                        checked={menuItemStatus === status}
+                        onChange={() =>
+                          setMenuItemStatus(status as MenuItemStatus)
+                        }
+                        className="hidden"
+                      />
+                      <div
+                        className={`flex items-center px-2 py-1 border-2 rounded ${
+                          menuItemStatus === status
+                            ? "border-blue-500"
+                            : "border-gray-300 hover:border-blue-400"
+                        }`}
+                      >
+                        <span
+                          className={`block w-4 h-4 rounded-full ${
+                            menuItemStatus === status
+                              ? "bg-blue-500"
+                              : "bg-gray-300"
+                          }`}
+                        ></span>
+                        <span className="ml-2 text-sm">{status}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

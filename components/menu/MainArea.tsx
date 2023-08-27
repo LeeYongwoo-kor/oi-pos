@@ -55,9 +55,9 @@ export default function MainArea() {
           {isEditing && <div onClick={handleEditMenu} className="overlay" />}
           <div className="relative h-40">
             <Image
-              src={`https://${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_DOMAIN}${
+              src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
                 dish.imageUrl || ""
-              }`}
+              }?v=${dish.imageVersion}`}
               alt={dish.name}
               fill
               className="object-cover rounded-lg"

@@ -1,7 +1,9 @@
+import { IMenuCategory } from "@/database";
 import {
   categoriesState,
   editingState,
   selectedCategoryState,
+  selectedEditCategoryState,
   showCategoryEditState,
 } from "@/recoil/state/menuState";
 import { faCirclePlus, faPenToSquare } from "@fortawesome/free-solid-svg-icons";
@@ -17,11 +19,13 @@ export default function Category() {
   const [selectedCategory, setSelectedCategory] = useRecoilState(
     selectedCategoryState
   );
+  const setSelectedEditCategory = useSetRecoilState(selectedEditCategoryState);
 
-  const handleEditCategory = () => {
+  const handleEditCategory = (selectedCategory: IMenuCategory | null) => {
     if (!isEditing) {
       return;
     }
+    setSelectedEditCategory(selectedCategory);
     showEditCategory(true);
   };
 
@@ -36,7 +40,11 @@ export default function Category() {
       {categories.map((category) => (
         <div
           key={category.id}
-          onClick={() => setSelectedCategory(category)}
+          onClick={() => {
+            if (!isEditing) {
+              setSelectedCategory(category);
+            }
+          }}
           className="flex flex-col items-center justify-center space-y-2 cursor-pointer hover:text-red-500"
         >
           <div
@@ -51,7 +59,7 @@ export default function Category() {
             {isEditing && (
               <div className="hidden edit-icon">
                 <button
-                  onClick={handleEditCategory}
+                  onClick={() => handleEditCategory(category)}
                   className="absolute z-20 transform -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2"
                 >
                   <FontAwesomeIcon
@@ -63,10 +71,13 @@ export default function Category() {
               </div>
             )}
             {isEditing && (
-              <div onClick={handleEditCategory} className="overlay" />
+              <div
+                onClick={() => handleEditCategory(category)}
+                className="overlay"
+              />
             )}
             <Image
-              src={`https://${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_DOMAIN}${
+              src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
                 category.imageUrl || ""
               }?v=${category.imageVersion || 0}`}
               alt={category.name}
@@ -76,13 +87,18 @@ export default function Category() {
             />
           </div>
           <div
-            className={`relative text-base font-semibold ${
-              category.id === selectedCategory?.id
-                ? "text-red-500 font-bold"
-                : ""
-            }`}
+            onClick={() => setSelectedCategory(category)}
+            className="flex items-center justify-center w-full"
           >
-            {category.name}
+            <div
+              className={`text-base font-semibold ${
+                category.id === selectedCategory?.id
+                  ? "text-red-500 font-bold"
+                  : ""
+              }`}
+            >
+              {category.name}
+            </div>
           </div>
           <hr
             className={`h-1 mt-1 transform origin-left transition-all duration-300 ${
@@ -93,7 +109,7 @@ export default function Category() {
       ))}
       {isEditing && (
         <button
-          onClick={handleEditCategory}
+          onClick={() => handleEditCategory(null)}
           className="flex flex-col items-center justify-center w-48 h-32 p-4 m-1 space-y-2 border-4 border-dotted hover:text-zinc-500 text-zinc-400 border-zinc-300 hover:border-zinc-500"
         >
           <FontAwesomeIcon size="2x" icon={faCirclePlus} />

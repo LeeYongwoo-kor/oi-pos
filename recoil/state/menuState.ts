@@ -32,6 +32,11 @@ export const categoriesState = atom<IMenuCategory[]>({
   default: [],
 });
 
+export const selectedEditCategoryState = atom<IMenuCategory | null>({
+  key: "selectedEditCategory",
+  default: null,
+});
+
 export const selectedCategoryState = atom<IMenuCategory | null>({
   key: "selectedCategory",
   default: null,

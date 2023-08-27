@@ -147,7 +147,7 @@ async function main() {
       name: "Beef Burger",
       description: "Beef Burger with cheese",
       price: 890,
-      imageUrl: "/menus/yoshi-demo/Lunch/beef-burger.jpg",
+      imageUrl: "menus/yoshi-demo/Lunch/beef-burger.jpg",
     },
     {
       categoryId: lunchCategory.id,
@@ -155,7 +155,7 @@ async function main() {
       name: "Tomato Pasta",
       description: "Tomato Pasta with cheese",
       price: 1200,
-      imageUrl: "/menus/yoshi-demo/Lunch/tomato-pasta.jpg",
+      imageUrl: "menus/yoshi-demo/Lunch/tomato-pasta.jpg",
     },
     {
       categoryId: drinkCategory.id,
@@ -163,7 +163,7 @@ async function main() {
       name: "Coffee Latte",
       description: "Coffee Latte with milk",
       price: 500,
-      imageUrl: "/menus/yoshi-demo/Drink/coffee-latte.jpg",
+      imageUrl: "menus/yoshi-demo/Drink/coffee-latte.jpg",
     },
     {
       categoryId: drinkCategory.id,
@@ -171,14 +171,14 @@ async function main() {
       name: "Coke",
       description: "Coke with ice",
       price: 350,
-      imageUrl: "/menus/yoshi-demo/Drink/coke.jpg",
+      imageUrl: "menus/yoshi-demo/Drink/coke.jpg",
     },
     {
       categoryId: dessertCategory.id,
       name: "Chocolate Cake",
       description: "Chocolate Cake using Belgian chocolate",
       price: 1500,
-      imageUrl: "/menus/yoshi-demo/Dessert/chocolate-cake.jpg",
+      imageUrl: "menus/yoshi-demo/Dessert/chocolate-cake.jpg",
     },
   ];
 

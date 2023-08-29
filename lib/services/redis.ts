@@ -1,11 +1,11 @@
-import { DEFAULT_REDIS_PORT } from "@/constants/numeric";
+import { REDIS_DEFAULT_PORT } from "@/constants/service";
 import Redis from "ioredis";
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || "localhost",
   port: process.env.REDIS_PORT
     ? parseInt(process.env.REDIS_PORT, 10)
-    : DEFAULT_REDIS_PORT,
+    : REDIS_DEFAULT_PORT,
   password: process.env.REDIS_PASSWORD,
   retryStrategy: (times) => {
     // reconnect after

@@ -1,4 +1,4 @@
-import { DEFAULT_REDIS_TTL_SEC } from "@/constants/numeric";
+import { REDIS_DEFAULT_TTL_SEC } from "@/constants/service";
 import redis from "@/lib/services/redis";
 import { UnauthorizedError } from "@/lib/shared/error/ApiError";
 import { RedisError } from "@/lib/shared/error/RedisError";
@@ -30,7 +30,7 @@ export async function updateCache<T>(
         cacheKey,
         JSON.stringify(updatedData),
         "EX",
-        ttl ? ttl : DEFAULT_REDIS_TTL_SEC
+        ttl ? ttl : REDIS_DEFAULT_TTL_SEC
       )
       .catch(() => {
         throw new RedisError("Error setting value in cache for update");

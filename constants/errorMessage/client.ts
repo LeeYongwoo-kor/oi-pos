@@ -3,7 +3,7 @@ export const ACCESS_QR_CODE_ERROR = {
     "This restaurant table does not exist. Please ask the staff for assistance",
   UNAVAILABLE_TABLE:
     "This table is currently unavailable. Please ask the staff for assistance",
-};
+} as const;
 
 export const COMMON_ERROR = {
   SYSTEM_BUSY: "The system is currently busy. Please try again later",

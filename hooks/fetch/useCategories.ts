@@ -21,7 +21,7 @@ export default function useCategories(
     if (data) {
       setCategories(data);
     }
-  }, [data, setCategories]);
+  }, [data]);
 
   useEffect(() => {
     if (error) {

@@ -5,20 +5,21 @@ import {
   RESTAURANT_ENDPOINT,
 } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
-import { CROP_MIN_HEIGHT, CROP_MIN_WIDTH } from "@/constants/menu";
-import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import {
-  CreateMenuCategoryParams,
-  IRestaurant,
-  UpdateMenuCategoryParams,
-} from "@/database";
-import { useConfirm } from "@/hooks/useConfirm";
-import { useToast } from "@/hooks/useToast";
-import useMutation from "@/lib/client/useMutation";
+  PICTURE_CROP_MIN_HEIGHT,
+  PICTURE_CROP_MIN_SIZE,
+  PICTURE_CROP_MIN_WIDTH,
+  PICTURE_MAX_CAPACITY,
+} from "@/constants/menu";
+import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import {
   AWS_S3_PUT_OBJECT_CACHE_CONTROL,
   AWS_S3_YOSHI_BUCKET,
-} from "@/lib/services/awsS3";
+} from "@/constants/service";
+import { IRestaurant } from "@/database";
+import { useConfirm } from "@/hooks/useConfirm";
+import { useToast } from "@/hooks/useToast";
+import useMutation from "@/lib/client/useMutation";
 import {
   IPostOpenAiImageBody,
   IPostOpenAiImageResponse,
@@ -221,7 +222,7 @@ export default function CategoryEdit() {
 
   const onDescriptionChange = (
     event: React.SyntheticEvent<HTMLTextAreaElement>
-  ) => {
+  ): void => {
     const {
       currentTarget: { value },
     } = event;
@@ -269,7 +270,7 @@ export default function CategoryEdit() {
     });
   };
 
-  const handleCloseCategory = () => {
+  const handleCloseCategory = (): void => {
     if (
       !isFormChanged(
         {
@@ -389,7 +390,11 @@ export default function CategoryEdit() {
     }
   };
 
-  const onImageLoad = async (e: SyntheticEvent<HTMLImageElement, Event>) => {
+  console.log("croppedImage", croppedImage);
+
+  const onImageLoad = async (
+    e: SyntheticEvent<HTMLImageElement, Event>
+  ): Promise<void> => {
     const { clientWidth: width, clientHeight: height } = e.currentTarget;
     const containerWidth = imageContainerRef.current?.clientWidth || width;
     const containerHeight = imageContainerRef.current?.clientHeight || height;
@@ -406,7 +411,7 @@ export default function CategoryEdit() {
     await paintCanvas(e.currentTarget.src);
   };
 
-  const onCropComplete = async (newCrop: Crop) => {
+  const onCropComplete = async (newCrop: Crop): Promise<void> => {
     if (!previewUrl) {
       return;
     }
@@ -426,7 +431,7 @@ export default function CategoryEdit() {
       return;
     }
 
-    if (file.size > 1024 * 512) {
+    if (file.size > PICTURE_MAX_CAPACITY) {
       addToast("error", "File size exceeds 512KB. Please choose another file");
       return;
     }
@@ -441,7 +446,7 @@ export default function CategoryEdit() {
     reader.readAsDataURL(file);
   };
 
-  const handleCreateAiImage = async () => {
+  const handleCreateAiImage = async (): Promise<void> => {
     dispatch({ type: "START_AI_IMAGE_CREATION" });
 
     try {
@@ -455,10 +460,29 @@ export default function CategoryEdit() {
     }
   };
 
-  const handleSave = async () => {
-    let uploadParams: PutObjectCommandInput | null = null;
-    let croppedImageBuffer = null;
+  const getS3UploadParams = async (
+    croppedImage: Blob,
+    imageKey: string
+  ): Promise<PutObjectCommandInput | null> => {
+    try {
+      const arrayBuffer = await croppedImage.arrayBuffer();
+      const croppedImageBuffer = Buffer.from(arrayBuffer);
 
+      return {
+        Bucket: AWS_S3_YOSHI_BUCKET,
+        Key: imageKey,
+        Body: croppedImageBuffer,
+        ContentType: croppedImage.type,
+        CacheControl: AWS_S3_PUT_OBJECT_CACHE_CONTROL,
+        ContentLength: croppedImage.size,
+      };
+    } catch (err) {
+      addToast("error", "Error occurred while uploading menu category");
+      return null;
+    }
+  };
+
+  const handleSave = async (): Promise<void> => {
     if (!restaurantInfo) {
       addToast(
         "error",
@@ -467,96 +491,41 @@ export default function CategoryEdit() {
       return;
     }
 
-    // If the image exists, upload the image to S3
-    let imageKey = `menus/${restaurantInfo.id}/_category_${categoryName}.jpg`;
-    if (croppedImage && croppedImage.size > 1024) {
-      // If selectedEditCategory exists, use the existing image key
-      if (selectedEditCategory) {
-        if (selectedEditCategory.imageUrl) {
-          imageKey = selectedEditCategory.imageUrl;
-        }
-      }
+    // If the imageUrl exists, use the existing imageKey
+    const imageKey =
+      selectedEditCategory?.imageUrl ||
+      `menus/${restaurantInfo.id}/_category_${categoryName}.jpg`;
 
-      try {
-        const arrayBuffer = await croppedImage.arrayBuffer();
-        croppedImageBuffer = Buffer.from(arrayBuffer);
-      } catch (err) {
-        addToast("error", "Error occurred while uploading menu category");
-        return;
-      }
+    // If the image exists and croppedImage is null, No need to upload the image to S3
+    const uploadParams =
+      croppedImage && croppedImage.size > PICTURE_CROP_MIN_SIZE
+        ? await getS3UploadParams(croppedImage, imageKey)
+        : null;
 
-      if (croppedImageBuffer.length <= 10) {
-        addToast("error", "Error occurred while uploading menu category");
-        return;
-      }
+    const menuCategoryInfo = {
+      id: selectedEditCategory?.id,
+      restaurantId: restaurantInfo.id,
+      name: categoryName,
+      description,
+      imageUrl: imageKey,
+      imageVersion:
+        selectedEditCategory?.imageUrl && uploadParams
+          ? selectedEditCategory.imageVersion + 1
+          : selectedEditCategory?.imageVersion,
+    };
 
-      uploadParams = {
-        Bucket: AWS_S3_YOSHI_BUCKET,
-        Key: imageKey,
-        Body: croppedImageBuffer,
-        ContentType: croppedImage.type,
-        CacheControl: AWS_S3_PUT_OBJECT_CACHE_CONTROL,
-        ContentLength: croppedImage.size,
-      };
-    }
+    const result = selectedEditCategory
+      ? await updateCategory({ menuCategoryInfo, uploadParams })
+      : await createCategory({ menuCategoryInfo, uploadParams });
 
-    // Create new category if not selectedEditCategory
-    if (!selectedEditCategory) {
-      const menuCategoryInfo: CreateMenuCategoryParams = {
-        restaurantId: restaurantInfo.id,
-        name: categoryName,
-        description,
-        imageUrl: imageKey,
-        displayOrder: 0,
-      };
-
-      const newMenuCategory = await createCategory(
-        {
-          menuCategoryInfo,
-          uploadParams,
-        },
-        {
-          additionalKeys: restaurantInfo
-            ? [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantInfo.id)]
-            : [],
-        }
+    if (result) {
+      openEditCategory(false);
+      addToast(
+        "success",
+        `Menu Category ${
+          selectedEditCategory ? "updated" : "created"
+        } successfully!`
       );
-
-      if (newMenuCategory) {
-        openEditCategory(false);
-        addToast("success", "Menu category created successfully!");
-      }
-    } else {
-      // Update category if selectedEditCategory
-      const menuCategoryInfo: UpdateMenuCategoryParams = {
-        id: selectedEditCategory.id,
-        name: categoryName,
-        description,
-        imageUrl: imageKey,
-        imageVersion:
-          selectedEditCategory.imageUrl && uploadParams !== null
-            ? selectedEditCategory.imageVersion + 1
-            : selectedEditCategory.imageVersion,
-      };
-
-      const updatedMenuCategory = await updateCategory(
-        {
-          menuCategoryInfo,
-          uploadParams,
-        },
-        {
-          additionalKeys: [
-            RESTAURANT_ENDPOINT.MENU_CATEGORY(
-              selectedEditCategory.restaurantId
-            ),
-          ],
-        }
-      );
-
-      if (updatedMenuCategory) {
-        openEditCategory(false);
-        addToast("success", "Menu Category updated successfully!");
-      }
     }
   };
 
@@ -678,8 +647,8 @@ export default function CategoryEdit() {
                   {previewUrl && (
                     <ReactCrop
                       crop={crop}
-                      minWidth={CROP_MIN_WIDTH}
-                      minHeight={CROP_MIN_HEIGHT}
+                      minWidth={PICTURE_CROP_MIN_WIDTH}
+                      minHeight={PICTURE_CROP_MIN_HEIGHT}
                       maxWidth={renderedDimension.width}
                       maxHeight={renderedDimension.height}
                       onChange={(newCrop) =>

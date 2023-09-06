@@ -1,8 +1,8 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
-import { MenuItem, MenuItemStatus } from "@prisma/client";
-import { ValidationError } from "yup";
+import { MenuItem, MenuItemStatus, Prisma, PrismaClient } from "@prisma/client";
 
 export interface CreateMenuItemParams {
   categoryId: string;
@@ -57,6 +57,26 @@ export async function createMenuItem(
       },
     }),
     "createMenuItem"
+  );
+}
+
+export async function createManyMenuItems(
+  menuItemsInfo: CreateMenuItemParams[],
+  tx?: Prisma.TransactionClient
+): Promise<Prisma.BatchPayload> {
+  const prismaIns = tx || prisma;
+
+  if (hasNullUndefined(menuItemsInfo)) {
+    throw new ValidationError(
+      "Failed to create menu items. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prismaIns.menuItem.createMany({
+      data: menuItemsInfo,
+    }),
+    "createManyMenuItems"
   );
 }
 

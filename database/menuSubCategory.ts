@@ -1,9 +1,11 @@
 import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
-import { MenuSubCategory } from "@prisma/client";
+import { ValidationError } from "@/lib/shared/error/ApiError";
+import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
+import { MenuSubCategory, Prisma } from "@prisma/client";
 
 export interface CreateMenuSubCategoryParams {
-  categoryId?: string | null;
+  categoryId: string | null | undefined;
   name: string;
 }
 
@@ -24,6 +26,32 @@ export async function getAllMenuSubCategoriesByCategoryId(
       },
     }),
     "getAllMenuSubCategoriesByCategoryId"
+  );
+}
+
+export async function createMenuSubCategory(
+  menuSubCategoryInfo: CreateMenuSubCategoryParams,
+  tx?: Prisma.TransactionClient
+): Promise<MenuSubCategory> {
+  const prismaIns = tx || prisma;
+
+  if (
+    !menuSubCategoryInfo.categoryId ||
+    hasNullUndefined(menuSubCategoryInfo)
+  ) {
+    throw new ValidationError(
+      "Failed to create sub menu category. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prismaIns.menuSubCategory.create({
+      data: {
+        categoryId: menuSubCategoryInfo.categoryId,
+        name: menuSubCategoryInfo.name,
+      },
+    }),
+    "createMenuSubCategory"
   );
 }
 

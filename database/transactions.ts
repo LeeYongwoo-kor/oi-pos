@@ -6,21 +6,26 @@ import {
   IPutRestaurantTableBody,
   ISeatingConfig,
 } from "@/pages/api/v1/restaurants/tables";
-import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
+import {
+  IMenuCategoryDemo,
+  menuCategoriesDemo,
+  menuItemsDemo,
+  menuSubCategoriesDrinkDemo,
+  menuSubCategoriesLunchDemo,
+} from "@/sample/menus";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
-  MenuCategory,
-  MenuSubCategory,
   Order,
   OrderStatus,
   Plan,
+  Prisma,
   Restaurant,
   RestaurantTable,
   TableStatus,
   TableTypeAssignment,
 } from "@prisma/client";
-import { CreateMenuCategoryParams } from "./menuCategory";
-import { CreateMenuSubCategoryParams } from "./menuSubCategory";
+import { createMenuCategoryWithSub } from "./menuCategory";
+import { createManyMenuItems } from "./menuItem";
 import { CreatePlanParams, upsertPlan } from "./plan";
 import { createRestaurantTable } from "./restaurantTable";
 import {
@@ -262,55 +267,53 @@ export async function reserveOrder(
   );
 }
 
-export async function createMenuCategoryWithSub(
-  menuCategryInfo: CreateMenuCategoryParams,
-  subCategoryInfo?: CreateMenuSubCategoryParams[]
-): Promise<[MenuCategory, MenuSubCategory[] | undefined]> {
-  return await prismaRequestHandler(
-    prisma.$transaction(async (tx) => {
-      let subMenuCategory: MenuSubCategory[] | undefined;
+export async function createDemoMenus(
+  restaurantId: string | null | undefined
+): Promise<Prisma.BatchPayload> {
+  if (!restaurantId) {
+    throw new ValidationError(
+      "Failed to create demo menu. Please try again later"
+    );
+  }
 
-      if (hasNullUndefined(menuCategryInfo)) {
-        throw new ValidationError(
-          "Failed to create menu category. Please try again later"
-        );
-      }
+  return await prisma.$transaction(async (tx) => {
+    const [lunchCategory, lunchSubCategory] = await createMenuCategoryWithSub(
+      menuCategoriesDemo(restaurantId)[0],
+      menuSubCategoriesLunchDemo,
+      tx
+    );
 
-      if (subCategoryInfo) {
-        subCategoryInfo.forEach((subCategory) => {
-          if (hasNullUndefined(subCategory)) {
-            throw new ValidationError(
-              "Failed to create menu category with subCategories. Please try again later"
-            );
-          }
-        });
-      }
+    const [drinkCategory, drinkSubCategory] = await createMenuCategoryWithSub(
+      menuCategoriesDemo(restaurantId)[1],
+      menuSubCategoriesDrinkDemo,
+      tx
+    );
 
-      const menuCategory = await tx.menuCategory.create({
-        data: {
-          restaurantId: menuCategryInfo.restaurantId,
-          name: menuCategryInfo.name,
-          description: menuCategryInfo.description,
-          imageUrl: menuCategryInfo.imageUrl,
-          displayOrder: menuCategryInfo.displayOrder,
-        },
-      });
+    const [dessertCategory] = await createMenuCategoryWithSub(
+      menuCategoriesDemo(restaurantId)[2],
+      undefined,
+      tx
+    );
 
-      if (subCategoryInfo) {
-        subMenuCategory = await Promise.all(
-          subCategoryInfo.map((subCategory) =>
-            tx.menuSubCategory.create({
-              data: {
-                categoryId: menuCategory.id,
-                name: subCategory.name,
-              },
-            })
-          )
-        );
-      }
+    const demoData: IMenuCategoryDemo = {
+      lunchCategoryId: lunchCategory.id,
+      burgerSubCategoryId: lunchSubCategory! && lunchSubCategory[0].id,
+      pastaSubCategoryId: lunchSubCategory! && lunchSubCategory[1].id,
+      drinkCategoryId: drinkCategory.id,
+      coffeeSubCategoryId: drinkSubCategory! && drinkSubCategory[0].id,
+      softDrinkSubCategoryId: drinkSubCategory! && drinkSubCategory[1].id,
+      dessertCategoryId: dessertCategory.id,
+    };
 
-      return [menuCategory, subMenuCategory];
-    }),
-    "createMenuCategoryWithSub"
-  );
+    const demoMenuItems = menuItemsDemo(restaurantId, demoData);
+    const createMenuItemResult = await createManyMenuItems(demoMenuItems, tx);
+
+    if (!createMenuItemResult || createMenuItemResult.count < 1) {
+      throw new ValidationError(
+        "Failed to create demo menu. Please try again later"
+      );
+    }
+
+    return createMenuItemResult;
+  });
 }

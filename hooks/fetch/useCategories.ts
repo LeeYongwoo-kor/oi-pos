@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useSetRecoilState } from "recoil";
 import useSWR from "swr";
 import { useToast } from "../useToast";
+import { ApiError } from "@/lib/shared/error/ApiError";
 
 export default function useCategories(
   restaurantInfo: IRestaurant | undefined | null
@@ -26,6 +27,9 @@ export default function useCategories(
   useEffect(() => {
     if (error) {
       addToast("error", error.message);
+      if (error instanceof ApiError && error.statusCode === 404) {
+        setCategories([]);
+      }
     }
   }, [error, addToast]);
 

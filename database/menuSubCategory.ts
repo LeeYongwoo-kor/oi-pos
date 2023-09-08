@@ -8,6 +8,9 @@ export interface CreateMenuSubCategoryParams {
   categoryId: string | null | undefined;
   name: string;
 }
+export interface UpdateMenuSubCategoryParams {
+  name: string;
+}
 
 export async function getAllMenuSubCategoriesByCategoryId(
   menuCategoryId: string | null | undefined
@@ -52,6 +55,48 @@ export async function createMenuSubCategory(
       },
     }),
     "createMenuSubCategory"
+  );
+}
+
+export async function updateMenuSubCategory(
+  menuSubCategoryId: string | null | undefined,
+  menuSubCategoryInfo: UpdateMenuSubCategoryParams
+): Promise<MenuSubCategory> {
+  if (!menuSubCategoryId || hasNullUndefined(menuSubCategoryInfo)) {
+    throw new ValidationError(
+      "Failed to update sub menu category. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.menuSubCategory.update({
+      where: {
+        id: menuSubCategoryId,
+      },
+      data: {
+        name: menuSubCategoryInfo.name,
+      },
+    }),
+    "updateMenuSubCategory"
+  );
+}
+
+export async function deleteMenuSubCategory(
+  menuSubCategoryId: string | null | undefined
+): Promise<MenuSubCategory> {
+  if (!menuSubCategoryId) {
+    throw new ValidationError(
+      "Failed to delete sub menu category. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.menuSubCategory.delete({
+      where: {
+        id: menuSubCategoryId,
+      },
+    }),
+    "deleteMenuSubCategory"
   );
 }
 

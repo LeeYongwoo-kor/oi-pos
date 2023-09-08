@@ -18,8 +18,10 @@ export const RESTAURANT_ENDPOINT = {
   CHECK_PHONE_NUMBER: `${API_BASE_ENDPOINT}/restaurants/check-phone-number`,
   MENU_CATEGORY: (restaurantId: string) =>
     `${API_BASE_ENDPOINT}/restaurants/${restaurantId}/menu-categories` as const,
+  MENU_SUB_CATEGORY: (restaurantId: string) =>
+    `${API_BASE_ENDPOINT}/restaurants/${restaurantId}/menu-sub-categories` as const,
   DEMO_MENU_CATEGORY: (restaurantId: string) =>
-    `${API_BASE_ENDPOINT}/restaurants/${restaurantId}/demo/menu-categories`,
+    `${API_BASE_ENDPOINT}/restaurants/${restaurantId}/demo/menu-categories` as const,
 } as const;
 
 export const ME_ENDPOINT = {

@@ -1,7 +1,5 @@
 import { Method } from "@/constants/fetch";
 import {
-  CreateMenuSubCategoryParams,
-  UpdateMenuSubCategoryParams,
   createMenuSubCategory,
   deleteMenuSubCategory,
   updateMenuSubCategory,
@@ -11,11 +9,13 @@ import { UnexpectedError, ValidationError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IPostMenuSubCategoryBody {
-  menuSubCategoryInfo: CreateMenuSubCategoryParams;
+  id?: string;
+  categoryId: string;
+  name: string;
 }
 export interface IPatchMenuSubCategoryBody {
   menuSubCategoryId: string;
-  menuSubCategoryInfo: UpdateMenuSubCategoryParams;
+  name: string;
 }
 export interface IDeleteMenuSubCategoryBody {
   menuSubCategoryId: string;
@@ -23,9 +23,7 @@ export interface IDeleteMenuSubCategoryBody {
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.POST) {
-    const {
-      menuSubCategoryInfo: { categoryId, name },
-    }: IPostMenuSubCategoryBody = req.body;
+    const { id, categoryId, name }: IPostMenuSubCategoryBody = req.body;
     if (!categoryId || !name) {
       throw new ValidationError(
         "Failed to create menu sub category. Please try again later"
@@ -33,6 +31,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const newMenuSubCategory = await createMenuSubCategory({
+      id,
       categoryId,
       name,
     });
@@ -40,10 +39,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === Method.PATCH) {
-    const {
-      menuSubCategoryId,
-      menuSubCategoryInfo: { name },
-    }: IPatchMenuSubCategoryBody = req.body;
+    const { menuSubCategoryId, name }: IPatchMenuSubCategoryBody = req.body;
     if (!menuSubCategoryId || !name) {
       throw new ValidationError(
         "Failed to update menu sub category. Please try again later"

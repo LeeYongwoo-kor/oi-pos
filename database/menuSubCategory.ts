@@ -5,6 +5,7 @@ import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import { MenuSubCategory, Prisma } from "@prisma/client";
 
 export interface CreateMenuSubCategoryParams {
+  id?: string | null;
   categoryId: string | null | undefined;
   name: string;
 }
@@ -47,9 +48,22 @@ export async function createMenuSubCategory(
     );
   }
 
+  if (!menuSubCategoryInfo.id) {
+    return prismaRequestHandler(
+      prismaIns.menuSubCategory.create({
+        data: {
+          categoryId: menuSubCategoryInfo.categoryId,
+          name: menuSubCategoryInfo.name,
+        },
+      }),
+      "createMenuSubCategory"
+    );
+  }
+
   return prismaRequestHandler(
     prismaIns.menuSubCategory.create({
       data: {
+        id: menuSubCategoryInfo.id,
         categoryId: menuSubCategoryInfo.categoryId,
         name: menuSubCategoryInfo.name,
       },

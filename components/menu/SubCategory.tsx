@@ -1,4 +1,14 @@
+import { RESTAURANT_ENDPOINT } from "@/constants/endpoint";
+import { Method } from "@/constants/fetch";
+import { IMenuCategory } from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useToast } from "@/hooks/useToast";
+import useMutation from "@/lib/client/useMutation";
+import {
+  IDeleteMenuSubCategoryBody,
+  IPatchMenuSubCategoryBody,
+  IPostMenuSubCategoryBody,
+} from "@/pages/api/v1/restaurants/[restaurantId]/menu-sub-categories";
 import { subCategoriesSelector } from "@/recoil/selector/menuSelector";
 import {
   editingState,
@@ -8,10 +18,41 @@ import {
 import { faPen, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MenuSubCategory } from "@prisma/client";
+import cuid from "cuid";
 import { useEffect, useRef, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 
-export default function SubCategory() {
+type SubCategoryProps = {
+  restaurantId: string | undefined;
+  categoryInfo: IMenuCategory[] | undefined;
+};
+
+export default function SubCategory({
+  restaurantId,
+  categoryInfo,
+}: SubCategoryProps) {
+  const [createSubCategory, { error: createSubCategoryErr }] = useMutation<
+    MenuSubCategory,
+    IPostMenuSubCategoryBody
+  >(
+    restaurantId ? RESTAURANT_ENDPOINT.MENU_SUB_CATEGORY(restaurantId) : null,
+    Method.POST
+  );
+  const [updateSubCategory, { error: updateSubCategoryErr }] = useMutation<
+    MenuSubCategory,
+    IPatchMenuSubCategoryBody
+  >(
+    restaurantId ? RESTAURANT_ENDPOINT.MENU_SUB_CATEGORY(restaurantId) : null,
+    Method.PATCH
+  );
+  const [deleteSubCategory, { error: deleteSubCategoryErr }] = useMutation<
+    MenuSubCategory,
+    IDeleteMenuSubCategoryBody
+  >(
+    restaurantId ? RESTAURANT_ENDPOINT.MENU_SUB_CATEGORY(restaurantId) : null,
+    Method.DELETE
+  );
+
   const isEditing = useRecoilValue(editingState);
   const selectedCategory = useRecoilValue(selectedCategoryState);
   const subCategories = useRecoilValue(subCategoriesSelector);
@@ -19,8 +60,10 @@ export default function SubCategory() {
     selectedSubCategoryState
   );
   const { showConfirm } = useConfirm();
+  const { addToast } = useToast();
   const inputEditRef = useRef<HTMLInputElement>(null);
   const inputAddRef = useRef<HTMLInputElement>(null);
+
   const [editingSubCategoryId, setEditingSubCategoryId] = useState<
     string | null
   >(null);
@@ -38,31 +81,141 @@ export default function SubCategory() {
     showConfirm({
       title: "Delete Sub Category",
       message: "Are you sure you want to delete this sub category?",
+      buttonType: "fatal",
       onConfirm: () => handleDeleteSubCategory(subCategoryId),
       confirmText: "Delete",
       cancelText: "Cancel",
     });
   };
 
-  const handleEditSubCategory = (subCategoryId: string, newName: string) => {
-    // Logic to update the subcategory name in your data source
-    // ...
-    console.log("subCategoryId", subCategoryId);
-    console.log("newName", newName);
-
-    // Exit editing mode
-    setEditingSubCategoryId(null);
-  };
-
-  const handleDeleteSubCategory = (subCategoryId: string) => {
-    if (selectedSubCategory?.id === subCategoryId) {
-      handleSubCategoryClick(null);
+  const handleKeyDownFromAddInput = (
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (event.key === "Enter") {
+      handleAddSubCategory(event.currentTarget.value);
     }
   };
 
-  const handleAddSubCategory = (newSubcategory: string) => {
-    console.log(newSubcategory);
+  const handleKeyDownFromEditInput = (
+    subCategoryId: string,
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (event.key === "Enter") {
+      handleEditSubCategory(subCategoryId, event.currentTarget.value);
+    }
+  };
+
+  const handleEditSubCategory = async (
+    subCategoryId: string,
+    newName: string
+  ) => {
+    if (!selectedCategory || !subCategoryId || !categoryInfo) {
+      return;
+    }
+
+    const params: IPatchMenuSubCategoryBody = {
+      menuSubCategoryId: subCategoryId,
+      name: newName,
+    };
+
+    const updateCategories = categoryInfo.map((category) => {
+      if (category.id === selectedCategory.id) {
+        return {
+          ...category,
+          subCategories: category.subCategories.map((subCategory) => {
+            if (subCategory.id === subCategoryId) {
+              return { ...subCategory, name: newName };
+            }
+            return subCategory;
+          }),
+        };
+      }
+      return category;
+    });
+
+    // Reset the editing state
+    setEditingSubCategoryId(null);
+
+    await updateSubCategory(params, {
+      isMutate: false,
+      isRevalidate: false,
+      optimisticData: updateCategories,
+      additionalKeys: [
+        RESTAURANT_ENDPOINT.MENU_CATEGORY(selectedCategory.restaurantId),
+      ],
+    });
+  };
+
+  const handleDeleteSubCategory = async (subCategoryId: string) => {
+    if (!selectedCategory || !subCategoryId || !categoryInfo) {
+      return;
+    }
+
+    const params: IDeleteMenuSubCategoryBody = {
+      menuSubCategoryId: subCategoryId,
+    };
+
+    const updateCategories = categoryInfo.map((category) => {
+      if (category.id === selectedCategory.id) {
+        return {
+          ...category,
+          subCategories: category.subCategories.filter(
+            (subCategory) => subCategory.id !== subCategoryId
+          ),
+        };
+      }
+      return category;
+    });
+
+    // Reset the selectedCubCategories state
+    if (selectedCategory) {
+      const { [selectedCategory.id]: _, ...rest } = selectedSubCategories;
+      setSelectedSubCategories(rest);
+    }
+
+    await deleteSubCategory(params, {
+      isMutate: false,
+      isRevalidate: false,
+      optimisticData: updateCategories,
+      additionalKeys: [
+        RESTAURANT_ENDPOINT.MENU_CATEGORY(selectedCategory.restaurantId),
+      ],
+    });
+  };
+
+  const handleAddSubCategory = async (newSubcategory: string) => {
+    if (!selectedCategory || !newSubcategory || !categoryInfo) {
+      setIsClickedAddSubCategory(false);
+      return;
+    }
+
+    const params: IPostMenuSubCategoryBody = {
+      id: cuid(),
+      categoryId: selectedCategory.id,
+      name: newSubcategory,
+    };
+
+    const newCategories = categoryInfo.map((category) => {
+      if (category.id === selectedCategory.id) {
+        return {
+          ...category,
+          subCategories: [...category.subCategories, params],
+        };
+      }
+      return category;
+    });
+
+    // Reset the cliked state
     setIsClickedAddSubCategory(false);
+
+    await createSubCategory(params, {
+      isMutate: false,
+      isRevalidate: false,
+      optimisticData: newCategories,
+      additionalKeys: [
+        RESTAURANT_ENDPOINT.MENU_CATEGORY(selectedCategory.restaurantId),
+      ],
+    });
   };
 
   const handleSubCategoryClick = (subCategory: MenuSubCategory | null) => {
@@ -97,8 +250,26 @@ export default function SubCategory() {
     }
   }, [isClickedAddSubCategory]);
 
+  useEffect(() => {
+    if (createSubCategoryErr) {
+      addToast("error", createSubCategoryErr.message);
+    }
+  }, [createSubCategoryErr]);
+
+  useEffect(() => {
+    if (updateSubCategoryErr) {
+      addToast("error", updateSubCategoryErr.message);
+    }
+  }, [updateSubCategoryErr]);
+
+  useEffect(() => {
+    if (deleteSubCategoryErr) {
+      addToast("error", deleteSubCategoryErr.message);
+    }
+  }, [deleteSubCategoryErr]);
+
   return (
-    <div className="flex px-1 py-2 mb-1 space-x-1.5 bg-slate-200 rounded-3xl">
+    <div className="flex overflow-x-scroll scrollbar-hide px-1 py-2 mb-1 space-x-1.5 bg-slate-200 rounded-3xl">
       <span
         className={`p-2 text-xs tracking-wider hover:bg-red-600 text-white ${
           !selectedSubCategory ? "bg-red-500" : "bg-gray-400"
@@ -126,6 +297,7 @@ export default function SubCategory() {
               onBlur={(e) =>
                 handleEditSubCategory(subCategory.id, e.target.value)
               }
+              onKeyDown={(e) => handleKeyDownFromEditInput(subCategory.id, e)}
             />
           ) : (
             <span>{subCategory.name}</span>
@@ -159,6 +331,7 @@ export default function SubCategory() {
               className="w-16 tracking-wider text-white bg-transparent max-w-prose"
               type="text"
               onBlur={(e) => handleAddSubCategory(e.target.value)}
+              onKeyDown={handleKeyDownFromAddInput}
             />
           ) : (
             <FontAwesomeIcon className="text-white" size="lg" icon={faPlus} />

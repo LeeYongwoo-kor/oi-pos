@@ -22,35 +22,34 @@ type UseMutationOptionBase = {
   retry?: boolean;
   dynamicUrl?: string;
   headers?: Record<string, string>;
-};
-type UseMutationOptionsMutate = UseMutationOptionBase & {
-  isMutate?: true;
+  isMutate?: boolean;
   additionalKeys?: string[];
+};
+type UseMutationOptionsOptimistic = UseMutationOptionBase & {
+  isRevalidate?: false;
   optimisticData?: any;
 };
-type UseMutationOptionsNonMutate = UseMutationOptionBase & {
-  isMutate: false;
+type UseMutationOptionsRevalidate = UseMutationOptionBase & {
+  isRevalidate: true;
 };
 type UseMutationOptions =
-  | UseMutationOptionsMutate
-  | UseMutationOptionsNonMutate;
+  | UseMutationOptionsRevalidate
+  | UseMutationOptionsOptimistic;
 
 const handleOptions = (options: UseMutationOptions) => {
-  const mutateOptions: UseMutationOptionsMutate = {
+  const mutateOptions: UseMutationOptionsRevalidate = {
     retry: false,
     dynamicUrl: "",
     headers: {},
     isMutate: true,
+    isRevalidate: true,
     additionalKeys: [],
-    optimisticData: null,
   };
 
-  if (options.isMutate === false) {
+  if (options.isRevalidate === false) {
     return {
       ...mutateOptions,
       ...options,
-      additionalKeys: [],
-      optimisticData: null,
     };
   }
 
@@ -81,7 +80,7 @@ const handleOptions = (options: UseMutationOptions) => {
  * }
  */
 export default function useMutation<T, U>(
-  baseUrl: string,
+  baseUrl: string | undefined | null,
   method: Exclude<Method, "GET"> = "POST"
 ): UseMutationResult<T, U> {
   const { mutate } = useSWRConfig();
@@ -93,11 +92,16 @@ export default function useMutation<T, U>(
 
   const mutation = async (
     data: U,
-    options: UseMutationOptions = { isMutate: true }
+    options: UseMutationOptions = { isRevalidate: true }
   ) => {
+    if (!baseUrl) {
+      return;
+    }
+
     const {
       retry,
       dynamicUrl,
+      isRevalidate,
       isMutate,
       headers,
       additionalKeys,
@@ -106,13 +110,24 @@ export default function useMutation<T, U>(
 
     const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
 
-    if (!isEmpty(optimisticData)) {
-      mutate(url, optimisticData, false);
-    }
-
     setState((prev) => ({ ...prev, loading: true }));
     try {
       const fetchData = async () => {
+        if (!isEmpty(optimisticData)) {
+          const optimisticOption = {
+            optimisticData,
+            rollbackOnError: true,
+            populateCache: true,
+            revalidate: false,
+          };
+          await Promise.all([
+            isMutate ? mutate(url, optimisticData, optimisticOption) : [],
+            ...(additionalKeys?.map((key: string) =>
+              mutate(key, optimisticData, optimisticOption)
+            ) || []),
+          ]);
+        }
+
         const response = await fetch(url, {
           method,
           headers: {
@@ -125,22 +140,22 @@ export default function useMutation<T, U>(
           const errorData: ApiErrorType = await response.json();
           throw new ApiError(errorData.message, response.status);
         }
-        return response.json();
+        return await response.json();
       };
 
       const fetchDataWithRetry = retry ? withErrorRetry(fetchData) : fetchData;
       const responseData = await fetchDataWithRetry();
 
-      if (isMutate) {
+      if (isRevalidate || isEmpty(optimisticData)) {
         await Promise.all([
-          mutate(url, true),
+          isMutate ? mutate(url) : [],
           ...(additionalKeys?.map((key: string) => mutate(key)) || []),
         ]);
       }
 
       setState({ loading: false, data: responseData, error: null });
       return responseData;
-    } catch (err: any) {
+    } catch (err: unknown) {
       let errorMessage = "Internal Server Error";
       let statusCode = 500;
 

@@ -1,6 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
 import {
-  ME_ENDPOINT,
   OPEN_AI_IMAGE_ENDPOINT,
   RESTAURANT_ENDPOINT,
 } from "@/constants/endpoint";
@@ -16,8 +15,10 @@ import {
   AWS_S3_PUT_OBJECT_CACHE_CONTROL,
   AWS_S3_YOSHI_BUCKET,
 } from "@/constants/service";
-import { IRestaurant } from "@/database";
+import { CreateMenuCategoryParams, UpdateMenuCategoryParams } from "@/database";
+import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
+import useDeepEffect from "@/hooks/useDeepEffect";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
 import {
@@ -36,18 +37,28 @@ import {
 import generateNextImageURL from "@/utils/generateNextImageURL";
 import isEmpty from "@/utils/validation/isEmpty";
 import isFormChanged from "@/utils/validation/isFormChanged";
+import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
   DeleteObjectCommandInput,
   PutObjectCommandInput,
 } from "@aws-sdk/client-s3";
-import { MenuCategory } from "@prisma/client";
+import { MenuCategory, MenuCategoryStatus } from "@prisma/client";
 import { SyntheticEvent, useEffect, useReducer, useRef } from "react";
 import ReactCrop, { Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import { useRecoilState } from "recoil";
-import useSWR from "swr";
 import LoadingOverlay from "../LoadingOverlay";
+import isArrayOfObjectsChanged from "@/utils/validation/isArrayOfObjectsChanged";
 
+type MenuCategoryEditProps = {
+  restaurantId: string | undefined | null;
+};
+export interface MenuCategoryOptionForm {
+  id?: string;
+  name: string;
+  price: number | "";
+  error?: string;
+}
 interface MenuCategoryEditState {
   selectedFile: File | null;
   previewUrl: string | null;
@@ -57,6 +68,12 @@ interface MenuCategoryEditState {
   isAiImageLoading: boolean;
   croppedImage: Blob | null;
   renderedDimension: { width: number; height: number };
+  shouldProcessCrop: boolean;
+  activeTab: "essential" | "optional";
+  options: MenuCategoryOptionForm[];
+  menuCategoryStatus: MenuCategoryStatus;
+  optionCount: number;
+  previousOptions: MenuCategoryOptionForm[];
 }
 
 type MenuCategoryEditAction =
@@ -72,6 +89,7 @@ type MenuCategoryEditAction =
     }
   | { type: "START_AI_IMAGE_CREATION" }
   | { type: "END_AI_IMAGE_CREATION" }
+  | { type: "RESET_SHOULD_PROCESS_CROP" }
   | {
       type: "ON_IMAGE_LOAD";
       payload: {
@@ -83,7 +101,29 @@ type MenuCategoryEditAction =
   | {
       type: "HANDLE_FILE_CHANGE";
       payload: { selectedFile: File; previewUrl: string };
+    }
+  | {
+      type: "ACTIVE_TAP_ESSENTIAL";
+    }
+  | {
+      type: "ACTIVE_TAP_OPTIONAL";
+    }
+  | { type: "SET_OPTIONS"; payload: MenuCategoryOptionForm[] }
+  | { type: "SET_MENU_CATEGORY_STATUS"; payload: MenuCategoryStatus }
+  | { type: "SET_FORM_ERROR"; payload: boolean }
+  | { type: "ADD_OPTIONS"; payload: MenuCategoryOptionForm[] }
+  | { type: "SUBTRACT_OPTIONS" }
+  | { type: "HANDLE_REMOVE_OPTION"; payload: MenuCategoryOptionForm[] }
+  | {
+      type: "SET_DEFAULT_OPTIONS";
+      payload: {
+        options: MenuCategoryOptionForm[];
+        optionCount: number;
+        previousOptions: MenuCategoryOptionForm[];
+      };
     };
+
+const initialOptions: MenuCategoryOptionForm = { name: "", price: "" };
 
 const initialState: MenuCategoryEditState = {
   selectedFile: null,
@@ -94,6 +134,12 @@ const initialState: MenuCategoryEditState = {
   isAiImageLoading: false,
   croppedImage: null,
   renderedDimension: { width: 0, height: 0 },
+  shouldProcessCrop: false,
+  activeTab: "essential",
+  options: [],
+  menuCategoryStatus: MenuCategoryStatus.AVAILABLE,
+  optionCount: 0,
+  previousOptions: [],
 };
 
 const reducer = (
@@ -123,6 +169,43 @@ const reducer = (
       const { selectedFile, previewUrl } = action.payload;
       return { ...state, selectedFile, previewUrl };
     }
+    case "RESET_SHOULD_PROCESS_CROP":
+      return { ...state, shouldProcessCrop: false };
+    case "ACTIVE_TAP_ESSENTIAL":
+      return { ...state, activeTab: "essential" };
+    case "ACTIVE_TAP_OPTIONAL":
+      return { ...state, activeTab: "optional" };
+    case "SET_OPTIONS": {
+      return { ...state, options: action.payload };
+    }
+    case "SET_MENU_CATEGORY_STATUS":
+      return { ...state, menuCategoryStatus: action.payload };
+    case "ADD_OPTIONS": {
+      if (state.optionCount >= 10) {
+        return { ...state, optionCount: state.optionCount + 1 };
+      }
+      return {
+        ...state,
+        options: action.payload,
+        optionCount: state.optionCount + 1,
+      };
+    }
+    case "SUBTRACT_OPTIONS": {
+      if (state.optionCount <= 0) {
+        return state;
+      }
+      return { ...state, optionCount: state.optionCount - 1 };
+    }
+    case "HANDLE_REMOVE_OPTION":
+      return {
+        ...state,
+        options: action.payload,
+        optionCount: state.optionCount - 1,
+      };
+    case "SET_DEFAULT_OPTIONS": {
+      const { options, optionCount, previousOptions } = action.payload;
+      return { ...state, options, optionCount, previousOptions };
+    }
     case "ON_IMAGE_LOAD": {
       const { currentTarget, containerWidth, containerHeight } = action.payload;
       const { clientWidth: width, clientHeight: height } = currentTarget;
@@ -141,6 +224,7 @@ const reducer = (
         ...state,
         renderedDimension: { width, height },
         crop: newCrop,
+        shouldProcessCrop: true,
       };
     }
 
@@ -149,34 +233,47 @@ const reducer = (
   }
 };
 
-export default function CategoryEdit() {
-  const {
-    data: restaurantInfo,
-    error: restaurantInfoErr,
-    isValidating: restaurantInfoLoading,
-  } = useSWR<IRestaurant>(ME_ENDPOINT.RESTAURANT, {
-    revalidateOnFocus: false,
-    revalidateOnMount: false,
+const validateMenuCategoryOptions = (
+  options: MenuCategoryOptionForm[]
+): MenuCategoryOptionForm[] => {
+  return options.map((option) => {
+    const { name, price } = option;
+    if (name.length <= 0) {
+      return { ...option, error: "※ Name is required" };
+    }
+    if (!price) {
+      return { ...option, error: "※ Price is required" };
+    }
+
+    if (!isPositiveInteger(Number(price))) {
+      return { ...option, error: "※ Price must be a positive Integer" };
+    }
+
+    const { error: _, ...restOption } = option;
+    return { ...restOption, price: Number(price) };
   });
+};
+
+export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
   const [
     createCategory,
     { error: createCategoryErr, loading: createCategoryLoading },
   ] = useMutation<MenuCategory, IPostMenuCategoryBody>(
-    RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantInfo ? restaurantInfo.id : ""),
+    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null,
     Method.POST
   );
   const [
     updateCategory,
     { error: updateCategoryErr, loading: updateCategoryLoading },
   ] = useMutation<MenuCategory, IPatchMenuCategoryBody>(
-    RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantInfo ? restaurantInfo.id : ""),
+    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null,
     Method.PATCH
   );
   const [
     deleteCategory,
     { error: deleteCategoryErr, loading: deleteCategoryLoading },
   ] = useMutation<MenuCategory, IDeleteMenuCategoryBody>(
-    RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantInfo ? restaurantInfo.id : ""),
+    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null,
     Method.DELETE
   );
   const [
@@ -192,6 +289,7 @@ export default function CategoryEdit() {
   );
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
+  const withLoading = useLoading();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -207,13 +305,19 @@ export default function CategoryEdit() {
       isAiImageLoading,
       croppedImage,
       renderedDimension,
+      shouldProcessCrop,
+      activeTab,
+      options,
+      menuCategoryStatus,
+      optionCount,
+      previousOptions,
     },
     dispatch,
   ] = useReducer(reducer, initialState);
 
   const onCategoryNameChange = (
     event: React.SyntheticEvent<HTMLInputElement>
-  ) => {
+  ): void => {
     const {
       currentTarget: { value },
     } = event;
@@ -239,6 +343,7 @@ export default function CategoryEdit() {
       message: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.CANCEL_TEXT,
+      buttonType: "fatal",
       onConfirm: async () => {
         let deleteParams: DeleteObjectCommandInput | null = null;
         if (selectedEditCategory.imageUrl) {
@@ -270,24 +375,28 @@ export default function CategoryEdit() {
     });
   };
 
-  const handleCloseCategory = (): void => {
+  const handleCloseCategory = () => {
     if (
       !isFormChanged(
         {
           categoryName: selectedEditCategory?.name ?? "",
           description: selectedEditCategory?.description ?? "",
           previewUrl:
-            selectedEditCategory &&
+            selectedEditCategory?.imageUrl &&
             `${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
               selectedEditCategory?.imageUrl
             }?v=${selectedEditCategory?.imageVersion || 0}`,
+          menuCategoryStatus:
+            selectedEditCategory?.status ?? MenuCategoryStatus.AVAILABLE,
         },
         {
           categoryName,
           description,
           previewUrl,
+          menuCategoryStatus,
         }
-      )
+      ) &&
+      !isArrayOfObjectsChanged(previousOptions, options)
     ) {
       openEditCategory(false);
       return;
@@ -298,6 +407,7 @@ export default function CategoryEdit() {
       message: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.CANCEL_TEXT,
+      buttonType: "info",
       onConfirm: () => {
         openEditCategory(false);
       },
@@ -390,8 +500,6 @@ export default function CategoryEdit() {
     }
   };
 
-  console.log("croppedImage", croppedImage);
-
   const onImageLoad = async (
     e: SyntheticEvent<HTMLImageElement, Event>
   ): Promise<void> => {
@@ -482,8 +590,73 @@ export default function CategoryEdit() {
     }
   };
 
+  const removeOptionAtIndex = (index: number) => {
+    const newOptions = options.filter((_, i) => i !== index);
+    dispatch({ type: "HANDLE_REMOVE_OPTION", payload: newOptions });
+  };
+
+  const handleOptionChange = (
+    field: keyof MenuCategoryOptionForm,
+    value: string | number,
+    index: number
+  ) => {
+    const newOptions = [...options];
+    newOptions[index] = { ...newOptions[index], [field]: value };
+    const validatedOptions = validateMenuCategoryOptions(newOptions);
+    dispatch({ type: "SET_OPTIONS", payload: validatedOptions });
+  };
+
+  const handleRemoveOption = (index: number) => {
+    if (options[index]?.id) {
+      showConfirm({
+        title: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY_OPTION.TITLE,
+        message: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY_OPTION.MESSAGE,
+        confirmText: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY_OPTION.CONFIRM_TEXT,
+        cancelText: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY_OPTION.CANCEL_TEXT,
+        buttonType: "fatal",
+        onConfirm: () => removeOptionAtIndex(index),
+      });
+    } else {
+      removeOptionAtIndex(index);
+    }
+  };
+
+  const handleCreate = async (
+    menuCategoryInfo: CreateMenuCategoryParams,
+    menuCategoryOptions: Omit<MenuCategoryOptionForm, "id">[],
+    uploadParams: PutObjectCommandInput | null
+  ) => {
+    const newMenuCategory = await createCategory({
+      menuCategoryInfo,
+      menuCategoryOptions,
+      uploadParams,
+    });
+
+    if (newMenuCategory) {
+      openEditCategory(false);
+      addToast("success", "Menu category created successfully!");
+    }
+  };
+
+  const handleUpdate = async (
+    menuCategoryInfo: UpdateMenuCategoryParams,
+    menuCategoryOptions: MenuCategoryOptionForm[],
+    uploadParams: PutObjectCommandInput | null
+  ) => {
+    const updatedMenuCategory = await updateCategory({
+      menuCategoryInfo,
+      menuCategoryOptions,
+      uploadParams,
+    });
+
+    if (updatedMenuCategory) {
+      openEditCategory(false);
+      addToast("success", "Menu Category updated successfully!");
+    }
+  };
+
   const handleSave = async (): Promise<void> => {
-    if (!restaurantInfo) {
+    if (!restaurantId) {
       addToast(
         "error",
         "Error occurred while saving menu category. Please try again later"
@@ -491,10 +664,18 @@ export default function CategoryEdit() {
       return;
     }
 
+    if (!isEmpty(options)) {
+      const validatedOptions = validateMenuCategoryOptions(options);
+      if (validatedOptions.some((option) => option.error)) {
+        dispatch({ type: "SET_OPTIONS", payload: validatedOptions });
+        return;
+      }
+    }
+
     // If the imageUrl exists, use the existing imageKey
     const imageKey =
       selectedEditCategory?.imageUrl ||
-      `menus/${restaurantInfo.id}/_category_${categoryName}.jpg`;
+      `menus/${restaurantId}/_category_${categoryName}.jpg`;
 
     // If the image exists and croppedImage is null, No need to upload the image to S3
     const uploadParams =
@@ -504,48 +685,50 @@ export default function CategoryEdit() {
 
     const menuCategoryInfo = {
       id: selectedEditCategory?.id,
-      restaurantId: restaurantInfo.id,
+      restaurantId,
       name: categoryName,
       description,
-      imageUrl: imageKey,
+      status: menuCategoryStatus,
+      imageUrl: uploadParams ? imageKey : "",
       imageVersion:
         selectedEditCategory?.imageUrl && uploadParams
           ? selectedEditCategory.imageVersion + 1
           : selectedEditCategory?.imageVersion,
     };
 
-    const result = selectedEditCategory
-      ? await updateCategory({ menuCategoryInfo, uploadParams })
-      : await createCategory({ menuCategoryInfo, uploadParams });
-
-    if (result) {
-      openEditCategory(false);
-      addToast(
-        "success",
-        `Menu Category ${
-          selectedEditCategory ? "updated" : "created"
-        } successfully!`
-      );
+    if (selectedEditCategory) {
+      handleUpdate(menuCategoryInfo, options, uploadParams);
+    } else {
+      handleCreate(menuCategoryInfo, options, uploadParams);
     }
   };
 
   useEffect(() => {
-    if (selectedEditCategory?.imageUrl) {
-      const imageUrl = `${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-        selectedEditCategory?.imageUrl
-      }?v=${selectedEditCategory?.imageVersion || 0}`;
-      dispatch({ type: "SET_PREVIEW_URL", payload: imageUrl });
+    const { imageUrl, imageVersion, name, description, status } =
+      selectedEditCategory || {};
+
+    if (imageUrl) {
+      const previewUrl = `${
+        process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL
+      }/${imageUrl}?v=${imageVersion || 0}`;
+      dispatch({ type: "SET_PREVIEW_URL", payload: previewUrl });
     }
-    if (selectedEditCategory?.name) {
+    if (name) {
       dispatch({
         type: "SET_CATEGORY_NAME",
-        payload: selectedEditCategory.name,
+        payload: name,
       });
     }
-    if (selectedEditCategory?.description) {
+    if (description) {
       dispatch({
         type: "SET_DESCRIPTION",
-        payload: selectedEditCategory.description,
+        payload: description,
+      });
+    }
+    if (status) {
+      dispatch({
+        type: "SET_MENU_CATEGORY_STATUS",
+        payload: status,
       });
     }
   }, [
@@ -553,7 +736,39 @@ export default function CategoryEdit() {
     selectedEditCategory?.imageVersion,
     selectedEditCategory?.name,
     selectedEditCategory?.description,
+    selectedEditCategory?.status,
   ]);
+
+  useDeepEffect(() => {
+    const { defaultOptions } = selectedEditCategory || {};
+    if (defaultOptions && !isEmpty(defaultOptions)) {
+      const formattedDefaultOptions = defaultOptions.map(
+        ({ id, name, price }) => ({ id, name, price })
+      );
+      dispatch({
+        type: "SET_DEFAULT_OPTIONS",
+        payload: {
+          options: formattedDefaultOptions,
+          optionCount: formattedDefaultOptions.length,
+          previousOptions: formattedDefaultOptions,
+        },
+      });
+    }
+  }, [selectedEditCategory?.defaultOptions]);
+
+  useEffect(() => {
+    if (crop && shouldProcessCrop) {
+      onCropComplete(crop);
+      dispatch({ type: "RESET_SHOULD_PROCESS_CROP" });
+    }
+  }, [shouldProcessCrop]);
+
+  useEffect(() => {
+    if (optionCount > 10) {
+      addToast("error", "The maximum number of options is 10");
+      dispatch({ type: "SUBTRACT_OPTIONS" });
+    }
+  }, [optionCount]);
 
   useEffect(() => {
     if (createCategoryErr) {
@@ -580,12 +795,6 @@ export default function CategoryEdit() {
   }, [createAiImageErr]);
 
   useEffect(() => {
-    if (restaurantInfoErr) {
-      addToast("error", restaurantInfoErr.message);
-    }
-  }, [restaurantInfoErr]);
-
-  useEffect(() => {
     if (!isVisible) {
       dispatch({ type: "RESET" });
       setSelectedEditCategory(null);
@@ -597,8 +806,7 @@ export default function CategoryEdit() {
       {(createCategoryLoading ||
         updateCategoryLoading ||
         deleteCategoryLoading ||
-        createAiImageLoading ||
-        restaurantInfoLoading) && <LoadingOverlay />}
+        createAiImageLoading) && <LoadingOverlay />}
       <canvas ref={canvasRef} className="hidden"></canvas>
       <canvas ref={cropCanvasRef} className="hidden"></canvas>
       <div
@@ -618,117 +826,262 @@ export default function CategoryEdit() {
               >
                 Back
               </button>
-            </div>
-            <div className="relative flex flex-col space-y-4">
-              <input
-                onChange={onCategoryNameChange}
-                className={`p-2 border-b-2 w-full`}
-                type="text"
-                value={categoryName}
-                placeholder="Enter category name (example: Lunch)"
-              />
-              <span className="absolute text-sm text-red-500 right-5 -top-2">
-                {categoryName.length <= 0 && "※ Category name is required"}
-              </span>
-              <div className="flex flex-col items-center p-2 border-2 rounded">
-                <label className="hidden">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-                <div
-                  ref={imageContainerRef}
-                  className="flex items-center justify-center w-full bg-gray-200 rounded h-112"
+              <div className="absolute z-10 right-0 flex space-x-0.5 bg-white -top-0">
+                <button
+                  onClick={() => dispatch({ type: "ACTIVE_TAP_ESSENTIAL" })}
+                  className={`px-4 py-2 ${
+                    activeTab === "essential"
+                      ? "font-semibold"
+                      : `${
+                          categoryName.length <= 0
+                            ? "bg-red-200 hover:bg-red-300"
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } shadow-[inset_1px_-1px_2px_rgba(0,0,0,0.2)]`
+                  } rounded-l`}
                 >
-                  {previewUrl && (
-                    <ReactCrop
-                      crop={crop}
-                      minWidth={PICTURE_CROP_MIN_WIDTH}
-                      minHeight={PICTURE_CROP_MIN_HEIGHT}
-                      maxWidth={renderedDimension.width}
-                      maxHeight={renderedDimension.height}
-                      onChange={(newCrop) =>
-                        dispatch({ type: "SET_CROP", payload: newCrop })
-                      }
-                      onComplete={(crop) => onCropComplete(crop)}
-                      className="relative w-full h-full"
-                    >
-                      <img
-                        className="object-contain mx-auto h-112"
-                        alt="Preview"
-                        draggable={false}
-                        src={previewUrl}
-                        onLoad={onImageLoad}
-                      />
-                    </ReactCrop>
-                  )}
-                </div>
-                <div className="flex w-full space-x-2">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-2 mt-2 text-white transition bg-blue-500 rounded hover:bg-blue-600"
-                  >
-                    Upload Image
-                  </button>
-                  <button
-                    onClick={handleCreateAiImage}
-                    disabled={categoryName.length <= 0 || isAiImageLoading}
-                    className={`w-full py-2 mt-2 text-white transition rounded ${
-                      categoryName.length <= 0 || isAiImageLoading
-                        ? "cursor-not-allowed bg-lime-400"
-                        : "bg-lime-500 hover:bg-lime-600"
-                    }`}
-                  >
-                    Generate Image with AI
-                  </button>
-                </div>
+                  Essential
+                </button>
+                <button
+                  onClick={() => dispatch({ type: "ACTIVE_TAP_OPTIONAL" })}
+                  className={`px-4 py-2 ${
+                    activeTab === "optional"
+                      ? "font-semibold"
+                      : `${
+                          options.some((option) => option.error)
+                            ? "bg-red-200 hover:bg-red-300"
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } shadow-[inset_1px_-1px_2px_rgba(0,0,0,0.2)]`
+                  } rounded-r`}
+                >
+                  Optional
+                </button>
               </div>
-              <textarea
-                onChange={onDescriptionChange}
-                className="w-full h-24 p-2 border-2 resize-none"
-                placeholder="Enter description"
-              />
-              <div
-                className={`flex ${
-                  selectedEditCategory ? "justify-between" : "self-end"
-                }`}
-              >
-                {selectedEditCategory && (
-                  <button
-                    onClick={handleDeleteCategory}
-                    disabled={categoryName.length <= 0 || isAiImageLoading}
-                    className={`px-6 py-2 text-white transition duration-200 ${
-                      categoryName.length <= 0 || isAiImageLoading
-                        ? "cursor-not-allowed bg-red-400"
-                        : "bg-red-500 hover:bg-red-600"
-                    }`}
+            </div>
+            {activeTab === "essential" && (
+              <div className="relative flex flex-col space-y-4">
+                <input
+                  onChange={onCategoryNameChange}
+                  className={`p-2 border-b-2 w-full`}
+                  type="text"
+                  value={categoryName}
+                  placeholder="Enter category name (example: Lunch)"
+                />
+                <span className="absolute text-sm text-red-500 right-5 -top-2">
+                  {categoryName.length <= 0 && "※ Category name is required"}
+                </span>
+                <div className="flex flex-col items-center p-2 border-2 rounded">
+                  <label className="hidden">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <div
+                    ref={imageContainerRef}
+                    className="flex items-center justify-center w-full bg-gray-200 rounded h-112"
                   >
-                    Delete
-                  </button>
-                )}
-                <div className="space-x-2">
-                  <button
-                    onClick={handleCloseCategory}
-                    className="px-6 py-2 text-black transition duration-200 bg-gray-200 rounded hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={categoryName.length <= 0 || isAiImageLoading}
-                    className={`px-6 py-2 text-white transition duration-200  rounded ${
-                      categoryName.length <= 0 || isAiImageLoading
-                        ? "cursor-not-allowed bg-green-400"
-                        : "bg-green-500 hover:bg-green-600"
-                    }`}
-                  >
-                    Save
-                  </button>
+                    {previewUrl && (
+                      <ReactCrop
+                        crop={crop}
+                        minWidth={PICTURE_CROP_MIN_WIDTH}
+                        minHeight={PICTURE_CROP_MIN_HEIGHT}
+                        maxWidth={renderedDimension.width}
+                        maxHeight={renderedDimension.height}
+                        onChange={(newCrop) =>
+                          dispatch({ type: "SET_CROP", payload: newCrop })
+                        }
+                        onComplete={(crop) => onCropComplete(crop)}
+                        className="relative w-full h-full"
+                      >
+                        <img
+                          className="object-contain mx-auto h-112"
+                          alt="Preview"
+                          draggable={false}
+                          src={previewUrl}
+                          onLoad={onImageLoad}
+                        />
+                      </ReactCrop>
+                    )}
+                  </div>
+                  <div className="flex w-full space-x-2">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2 mt-2 text-white transition bg-blue-500 rounded hover:bg-blue-600"
+                    >
+                      Upload Image
+                    </button>
+                    <button
+                      onClick={handleCreateAiImage}
+                      disabled={categoryName.length <= 0 || isAiImageLoading}
+                      className={`w-full py-2 mt-2 text-white transition rounded ${
+                        categoryName.length <= 0 || isAiImageLoading
+                          ? "cursor-not-allowed bg-lime-400"
+                          : "bg-lime-500 hover:bg-lime-600"
+                      }`}
+                    >
+                      Generate Image with AI
+                    </button>
+                  </div>
                 </div>
+                <textarea
+                  onChange={onDescriptionChange}
+                  className="w-full h-24 p-2 border-2 resize-none"
+                  value={description}
+                  placeholder="Enter description"
+                />
+              </div>
+            )}
+            {activeTab === "optional" && (
+              <>
+                <div className="flex-wrap mt-2 indent-2">
+                  <label className="text-lg font-semibold">
+                    Category Status:
+                  </label>
+                </div>
+                <div className="flex p-2 mt-2 border-2 rounded">
+                  <div className="flex flex-wrap space-x-2">
+                    {Object.keys(MenuCategoryStatus).map((status, idx) => (
+                      <label
+                        key={idx}
+                        className="flex items-center p-1 cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          name="menuCategoryStatus"
+                          value={status}
+                          checked={menuCategoryStatus === status}
+                          onChange={() =>
+                            dispatch({
+                              type: "SET_MENU_CATEGORY_STATUS",
+                              payload: status as MenuCategoryStatus,
+                            })
+                          }
+                          className="hidden"
+                        />
+                        <div
+                          className={`flex items-center px-2 py-1 border-2 rounded ${
+                            menuCategoryStatus === status
+                              ? "border-blue-500"
+                              : "border-gray-300 hover:border-blue-400"
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full ${
+                              menuCategoryStatus === status
+                                ? "bg-blue-500"
+                                : "bg-gray-300"
+                            }`}
+                          ></span>
+                          <span className="ml-2 text-sm">{status}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-4">
+                  <div className="flex flex-wrap items-center mt-6">
+                    <h2 className="text-lg font-semibold indent-2">
+                      Default Menu Options
+                    </h2>
+                    <button
+                      onClick={() =>
+                        dispatch({
+                          type: "ADD_OPTIONS",
+                          payload: [...options, initialOptions],
+                        })
+                      }
+                      className="ml-2 px-3 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
+                    >
+                      Add Option +
+                    </button>
+                  </div>
+                  {options.map((option, index) => (
+                    <div key={index} className="flex flex-col">
+                      <div className="flex items-center space-x-4">
+                        <input
+                          type="text"
+                          placeholder="Option Name"
+                          value={option.name}
+                          onChange={(e) =>
+                            handleOptionChange("name", e.target.value, index)
+                          }
+                          className="w-1/2 p-2 border rounded"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Price (+)"
+                          value={option.price}
+                          onChange={(e) =>
+                            handleOptionChange("price", e.target.value, index)
+                          }
+                          className="w-1/4 p-2 border rounded"
+                        />
+                        <button
+                          onClick={() => handleRemoveOption(index)}
+                          className="px-4 py-2 text-white bg-red-500 rounded hover:bg-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {option.error && (
+                        <span className="text-sm text-red-500">
+                          {option.error}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <hr className="mt-6" />
+            <div
+              className={`flex mt-3 ${
+                selectedEditCategory ? "justify-between" : "self-end"
+              }`}
+            >
+              {selectedEditCategory && (
+                <button
+                  onClick={handleDeleteCategory}
+                  disabled={categoryName.length <= 0 || isAiImageLoading}
+                  className={`px-6 py-2 text-white transition duration-200 ${
+                    categoryName.length <= 0 || isAiImageLoading
+                      ? "cursor-not-allowed bg-red-400"
+                      : "bg-red-500 hover:bg-red-600"
+                  }`}
+                >
+                  Delete
+                </button>
+              )}
+              <div className="space-x-2">
+                <button
+                  onClick={handleCloseCategory}
+                  className="px-6 py-2 text-black transition duration-200 bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    await withLoading(handleSave);
+                  }}
+                  disabled={
+                    categoryName.length <= 0 ||
+                    isAiImageLoading ||
+                    options.some((option) => option.error)
+                  }
+                  className={`px-6 py-2 text-white transition duration-200  rounded ${
+                    categoryName.length <= 0 ||
+                    isAiImageLoading ||
+                    options.some((option) => option.error)
+                      ? "cursor-not-allowed bg-green-400"
+                      : "bg-green-500 hover:bg-green-600"
+                  }`}
+                >
+                  Save
+                </button>
               </div>
             </div>
           </div>

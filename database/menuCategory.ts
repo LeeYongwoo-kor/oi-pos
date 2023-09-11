@@ -1,23 +1,27 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import {
   MenuCategory,
+  MenuCategoryOption,
+  MenuCategoryStatus,
   MenuItem,
   MenuSubCategory,
   Prisma,
 } from "@prisma/client";
-import { ValidationError } from "yup";
 import { createMenuSubCategory } from "./menuSubCategory";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 
 export interface IMenuCategory extends MenuCategory {
   menuItems: MenuItem[];
   subCategories: MenuSubCategory[];
+  defaultOptions: MenuCategoryOption[];
 }
 export interface CreateMenuCategoryParams {
   restaurantId: string;
   name: string;
   imageUrl?: string;
+  status?: MenuCategoryStatus;
   description?: string;
   displayOrder?: number;
 }
@@ -27,6 +31,7 @@ export interface UpdateMenuCategoryParams {
   name: string;
   imageUrl?: string;
   imageVersion?: number;
+  status?: MenuCategoryStatus;
   description?: string;
   displayOrder?: number;
 }
@@ -66,6 +71,7 @@ export async function getAllCategoriesByRestaurantId(
       include: {
         subCategories: true,
         menuItems: true,
+        defaultOptions: true,
       },
     }),
     "getAllCategoriesByRestaurantId"
@@ -91,6 +97,7 @@ export async function createMenuCategory(
         name: menuCategryInfo.name,
         description: menuCategryInfo.description,
         imageUrl: menuCategryInfo.imageUrl,
+        status: menuCategryInfo.status,
         displayOrder: menuCategryInfo.displayOrder,
       },
     }),
@@ -114,6 +121,7 @@ export async function upsertMenuCategory(
     description: menuCategryInfo.description,
     imageUrl: menuCategryInfo.imageUrl,
     imageVersion: menuCategryInfo.imageVersion,
+    status: menuCategryInfo.status,
     displayOrder: menuCategryInfo.displayOrder,
   };
 
@@ -131,8 +139,11 @@ export async function upsertMenuCategory(
 
 export async function updateMenuCategory(
   menuCategoryId: string | null | undefined,
-  updateCategoryInfo: Partial<Omit<MenuCategory, "id" | "restaurantId">>
+  updateCategoryInfo: Partial<Omit<MenuCategory, "id" | "restaurantId">>,
+  tx?: Prisma.TransactionClient
 ): Promise<MenuCategory> {
+  const prismaIns = tx || prisma;
+
   if (!menuCategoryId || hasNullUndefined(updateCategoryInfo)) {
     throw new ValidationError(
       "Failed to update menu category. Please try again later"
@@ -140,7 +151,7 @@ export async function updateMenuCategory(
   }
 
   return prismaRequestHandler(
-    prisma.menuCategory.update({
+    prismaIns.menuCategory.update({
       where: {
         id: menuCategoryId,
       },

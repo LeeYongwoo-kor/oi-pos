@@ -1,15 +1,18 @@
+import { MenuCategoryOptionForm } from "@/components/menu/CategoryEdit";
 import { Method } from "@/constants/fetch";
 import {
   CreateMenuCategoryParams,
   UpdateMenuCategoryParams,
   createMenuCategory,
+  createMenuCategoryAndCategoryOptions,
   deleteMenuCategory,
   getAllCategoriesByRestaurantId,
   updateMenuCategory,
+  updateMenuCategoryAndUpsertCategoryOptions,
 } from "@/database";
-import awsS3CheckIfFolderExists from "@/lib/server/awsS3CheckIfFolderExists";
-import awsS3Delete from "@/lib/server/awsS3Delete";
-import awsS3Upload from "@/lib/server/awsS3Upload";
+import awsS3CheckIfFolderExists from "@/lib/server/aws/awsS3CheckIfFolderExists";
+import awsS3Delete from "@/lib/server/aws/awsS3Delete";
+import awsS3Upload from "@/lib/server/aws/awsS3Upload";
 import withApiHandler from "@/lib/server/withApiHandler";
 import {
   NotFoundError,
@@ -25,10 +28,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IPostMenuCategoryBody {
   menuCategoryInfo: CreateMenuCategoryParams;
+  menuCategoryOptions?: MenuCategoryOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
 export interface IPatchMenuCategoryBody {
   menuCategoryInfo: UpdateMenuCategoryParams;
+  menuCategoryOptions?: MenuCategoryOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
 export interface IDeleteMenuCategoryBody {
@@ -58,7 +63,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === Method.POST) {
-    const { menuCategoryInfo, uploadParams }: IPostMenuCategoryBody = req.body;
+    const {
+      menuCategoryInfo,
+      menuCategoryOptions,
+      uploadParams,
+    }: IPostMenuCategoryBody = req.body;
     if (!menuCategoryInfo.name) {
       throw new ValidationError("Menu category name is required");
     }
@@ -67,12 +76,35 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       await awsS3Upload(uploadParams);
     }
 
-    const newMenuCategory = await createMenuCategory(menuCategoryInfo);
-    return res.status(201).json(newMenuCategory);
+    try {
+      if (menuCategoryOptions && !isEmpty(menuCategoryOptions)) {
+        const newMenuCategoryWithOptions =
+          await createMenuCategoryAndCategoryOptions(
+            menuCategoryInfo,
+            menuCategoryOptions
+          );
+
+        return res.status(201).json(newMenuCategoryWithOptions);
+      }
+
+      const newMenuCategory = await createMenuCategory(menuCategoryInfo);
+      return res.status(201).json(newMenuCategory);
+    } catch (err: unknown) {
+      if (uploadParams) {
+        const { Bucket, Key }: DeleteObjectCommandInput = uploadParams;
+        await awsS3Delete({ Bucket, Key });
+      }
+
+      throw err;
+    }
   }
 
   if (req.method === Method.PATCH) {
-    const { menuCategoryInfo, uploadParams }: IPatchMenuCategoryBody = req.body;
+    const {
+      menuCategoryInfo,
+      menuCategoryOptions,
+      uploadParams,
+    }: IPatchMenuCategoryBody = req.body;
     if (!menuCategoryInfo.name) {
       throw new ValidationError("Menu category name is required");
     }
@@ -81,11 +113,30 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       await awsS3Upload(uploadParams);
     }
 
-    const menuCategories = await updateMenuCategory(
-      menuCategoryInfo.id,
-      menuCategoryInfo
-    );
-    return res.status(200).json(menuCategories);
+    try {
+      if (menuCategoryOptions && !isEmpty(menuCategoryOptions)) {
+        const newMenuCategoryWithOptions =
+          await updateMenuCategoryAndUpsertCategoryOptions(
+            menuCategoryInfo,
+            menuCategoryOptions
+          );
+
+        return res.status(200).json(newMenuCategoryWithOptions);
+      }
+
+      const menuCategories = await updateMenuCategory(
+        menuCategoryInfo.id,
+        menuCategoryInfo
+      );
+      return res.status(200).json(menuCategories);
+    } catch (err) {
+      if (uploadParams) {
+        const { Bucket, Key }: DeleteObjectCommandInput = uploadParams;
+        await awsS3Delete({ Bucket, Key });
+      }
+
+      throw err;
+    }
   }
 
   if (req.method === Method.DELETE) {

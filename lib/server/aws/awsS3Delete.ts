@@ -2,8 +2,8 @@ import {
   DeleteObjectCommand,
   DeleteObjectCommandInput,
 } from "@aws-sdk/client-s3";
-import s3 from "../services/awsS3";
-import { ValidationError } from "../shared/error/ApiError";
+import s3 from "../../services/awsS3";
+import { ValidationError } from "../../shared/error/ApiError";
 import awsS3BucketCheck from "./awsS3BucketCheck";
 
 export default async function awsS3Delete(

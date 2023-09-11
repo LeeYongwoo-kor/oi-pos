@@ -1,6 +1,6 @@
 import { HeadBucketCommand } from "@aws-sdk/client-s3";
-import s3 from "../services/awsS3";
-import { ServiceUnavailableError } from "../shared/error/ApiError";
+import s3 from "../../services/awsS3";
+import { ServiceUnavailableError } from "../../shared/error/ApiError";
 import { AWS_S3_YOSHI_BUCKET } from "@/constants/service";
 
 export default async function awsS3BucketCheck(): Promise<void> {

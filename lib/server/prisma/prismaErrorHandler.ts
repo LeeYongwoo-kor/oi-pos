@@ -6,7 +6,7 @@ import {
   PrismaClientValidationError,
 } from "@prisma/client/runtime";
 import { NotFoundError, ValidationError } from "@/lib/shared/error/ApiError";
-import { DatabaseError } from "../shared/error/DatabaseError";
+import { DatabaseError } from "../../shared/error/DatabaseError";
 
 type PrismaError =
   | PrismaClientUnknownRequestError

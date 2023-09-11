@@ -1,6 +1,6 @@
 import { CopyObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import s3 from "../services/awsS3";
-import { ValidationError } from "../shared/error/ApiError";
+import s3 from "../../services/awsS3";
+import { ValidationError } from "../../shared/error/ApiError";
 import {
   AWS_S3_YOSHI_BUCKET,
   AWS_S3_YOSHI_DEMO_PREFIX,

@@ -1,5 +1,5 @@
 import { ListObjectsV2Command } from "@aws-sdk/client-s3";
-import s3 from "../services/awsS3";
+import s3 from "../../services/awsS3";
 import { AWS_S3_YOSHI_BUCKET } from "@/constants/service";
 
 export default async function awsS3CheckIfFolderExists(

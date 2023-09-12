@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 import { ApiError, ApiErrorType } from "../shared/error/ApiError";
 import { withErrorRetry } from "../shared/withErrorRetry";
@@ -32,7 +32,7 @@ type UseMutationOptionsOptimistic = UseMutationOptionBase & {
 type UseMutationOptionsRevalidate = UseMutationOptionBase & {
   isRevalidate: true;
 };
-type UseMutationOptions =
+export type UseMutationOptions =
   | UseMutationOptionsRevalidate
   | UseMutationOptionsOptimistic;
 
@@ -90,90 +90,92 @@ export default function useMutation<T, U>(
     error: null,
   });
 
-  const mutation = async (
-    data: U,
-    options: UseMutationOptions = { isRevalidate: true }
-  ) => {
-    if (!baseUrl) {
-      return;
-    }
+  const mutation = useCallback(
+    async (data: U, options: UseMutationOptions = { isRevalidate: true }) => {
+      if (!baseUrl) {
+        return;
+      }
 
-    const {
-      retry,
-      dynamicUrl,
-      isRevalidate,
-      isMutate,
-      headers,
-      additionalKeys,
-      optimisticData,
-    } = handleOptions(options);
+      const {
+        retry,
+        dynamicUrl,
+        isRevalidate,
+        isMutate,
+        headers,
+        additionalKeys,
+        optimisticData,
+      } = handleOptions(options);
 
-    const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
+      const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
 
-    setState((prev) => ({ ...prev, loading: true }));
-    try {
-      const fetchData = async () => {
-        if (!isEmpty(optimisticData)) {
-          const optimisticOption = {
-            optimisticData,
-            rollbackOnError: true,
-            populateCache: true,
-            revalidate: false,
-          };
+      setState((prev) => ({ ...prev, loading: true }));
+      try {
+        const fetchData = async () => {
+          if (!isEmpty(optimisticData)) {
+            const optimisticOption = {
+              optimisticData,
+              rollbackOnError: true,
+              populateCache: true,
+              revalidate: false,
+            };
+            await Promise.all([
+              isMutate ? mutate(url, optimisticData, optimisticOption) : [],
+              ...(additionalKeys?.map((key: string) =>
+                mutate(key, optimisticData, optimisticOption)
+              ) || []),
+            ]);
+          }
+
+          const response = await fetch(url, {
+            method,
+            headers: {
+              "Content-type": "application/json",
+              ...headers,
+            },
+            body: JSON.stringify(data),
+          });
+          if (!response.ok) {
+            const errorData: ApiErrorType = await response.json();
+            throw new ApiError(errorData.message, response.status);
+          }
+          return await response.json();
+        };
+
+        const fetchDataWithRetry = retry
+          ? withErrorRetry(fetchData)
+          : fetchData;
+        const responseData = await fetchDataWithRetry();
+
+        if (isRevalidate || isEmpty(optimisticData)) {
           await Promise.all([
-            isMutate ? mutate(url, optimisticData, optimisticOption) : [],
-            ...(additionalKeys?.map((key: string) =>
-              mutate(key, optimisticData, optimisticOption)
-            ) || []),
+            isMutate ? mutate(url) : [],
+            ...(additionalKeys?.map((key: string) => mutate(key)) || []),
           ]);
         }
 
-        const response = await fetch(url, {
-          method,
-          headers: {
-            "Content-type": "application/json",
-            ...headers,
-          },
-          body: JSON.stringify(data),
-        });
-        if (!response.ok) {
-          const errorData: ApiErrorType = await response.json();
-          throw new ApiError(errorData.message, response.status);
+        setState({ loading: false, data: responseData, error: null });
+        return responseData;
+      } catch (err: unknown) {
+        let errorMessage = "Internal Server Error";
+        let statusCode = 500;
+
+        // TODO: send error to sentry
+        console.error(err);
+        console.error(`Error occurred on endpoint: ${url}`);
+        if (err instanceof ApiError) {
+          errorMessage = err.message;
+          statusCode = err.statusCode || 500;
         }
-        return await response.json();
-      };
 
-      const fetchDataWithRetry = retry ? withErrorRetry(fetchData) : fetchData;
-      const responseData = await fetchDataWithRetry();
-
-      if (isRevalidate || isEmpty(optimisticData)) {
-        await Promise.all([
-          isMutate ? mutate(url) : [],
-          ...(additionalKeys?.map((key: string) => mutate(key)) || []),
-        ]);
+        setState({
+          loading: false,
+          data: undefined,
+          error: { message: errorMessage, statusCode },
+        });
       }
-
-      setState({ loading: false, data: responseData, error: null });
-      return responseData;
-    } catch (err: unknown) {
-      let errorMessage = "Internal Server Error";
-      let statusCode = 500;
-
-      // TODO: send error to sentry
-      console.error(err);
-      console.error(`Error occurred on endpoint: ${url}`);
-      if (err instanceof ApiError) {
-        errorMessage = err.message;
-        statusCode = err.statusCode || 500;
-      }
-
-      setState({
-        loading: false,
-        data: undefined,
-        error: { message: errorMessage, statusCode },
-      });
-    }
-  };
+    },
+    [baseUrl, method, mutate]
+  );
 
   return [mutation, { ...state }];
 }

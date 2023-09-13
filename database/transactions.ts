@@ -1,4 +1,3 @@
-import { MenuCategoryOptionForm } from "@/components/menu/CategoryEdit";
 import { TableType } from "@/constants/type";
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
@@ -14,11 +13,16 @@ import {
   menuSubCategoriesDrinkDemo,
   menuSubCategoriesLunchDemo,
 } from "@/sample/menus";
+import {
+  MenuItemOptionForm,
+  MenuOptionForm,
+} from "@/utils/menu/validateMenuOptions";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
   MenuCategory,
+  MenuItem,
   Order,
   OrderStatus,
   Plan,
@@ -41,7 +45,19 @@ import {
   getMenuCategoryOptionByCategoryId,
   updateMenuCategoryOption,
 } from "./menuCategoryOption";
-import { createManyMenuItems } from "./menuItem";
+import {
+  CreateMenuItemParams,
+  UpdateMenuItemParams,
+  createManyMenuItems,
+  createMenuItem,
+  updateMenuItem,
+} from "./menuItem";
+import {
+  createMenuItemOption,
+  deleteMenuItemOption,
+  getMenuItemOptionByMenuItemId,
+  updateMenuItemOption,
+} from "./menuItemOption";
 import { CreatePlanParams, upsertPlan } from "./plan";
 import { createRestaurantTable } from "./restaurantTable";
 import {
@@ -336,7 +352,7 @@ export async function createDemoMenus(
 
 export async function createMenuCategoryAndCategoryOptions(
   menuCategoryInfo: CreateMenuCategoryParams,
-  menuCategoryOptions: Omit<MenuCategoryOptionForm, "id">[]
+  menuCategoryOptions: Omit<MenuOptionForm, "id">[]
 ): Promise<MenuCategory> {
   if (
     hasNullUndefined(menuCategoryInfo) ||
@@ -367,7 +383,7 @@ export async function createMenuCategoryAndCategoryOptions(
 
 export async function updateMenuCategoryAndUpsertCategoryOptions(
   menuCategoryInfo: UpdateMenuCategoryParams,
-  menuCategoryOptions: MenuCategoryOptionForm[]
+  menuCategoryOptions: MenuOptionForm[]
 ): Promise<MenuCategory> {
   if (
     hasNullUndefined(menuCategoryInfo) ||
@@ -431,5 +447,99 @@ export async function updateMenuCategoryAndUpsertCategoryOptions(
     await Promise.all(allOperations);
 
     return newMenuCategory;
+  });
+}
+
+export async function createMenuItemAndMenuOptions(
+  menuItemInfo: CreateMenuItemParams,
+  menuItemOptions: Omit<MenuItemOptionForm, "id">[]
+): Promise<MenuItem> {
+  if (hasNullUndefined(menuItemInfo) || hasNullUndefined(menuItemOptions)) {
+    throw new ValidationError("Failed to create menu and upsert menu options");
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    const newMenuItem = await createMenuItem(menuItemInfo, tx);
+
+    if (!isEmpty(menuItemOptions)) {
+      const promises = menuItemOptions.map((option) => {
+        const { error, categoryOptionId, ...data } = option;
+        return createMenuItemOption(
+          {
+            ...data,
+            menuItemId: newMenuItem.id,
+            menuCategoryOptionId: categoryOptionId,
+          },
+          tx
+        );
+      });
+      await Promise.all(promises);
+    }
+
+    return newMenuItem;
+  });
+}
+
+export async function updateMenuItemAndUpsertItemOptions(
+  menuItemInfo: UpdateMenuItemParams,
+  menuItemOptions: MenuItemOptionForm[]
+): Promise<MenuItem> {
+  if (hasNullUndefined(menuItemInfo) || hasNullUndefined(menuItemOptions)) {
+    throw new ValidationError("Failed to update menu and upsert menu options");
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    const newMenuItem = await updateMenuItem(menuItemInfo.id, menuItemInfo, tx);
+
+    const existingOptions = await getMenuItemOptionByMenuItemId(
+      menuItemInfo.id
+    );
+
+    const allOperations: Promise<unknown>[] = [];
+
+    if (existingOptions !== null) {
+      const existingOptionIds = existingOptions.map((option) => option.id);
+      const updatedOptionIds = menuItemOptions
+        .map((option) => option.id)
+        .filter(Boolean);
+      const optionsToDelete = existingOptionIds.filter(
+        (id) => !updatedOptionIds.includes(id)
+      );
+
+      const deletePromises = optionsToDelete.map((id) =>
+        deleteMenuItemOption(id, tx)
+      );
+      allOperations.push(...deletePromises);
+    }
+
+    const upsertPromises = menuItemOptions.map((option) => {
+      const { id, error, categoryOptionId, ...data } = option;
+
+      if (id) {
+        const existingOption = existingOptions?.find((opt) => opt.id === id);
+        if (
+          existingOption &&
+          (existingOption.name !== data.name ||
+            existingOption.price !== data.price)
+        ) {
+          return updateMenuItemOption(id, data, tx);
+        }
+        return Promise.resolve(null);
+      } else {
+        return createMenuItemOption(
+          {
+            ...data,
+            menuItemId: menuItemInfo.id,
+            menuCategoryOptionId: categoryOptionId,
+          },
+          tx
+        );
+      }
+    });
+    allOperations.push(...upsertPromises);
+
+    await Promise.all(allOperations);
+
+    return newMenuItem;
   });
 }

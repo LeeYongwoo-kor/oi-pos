@@ -1,19 +1,19 @@
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import {
   MenuCategory,
   MenuCategoryOption,
   MenuCategoryStatus,
-  MenuItem,
   MenuSubCategory,
   Prisma,
 } from "@prisma/client";
+import { IMenuItem } from "./menuItem";
 import { createMenuSubCategory } from "./menuSubCategory";
-import { ValidationError } from "@/lib/shared/error/ApiError";
 
 export interface IMenuCategory extends MenuCategory {
-  menuItems: MenuItem[];
+  menuItems: IMenuItem[];
   subCategories: MenuSubCategory[];
   defaultOptions: MenuCategoryOption[];
 }
@@ -70,7 +70,11 @@ export async function getAllCategoriesByRestaurantId(
       },
       include: {
         subCategories: true,
-        menuItems: true,
+        menuItems: {
+          include: {
+            menuItemOptions: true,
+          },
+        },
         defaultOptions: true,
       },
     }),

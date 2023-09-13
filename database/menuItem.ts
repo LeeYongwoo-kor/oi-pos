@@ -1,8 +1,17 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
-import { MenuItem, MenuItemStatus, Prisma, PrismaClient } from "@prisma/client";
+import {
+  MenuItem,
+  MenuItemOption,
+  MenuItemStatus,
+  Prisma,
+} from "@prisma/client";
+
+export interface IMenuItem extends MenuItem {
+  menuItemOptions: MenuItemOption[];
+}
 
 export interface CreateMenuItemParams {
   categoryId: string;
@@ -11,8 +20,30 @@ export interface CreateMenuItemParams {
   description?: string;
   price: number;
   imageUrl?: string;
+  imageVersion?: number;
+  maxDailyOrders?: number;
   displayOrder?: number;
   status?: MenuItemStatus;
+}
+export interface UpdateMenuItemParams extends CreateMenuItemParams {
+  id?: string;
+}
+
+export async function getAllMenuItemsByCategoryId(
+  menuCategoryId: string | null | undefined
+): Promise<MenuItem[] | null> {
+  if (!menuCategoryId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.menuItem.findMany({
+      where: {
+        categoryId: menuCategoryId,
+      },
+    }),
+    "getAllMenuItemsByCategoryId"
+  );
 }
 
 export async function getAllMenuItemsByCategoryIdAndSub(
@@ -35,8 +66,11 @@ export async function getAllMenuItemsByCategoryIdAndSub(
 }
 
 export async function createMenuItem(
-  menuItemInfo: CreateMenuItemParams
+  menuItemInfo: CreateMenuItemParams,
+  tx?: Prisma.TransactionClient
 ): Promise<MenuItem> {
+  const prismaIns = tx || prisma;
+
   if (hasNullUndefined(menuItemInfo)) {
     throw new ValidationError(
       "Failed to create menu item. Please try again later"
@@ -44,7 +78,7 @@ export async function createMenuItem(
   }
 
   return prismaRequestHandler(
-    prisma.menuItem.create({
+    prismaIns.menuItem.create({
       data: {
         categoryId: menuItemInfo.categoryId,
         subCategoryId: menuItemInfo.subCategoryId,
@@ -52,6 +86,8 @@ export async function createMenuItem(
         description: menuItemInfo.description,
         price: menuItemInfo.price,
         imageUrl: menuItemInfo.imageUrl,
+        imageVersion: menuItemInfo.imageVersion,
+        maxDailyOrders: menuItemInfo.maxDailyOrders,
         displayOrder: menuItemInfo.displayOrder,
         status: menuItemInfo.status,
       },
@@ -77,6 +113,49 @@ export async function createManyMenuItems(
       data: menuItemsInfo,
     }),
     "createManyMenuItems"
+  );
+}
+
+export async function updateMenuItem(
+  menuItemId: string | null | undefined,
+  updateMenuItemInfo: UpdateMenuItemParams,
+  tx?: Prisma.TransactionClient
+): Promise<MenuItem> {
+  const prismaIns = tx || prisma;
+
+  if (!menuItemId || hasNullUndefined(updateMenuItemInfo)) {
+    throw new ValidationError(
+      "Failed to update menu item. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prismaIns.menuItem.update({
+      where: {
+        id: menuItemId,
+      },
+      data: updateMenuItemInfo,
+    }),
+    "updateMenuCategory"
+  );
+}
+
+export async function deleteMenuItem(
+  menuItemId: string | null | undefined
+): Promise<MenuItem> {
+  if (!menuItemId) {
+    throw new ValidationError(
+      "Failed to delete menu item. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.menuItem.delete({
+      where: {
+        id: menuItemId,
+      },
+    }),
+    "deleteMenuItem"
   );
 }
 

@@ -1,5 +1,5 @@
 import { useSetRecoilState } from "recoil";
-import { messageState } from "./state/messageState";
+import { messageState } from "../recoil/state/messageState";
 import { useCallback } from "react";
 import { UseMessageReturn } from "@/components/ui/Message";
 
@@ -25,7 +25,11 @@ export const useAlert = (): UseAlertReturn => {
       if (typeof window === "undefined") {
         return;
       }
-      setMessage({ ...config, type: "alert", isOpen: true });
+      setMessage({
+        ...config,
+        type: "alert",
+        isOpen: true,
+      });
     },
     []
   );

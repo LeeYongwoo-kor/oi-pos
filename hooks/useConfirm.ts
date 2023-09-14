@@ -1,5 +1,5 @@
 import { useSetRecoilState } from "recoil";
-import { messageState } from "./state/messageState";
+import { messageState } from "../recoil/state/messageState";
 import { useCallback } from "react";
 import { UseMessageReturn } from "@/components/ui/Message";
 
@@ -15,7 +15,11 @@ export const useConfirm = (): UseConfirmReturn => {
       if (typeof window === "undefined") {
         return;
       }
-      setMessage({ ...config, type: "confirm", isOpen: true });
+      setMessage({
+        ...config,
+        type: "confirm",
+        isOpen: true,
+      });
     },
     []
   );

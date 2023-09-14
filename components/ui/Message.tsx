@@ -3,11 +3,19 @@ import { joinCls } from "@/utils/cssHelper";
 import React, { useEffect, useRef } from "react";
 import { useRecoilState, useResetRecoilState } from "recoil";
 
+interface UseMessageButtonType {
+  confirm: string;
+  info: string;
+  warn: string;
+  fatal: string;
+}
+
 export interface UseMessageReturn {
   isOpen: boolean;
   title: string;
   message: string;
   type: "alert" | "confirm";
+  buttonType?: keyof UseMessageButtonType;
   confirmText?: string;
   cancelText?: string;
   onConfirm?: () => void;
@@ -25,12 +33,19 @@ const Message = ({
   type,
   isOpen,
   loading,
+  buttonType,
   confirmText,
   cancelText,
   onConfirm,
   onCancel,
   onClose,
 }: MessageProps) => {
+  const color: UseMessageButtonType = {
+    confirm: "bg-green-500 hover:bg-green-600",
+    info: "bg-blue-500 hover:bg-blue-600",
+    warn: "bg-amber-500 hover:bg-amber-600",
+    fatal: "bg-red-500 hover:bg-red-600",
+  };
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const handleClickOutside = (event: MouseEvent) => {
@@ -71,7 +86,7 @@ const Message = ({
               "px-4 py-2 rounded",
               type === "confirm"
                 ? "text-gray-700 bg-gray-300 hover:bg-gray-400"
-                : "text-white bg-blue-500 hover:bg-blue-600"
+                : `text-white ${buttonType ? color[buttonType] : color.info}`
             )}
           >
             {cancelText || (type === "confirm" ? "Cancel" : "Close")}
@@ -80,7 +95,9 @@ const Message = ({
             <button
               onClick={onConfirm}
               disabled={loading}
-              className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
+              className={`px-4 py-2 text-white rounded ${
+                buttonType ? color[buttonType] : color.confirm
+              }`}
             >
               {confirmText || "Confirm"}
             </button>

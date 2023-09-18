@@ -1,35 +1,33 @@
-import { ME_ENDPOINT } from "@/constants/endpoint";
 import { IRestaurant } from "@/database";
+import { editingState } from "@/recoil/state/menuState";
 import {
-  faArrowLeft,
-  faBars,
+  faBellConcierge,
+  faClockRotateLeft,
   faImage,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
-import useSWR from "swr";
-import Loader from "../Loader";
-import { editingState } from "@/recoil/state/menuState";
 import { useRecoilValue } from "recoil";
 
-export default function MenuHeader() {
-  const isEditing = useRecoilValue(editingState);
-  const { data: restaurantInfo, isValidating: restaurantInfoLoading } =
-    useSWR<IRestaurant>(ME_ENDPOINT.RESTAURANT, {
-      revalidateOnFocus: false,
-      revalidateOnMount: false,
-    });
+type MenuHeaderProps = {
+  restaurantInfo: IRestaurant | undefined;
+};
 
+export default function MenuHeader({ restaurantInfo }: MenuHeaderProps) {
+  const isEditing = useRecoilValue(editingState);
   return (
     <header className="flex items-center justify-between pt-3 pb-6">
-      {restaurantInfoLoading && <Loader />}
-      <button className="p-2">
-        <FontAwesomeIcon icon={faArrowLeft} />
+      <button className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]">
+        <FontAwesomeIcon
+          className="text-white group-hover:text-yellow-300 group-hover:animate-ring"
+          size="lg"
+          icon={faBellConcierge}
+        />
       </button>
       <div className="absolute flex items-center space-x-3 transform -translate-x-1/2 left-1/2">
         {restaurantInfo?.logoUrl ? (
           <Image
-            src="/logo/yoshi.jpg"
+            src="/images/logo/yoshi.jpg"
             alt="Yoshi Logo"
             draggable={false}
             width={64}
@@ -54,8 +52,12 @@ export default function MenuHeader() {
           <h2 className="text-base font-medium">{restaurantInfo?.branch}</h2>
         </div>
       </div>
-      <button className="p-2">
-        <FontAwesomeIcon icon={faBars} />
+      <button className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]">
+        <FontAwesomeIcon
+          className="text-white group-hover:animate-spin"
+          size="lg"
+          icon={faClockRotateLeft}
+        />
       </button>
     </header>
   );

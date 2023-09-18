@@ -109,7 +109,14 @@ export default function SubCategory({
     subCategoryId: string,
     newName: string
   ) => {
-    if (!selectedCategory || !subCategoryId || !categoryInfo) {
+    if (
+      !selectedCategory ||
+      !subCategoryId ||
+      !categoryInfo ||
+      !newName ||
+      newName === selectedSubCategory?.name
+    ) {
+      setEditingSubCategoryId(null);
       return;
     }
 
@@ -183,8 +190,8 @@ export default function SubCategory({
     });
   };
 
-  const handleAddSubCategory = async (newSubcategory: string) => {
-    if (!selectedCategory || !newSubcategory || !categoryInfo) {
+  const handleAddSubCategory = async (newName: string) => {
+    if (!selectedCategory || !newName || !categoryInfo) {
       setIsClickedAddSubCategory(false);
       return;
     }
@@ -192,7 +199,7 @@ export default function SubCategory({
     const params: IPostMenuSubCategoryBody = {
       id: cuid(),
       categoryId: selectedCategory.id,
-      name: newSubcategory,
+      name: newName,
     };
 
     const newCategories = categoryInfo.map((category) => {

@@ -21,7 +21,7 @@ export default function MenuToggleButton() {
   const setIsMenuOpen = useSetRecoilState(menuOpenState);
 
   return (
-    <div className="flex items-center justify-between w-full p-4 text-white">
+    <div className="flex items-center justify-between w-full p-4 text-white bg-sky-900">
       <div className="space-x-3">
         <span className="font-semibold">Edit</span>
         <div className="relative inline-block w-10 align-middle cursor-pointer select-none">

@@ -4,6 +4,8 @@ import {
   editingState,
   mobileState,
   selectedEditMenuState,
+  selectedMenuState,
+  showMenuDetailState,
   showMenuEditState,
 } from "@/recoil/state/menuState";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
@@ -43,9 +45,21 @@ export default function MenuItemArea() {
     [isEditing]
   );
 
+  const handleShowCart = useRecoilCallback(
+    ({ set }) =>
+      (dish: IMenuItem) => {
+        if (isEditing) {
+          return;
+        }
+        set(selectedMenuState, dish);
+        set(showMenuDetailState, true);
+      },
+    [isEditing]
+  );
+
   return (
     <div
-      className={`overflow-y-scroll max-h-[30rem] scrollbar-hide ${responsiveStyle} ${dishesCheck}`}
+      className={`overflow-y-scroll max-h-[34rem] scrollbar-hide ${responsiveStyle} ${dishesCheck}`}
     >
       {dishes.map((dish) => (
         <div
@@ -100,7 +114,10 @@ export default function MenuItemArea() {
             </div>
             {dish.status !== MenuItemStatus.SOLD_OUT && (
               <div className="py-3 mr-2 w-14">
-                <button className="w-full h-full text-white bg-red-500 rounded-full hover:bg-red-600">
+                <button
+                  onClick={() => handleShowCart(dish)}
+                  className="w-full h-full text-white bg-red-500 rounded-full hover:bg-red-600"
+                >
                   <FontAwesomeIcon icon={faPlus} />
                 </button>
               </div>

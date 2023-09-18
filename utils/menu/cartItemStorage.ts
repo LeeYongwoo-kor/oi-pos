@@ -10,8 +10,6 @@ export const getCartItems = (): CartItem[] => {
 };
 
 export const addToCartItem = (item: CartItem[]) => {
-  // const cartItems = getCartItems();
-  // cartItems.push(item);
   localStorage.setItem(CART_ITEM_STORAGE_KEY, JSON.stringify(item));
 };
 

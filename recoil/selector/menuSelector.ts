@@ -1,37 +1,48 @@
-import { MenuItem, MenuSubCategory } from "@prisma/client";
+import { IMenuItem } from "@/database";
+import isEmpty from "@/utils/validation/isEmpty";
+import { MenuSubCategory } from "@prisma/client";
 import { selector } from "recoil";
 import {
+  categoriesState,
   selectedCategoryState,
   selectedSubCategoryState,
 } from "../state/menuState";
-import isEmpty from "@/utils/validation/isEmpty";
 
 export const subCategoriesSelector = selector<MenuSubCategory[]>({
   key: "subCategories",
   get: ({ get }) => {
+    const categories = get(categoriesState);
     const selectedCategory = get(selectedCategoryState);
-    return selectedCategory ? selectedCategory.subCategories : [];
+    const currentCategory = categories.find(
+      (category) => category.id === selectedCategory?.id
+    );
+    return currentCategory ? currentCategory.subCategories : [];
   },
 });
 
-export const menuItemsSelector = selector<MenuItem[]>({
+export const menuItemsSelector = selector<IMenuItem[]>({
   key: "menuItems",
   get: ({ get }) => {
+    const categories = get(categoriesState);
     const selectedCategory = get(selectedCategoryState);
     const selectedSubCategory = get(selectedSubCategoryState);
-    if (!selectedCategory) return [];
+
+    const currentCategory = categories.find(
+      (category) => category.id === selectedCategory?.id
+    );
+    if (!currentCategory) return [];
 
     if (!isEmpty(selectedSubCategory)) {
-      if (!selectedSubCategory[selectedCategory.id]) {
-        return selectedCategory.menuItems;
+      if (!selectedSubCategory[currentCategory.id]) {
+        return currentCategory.menuItems;
       }
 
-      return selectedCategory.menuItems.filter(
+      return currentCategory.menuItems.filter(
         (item) =>
-          item.subCategoryId === selectedSubCategory[selectedCategory.id]?.id
+          item.subCategoryId === selectedSubCategory[currentCategory.id]?.id
       );
     }
 
-    return selectedCategory.menuItems;
+    return currentCategory.menuItems;
   },
 });

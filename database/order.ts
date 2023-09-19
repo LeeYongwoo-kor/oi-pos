@@ -1,8 +1,13 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import { Order, OrderStatus, Prisma } from "@prisma/client";
+import { IRestaurantTable } from "./restaurantTable";
+
+export interface IOrder extends Order {
+  table: IRestaurantTable;
+}
 
 export async function getOrdersByTableId(
   restaurantTableId: string | undefined | null
@@ -34,6 +39,13 @@ export async function getActiveOrderById(
         id: orderId,
         status: {
           in: [OrderStatus.PENDING, OrderStatus.ORDERED],
+        },
+      },
+      include: {
+        table: {
+          include: {
+            restaurant: true,
+          },
         },
       },
       orderBy: {

@@ -21,19 +21,14 @@ export interface CreateMenuCategoryParams {
   restaurantId: string;
   name: string;
   imageUrl?: string;
+  imageVersion?: number;
   status?: MenuCategoryStatus;
   description?: string;
   displayOrder?: number;
 }
 
-export interface UpdateMenuCategoryParams {
+export interface UpdateMenuCategoryParams extends CreateMenuCategoryParams {
   id?: string;
-  name: string;
-  imageUrl?: string;
-  imageVersion?: number;
-  status?: MenuCategoryStatus;
-  description?: string;
-  displayOrder?: number;
 }
 
 export type UpsertMenuCategoryParams = CreateMenuCategoryParams &

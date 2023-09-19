@@ -1,7 +1,9 @@
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
+import { CartItem } from "@/recoil/state/cartItemState";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
+import isEmpty from "@/utils/validation/isEmpty";
 import {
   MenuItem,
   MenuItemOption,
@@ -63,6 +65,47 @@ export async function getAllMenuItemsByCategoryIdAndSub(
     }),
     "getAllMenuItemsByCategoryIdAndSub"
   );
+}
+
+export async function getMenuItemsByCartItems(
+  cartItems: CartItem[] | null | undefined
+): Promise<(MenuItem | null)[] | null> {
+  if (!cartItems || isEmpty(cartItems)) {
+    return null;
+  }
+
+  const promises = cartItems.map((cartItem) => {
+    const queryCondition: Prisma.MenuItemWhereInput = {
+      id: cartItem.menuId,
+      categoryId: cartItem.categoryId,
+    };
+
+    const findFirstOptions: any = {
+      where: queryCondition,
+    };
+
+    if (cartItem.selectedOptions.length > 0) {
+      queryCondition.menuItemOptions = {
+        some: {
+          id: {
+            in: cartItem.selectedOptions,
+          },
+        },
+      };
+      findFirstOptions.include = {
+        menuItemOptions: true,
+      };
+    }
+
+    return prisma.menuItem.findFirst(findFirstOptions);
+  });
+
+  const result = await prismaRequestHandler(
+    Promise.all(promises),
+    "getMenuItemsByCartItems"
+  );
+
+  return isEmpty(result) ? null : result;
 }
 
 export async function createMenuItem(

@@ -1,13 +1,13 @@
 import { atom } from "recoil";
 
-export type CartItem = {
+export interface ICartItem {
   menuId: string;
   categoryId: string;
   quantity: number;
   selectedOptions: string[];
-};
+}
 
-export const cartItemState = atom<CartItem[]>({
+export const cartItemState = atom<ICartItem[]>({
   key: "cartItem",
   default: [],
 });

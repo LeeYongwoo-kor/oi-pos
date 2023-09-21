@@ -1,24 +1,35 @@
-import { CART_ENDPOINT } from "@/constants/endpoint";
+import { CART_ENDPOINT, RESTAURANT_TABLE_ENDPOINT } from "@/constants/endpoint";
+import { Method } from "@/constants/fetch";
 import { CART_ITEM_MAX_QUANTITY } from "@/constants/menu";
-import { IMenuItem } from "@/database";
+import { CreateOrderItemOptionParams, IMenuItem } from "@/database";
 import { useToast } from "@/hooks/useToast";
 import { useCartActions } from "@/hooks/util/useCartActions";
+import useMutation from "@/lib/client/useMutation";
 import { fetcher } from "@/pages/_app";
-import { CartItem, cartItemState } from "@/recoil/state/cartItemState";
+import { IPostRestaurantTableOrderBody } from "@/pages/api/v1/restaurant-tables/[restaurantTableId]/orders/[orderId]";
+import { ICartItem, cartItemState } from "@/recoil/state/cartItemState";
 import { showCartItemState } from "@/recoil/state/menuState";
-import { getCartItems } from "@/utils/menu/cartItemStorage";
+import { orderInfoState } from "@/recoil/state/orderState";
 import createAndValidateEncodedUrl from "@/utils/menu/createAndValidateEncodedUrl";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import isEmpty from "@/utils/validation/isEmpty";
 import { faMinus, faPlus, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { OrderRequest, OrderRequestStatus } from "@prisma/client";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 import useSWRMutation from "swr/mutation";
 import Loader from "../Loader";
+import useLoading from "@/hooks/context/useLoading";
+import isFormChanged from "@/utils/validation/isFormChanged";
+import { getCartStorage } from "@/utils/menu/cartItemStorage";
 
-const calculateItemTotalPrice = (cartItem: CartItem, apiItem: IMenuItem) => {
+const calculateItemTotalPrice = (cartItem: ICartItem, apiItem: IMenuItem) => {
+  if (isEmpty(cartItem) || isEmpty(apiItem)) {
+    return 0;
+  }
+
   const optionPrice = cartItem?.selectedOptions?.reduce((acc, optionId) => {
     const option = apiItem?.menuItemOptions?.find((o) => o.id === optionId);
     return acc + (option ? option.price : 0);
@@ -29,20 +40,44 @@ const calculateItemTotalPrice = (cartItem: CartItem, apiItem: IMenuItem) => {
 
 export default function Cart() {
   const cartItems = useRecoilValue(cartItemState);
+  const orderInfo = useRecoilValue(orderInfoState);
   const [isVisible, openCartItem] = useRecoilState(showCartItemState);
-  const { trigger, data, error, isMutating } = useSWRMutation<IMenuItem[]>(
+  const {
+    trigger,
+    data: freshCartData,
+    error: freshCartErr,
+    isMutating: freshCartLoading,
+  } = useSWRMutation<IMenuItem[]>(
     cartItemState && !isEmpty(cartItemState)
       ? createAndValidateEncodedUrl(cartItems, CART_ENDPOINT.MENU_ITEM)
       : null,
     fetcher
   );
+  const [
+    createOrderRequest,
+    { error: createOrderRequestErr, loading: createOrderRequestLoading },
+  ] = useMutation<OrderRequest, IPostRestaurantTableOrderBody>(
+    orderInfo
+      ? RESTAURANT_TABLE_ENDPOINT.ORDER_REQUEST(
+          orderInfo.tableId,
+          orderInfo.orderId
+        )
+      : null,
+    Method.POST
+  );
+
   const [totalPrice, setTotalPrice] = useState(0);
-  const { removeCartItem, updateCartItem, removeCartItemById } =
-    useCartActions();
+  const {
+    removeCartItem,
+    updateCartItem,
+    removeCartItemById,
+    removeAllCartItems,
+  } = useCartActions();
   const { addToast } = useToast();
+  const withLoading = useLoading();
 
   const validateCartItems = useCallback(
-    (cartItems: CartItem[], apiData: IMenuItem[]): string[] => {
+    (cartItems: ICartItem[], apiData: IMenuItem[]): string[] => {
       return cartItems.reduce((acc: string[], cartItem) => {
         const apiItem = apiData.find((item) => item?.id === cartItem.menuId);
         if (!apiItem) {
@@ -67,7 +102,7 @@ export default function Cart() {
   const handleDeleteItem = async (index: number) => {
     await removeCartItem(index);
     await trigger();
-    if (getCartItems().length === 0) {
+    if (getCartStorage().length === 0) {
       handleCloseCartItem();
     }
   };
@@ -76,16 +111,84 @@ export default function Cart() {
     openCartItem(false);
   };
 
-  console.log("data", data);
-  console.log("cartItems", cartItems);
+  const handleOrderRequest = async () => {
+    if (
+      createOrderRequestLoading ||
+      !totalPrice ||
+      !orderInfo ||
+      isEmpty(orderInfo) ||
+      !freshCartData ||
+      isEmpty(freshCartData)
+    ) {
+      return;
+    }
+
+    cartItems.forEach((item, index) => {
+      const { categoryId, menuId } = item;
+      if (
+        isFormChanged(
+          {
+            categoryId,
+            menuId,
+          },
+          {
+            categoryId: freshCartData[index].categoryId,
+            menuId: freshCartData[index].id,
+          }
+        )
+      ) {
+        addToast(
+          "error",
+          "You have kept open the cart for a long time. Please refresh the page and try again"
+        );
+        return;
+      }
+    });
+
+    const orderRequestBody: IPostRestaurantTableOrderBody = {
+      orderItemInfo: cartItems.map((item, index) => {
+        let selectedOptions: CreateOrderItemOptionParams[] = [];
+
+        if (item.selectedOptions && !isEmpty(item.selectedOptions)) {
+          selectedOptions = freshCartData[index]?.menuItemOptions
+            ?.map((opt) => ({
+              menuItemOptionId: opt.id,
+              name: opt.name,
+              price: opt.price,
+            }))
+            .filter((opt) =>
+              item.selectedOptions.includes(opt.menuItemOptionId)
+            );
+        }
+
+        return {
+          menuItemId: item.menuId,
+          quantity: item.quantity,
+          name: freshCartData[index].name,
+          price: freshCartData[index].price,
+          selectedOptions,
+        };
+      }),
+      status: OrderRequestStatus.PLACED,
+    };
+
+    const result = await createOrderRequest(orderRequestBody, {
+      additionalKeys: [RESTAURANT_TABLE_ENDPOINT.BASE],
+    });
+    if (result) {
+      removeAllCartItems();
+      handleCloseCartItem();
+      addToast("success", "Order request has been sent successfully!");
+    }
+  };
 
   useEffect(() => {
     trigger();
   }, []);
 
   useEffect(() => {
-    if (data && data.length === cartItems.length) {
-      const missingItemIds = validateCartItems(cartItems, data);
+    if (freshCartData && freshCartData.length === cartItems.length) {
+      const missingItemIds = validateCartItems(cartItems, freshCartData);
       if (missingItemIds.length > 0) {
         missingItemIds.forEach((id) => removeCartItemById(id));
         addToast(
@@ -95,7 +198,7 @@ export default function Cart() {
       }
 
       let newTotalPrice = 0;
-      data.forEach((apiItem, index) => {
+      freshCartData.forEach((apiItem, index) => {
         const cartItem = cartItems[index];
         const totalPrice = calculateItemTotalPrice(cartItem, apiItem);
         newTotalPrice += totalPrice;
@@ -107,13 +210,21 @@ export default function Cart() {
     if (cartItems.length === 0) {
       handleCloseCartItem();
     }
-  }, [data, cartItems]);
+  }, [freshCartData, cartItems]);
 
   useEffect(() => {
-    if (error) {
-      addToast("error", error.message);
+    if (createOrderRequestErr) {
+      addToast("error", createOrderRequestErr.message);
     }
-  }, [error]);
+  }, [createOrderRequestErr]);
+
+  useEffect(() => {
+    if (freshCartErr) {
+      removeAllCartItems();
+      handleCloseCartItem();
+      addToast("error", freshCartErr.message);
+    }
+  }, [freshCartErr]);
 
   return (
     <div
@@ -134,14 +245,13 @@ export default function Cart() {
               Back
             </button>
           </div>
-          <div className="flex flex-col items-center justify-between px-2">
-            {/* {isValidating ? ( */}
-            {isMutating ? (
+          <div className="flex flex-col items-center justify-between sm:px-2">
+            {freshCartLoading ? (
               <Loader color="white" />
             ) : (
               <div className="grid w-full grid-cols-1 gap-4">
-                {data &&
-                  data.map((apiItem, index) => {
+                {freshCartData &&
+                  freshCartData.map((apiItem, index) => {
                     const cartItem = cartItems[index];
                     const itemTotalPrice = calculateItemTotalPrice(
                       cartItem,
@@ -151,10 +261,11 @@ export default function Cart() {
                     return (
                       <div
                         key={apiItem.id + index}
-                        className="flex justify-between px-4 py-2 bg-white rounded shadow"
+                        className="relative flex items-center justify-between px-2 py-2 bg-white rounded shadow sm:px-4"
                       >
-                        <div className="flex">
-                          <div className="relative w-20 h-20">
+                        {/* image*/}
+                        <div className="flex w-[60%] sm:w-[35%]">
+                          <div className="relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20">
                             <Image
                               src={`${
                                 process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL
@@ -168,17 +279,44 @@ export default function Cart() {
                               draggable={false}
                             />
                           </div>
-                          <div className="ml-4">
-                            <h2 className="text-lg font-semibold">
+                          {/* name. price */}
+                          <div className="flex flex-col justify-center flex-grow w-full ml-2 text-base sm:ml-4 sm:text-lg sm:cart-item-truncate-width">
+                            <h2 className="w-full max-w-full font-semibold truncate">
                               {apiItem.name}
                             </h2>
-                            <p className="text-lg font-bold">
+                            <p className="hidden font-bold sm:block">
                               {getCurrency(apiItem.price, "JPY")}
+                            </p>
+                            <p className="block font-bold sm:hidden">
+                              {getCurrency(itemTotalPrice, "JPY")}
+                            </p>
+                            <p className="block -mt-1 sm:hidden">
+                              {cartItems[index]?.selectedOptions?.length > 0 &&
+                                cartItems[index].selectedOptions.map(
+                                  (optionId) => {
+                                    const option =
+                                      apiItem?.menuItemOptions?.find(
+                                        (o) => o.id === optionId
+                                      );
+                                    if (!option) {
+                                      return null;
+                                    }
+                                    return (
+                                      <span
+                                        key={option.id}
+                                        className="w-fit h-4 inline-flex items-center px-0.5 text-[0.5rem] text-white bg-amber-600 rounded-xl"
+                                      >
+                                        {option.name}
+                                      </span>
+                                    );
+                                  }
+                                )}
                             </p>
                           </div>
                         </div>
-                        <div className="flex font-bold">
-                          <div className="flex items-center">
+                        {/* quantity */}
+                        <div className="flex w-[40%] sm:w-[20%]">
+                          <div className="flex items-center font-bold">
                             <button
                               onClick={() =>
                                 handleQuantityChange(
@@ -188,9 +326,12 @@ export default function Cart() {
                               }
                               className="px-3 py-1.5 text-white bg-red-500 rounded-full hover:bg-red-600"
                             >
-                              <FontAwesomeIcon icon={faMinus} />
+                              <FontAwesomeIcon
+                                className="text-sm sm:text-base"
+                                icon={faMinus}
+                              />
                             </button>
-                            <span className="mx-3 text-xl">
+                            <span className="mx-2 text-xl sm:mx-3">
                               {cartItems[index]?.quantity}
                             </span>
                             <button
@@ -202,39 +343,56 @@ export default function Cart() {
                               }
                               className="px-3 py-1.5 text-white bg-red-500 rounded-full hover:bg-red-600"
                             >
-                              <FontAwesomeIcon icon={faPlus} />
+                              <FontAwesomeIcon
+                                className="text-sm sm:text-base"
+                                icon={faPlus}
+                              />
                             </button>
                           </div>
                         </div>
-                        <div className="text-sm">
-                          {cartItems[index]?.selectedOptions?.length > 0 &&
-                            cartItems[index].selectedOptions.map((optionId) => {
-                              const option = apiItem?.menuItemOptions?.find(
-                                (o) => o.id === optionId
-                              );
-                              if (!option) {
-                                return null;
-                              }
-                              return (
-                                <div key={optionId}>
-                                  {option.name} -{" "}
-                                  {getCurrency(option.price, "JPY")}
-                                </div>
-                              );
-                            })}
+                        <div className="hidden sm:flex flex-col w-[40%] sm:flex-row sm:w-[45%]">
+                          {/* options */}
+                          <div className="flex items-center text-xs sm:w-2/3 sm:text-base">
+                            {cartItems[index]?.selectedOptions?.length > 0 &&
+                              cartItems[index].selectedOptions.map(
+                                (optionId) => {
+                                  const option = apiItem?.menuItemOptions?.find(
+                                    (o) => o.id === optionId
+                                  );
+                                  if (!option) {
+                                    return null;
+                                  }
+                                  return (
+                                    <div key={optionId}>
+                                      {option.name} -{" "}
+                                      {getCurrency(option.price, "JPY")}
+                                    </div>
+                                  );
+                                }
+                              )}
+                          </div>
+                          {/* item price */}
+                          <div className="hidden w-1/3 sm:flex sm:flex-col">
+                            <label className="hidden sm:block">
+                              Item Price
+                            </label>
+                            <p className="text-lg font-bold">
+                              {getCurrency(itemTotalPrice, "JPY")}
+                            </p>
+                          </div>
                         </div>
-                        <div className="">
-                          <label>Item Price</label>
-                          <p className="text-lg font-bold">
-                            {getCurrency(itemTotalPrice, "JPY")}
-                          </p>
+                        {/* delete button */}
+                        <div className="absolute transform -translate-y-1/2 top-1/2 right-3">
+                          <button
+                            onClick={() => handleDeleteItem(index)}
+                            className="ml-2 text-red-600 hover:text-red-700"
+                          >
+                            <FontAwesomeIcon
+                              className="w-6 h-6 sm:w-8 sm:h-8"
+                              icon={faTrashCan}
+                            />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleDeleteItem(index)}
-                          className="ml-6 text-red-500"
-                        >
-                          <FontAwesomeIcon size="2x" icon={faTrashCan} />
-                        </button>
                       </div>
                     );
                   })}
@@ -244,7 +402,13 @@ export default function Cart() {
               <div className="text-lg font-bold text-white">
                 Total Price: {getCurrency(totalPrice, "JPY")}
               </div>
-              <button className="w-full px-4 py-2 text-lg font-semibold text-white bg-green-500 rounded-full hover:bg-green-600">
+              <button
+                onClick={async (e) => {
+                  e.preventDefault();
+                  await withLoading(() => handleOrderRequest());
+                }}
+                className="w-full px-4 py-2 text-lg font-semibold text-white bg-green-500 rounded-full hover:bg-green-600"
+              >
                 Order
               </button>
             </div>

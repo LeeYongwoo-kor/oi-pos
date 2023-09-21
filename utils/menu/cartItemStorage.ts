@@ -1,7 +1,7 @@
 import { CART_ITEM_STORAGE_KEY } from "@/constants/menu";
-import { CartItem } from "@/recoil/state/cartItemState";
+import { ICartItem } from "@/recoil/state/cartItemState";
 
-export const getCartItems = (): CartItem[] => {
+export const getCartStorage = (): ICartItem[] => {
   if (typeof window === "undefined") {
     return [];
   }
@@ -9,20 +9,24 @@ export const getCartItems = (): CartItem[] => {
   return cart ? JSON.parse(cart) : [];
 };
 
-export const addToCartItem = (item: CartItem[]) => {
+export const addToCartStorage = (item: ICartItem[]) => {
   localStorage.setItem(CART_ITEM_STORAGE_KEY, JSON.stringify(item));
 };
 
-export const removeFromCartItem = (menuId: string) => {
-  let cartItems = getCartItems();
+export const removeFromCartStorage = (menuId: string) => {
+  let cartItems = getCartStorage();
   cartItems = cartItems.filter((item) => item.menuId !== menuId);
   localStorage.setItem(CART_ITEM_STORAGE_KEY, JSON.stringify(cartItems));
 };
 
-export const updateCartItem = (updatedItem: CartItem) => {
-  let cartItems = getCartItems();
+export const updateCartStorage = (updatedItem: ICartItem) => {
+  let cartItems = getCartStorage();
   cartItems = cartItems.map((item) =>
     item.menuId === updatedItem.menuId ? updatedItem : item
   );
   localStorage.setItem(CART_ITEM_STORAGE_KEY, JSON.stringify(cartItems));
+};
+
+export const removeAllCartStorage = () => {
+  localStorage.removeItem(CART_ITEM_STORAGE_KEY);
 };

@@ -1,16 +1,20 @@
 import { CART_ITEM_MAX_STORAGE } from "@/constants/menu";
-import { CartItem, cartItemState } from "@/recoil/state/cartItemState";
-import { addToCartItem } from "@/utils/menu/cartItemStorage";
-import { useRecoilState } from "recoil";
+import { ICartItem, cartItemState } from "@/recoil/state/cartItemState";
+import {
+  addToCartStorage,
+  removeAllCartStorage,
+} from "@/utils/menu/cartItemStorage";
+import { useRecoilState, useResetRecoilState } from "recoil";
 
 export const useCartActions = () => {
   const [cart, setCart] = useRecoilState(cartItemState);
+  const resetCart = useResetRecoilState(cartItemState);
 
-  const addCartItem = (item: CartItem): boolean => {
+  const addCartItem = (item: ICartItem): boolean => {
     if (cart.length < CART_ITEM_MAX_STORAGE) {
       const newCart = [...cart, item];
       setCart(newCart);
-      addToCartItem(newCart);
+      addToCartStorage(newCart);
       return true;
     }
     return false;
@@ -19,17 +23,17 @@ export const useCartActions = () => {
   const removeCartItem = async (index: number): Promise<void> => {
     const newCart = [...cart.slice(0, index), ...cart.slice(index + 1)];
     setCart(newCart);
-    addToCartItem(newCart);
+    addToCartStorage(newCart);
   };
 
   const updateCartItem = async (
     index: number,
-    updatedItem: CartItem
+    updatedItem: ICartItem
   ): Promise<void> => {
     const newCart = [...cart];
     newCart[index] = updatedItem;
     setCart(newCart);
-    addToCartItem(newCart);
+    addToCartStorage(newCart);
   };
 
   const removeCartItemById = (menuId: string): void => {
@@ -37,9 +41,20 @@ export const useCartActions = () => {
     if (itemExists) {
       const newCart = cart.filter((item) => item.menuId !== menuId);
       setCart(newCart);
-      addToCartItem(newCart);
+      addToCartStorage(newCart);
     }
   };
 
-  return { addCartItem, removeCartItem, removeCartItemById, updateCartItem };
+  const removeAllCartItems = (): void => {
+    resetCart();
+    removeAllCartStorage();
+  };
+
+  return {
+    addCartItem,
+    removeCartItem,
+    removeCartItemById,
+    updateCartItem,
+    removeAllCartItems,
+  };
 };

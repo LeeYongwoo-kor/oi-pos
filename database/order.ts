@@ -26,6 +26,38 @@ export async function getOrdersByTableId(
   );
 }
 
+export async function getActiveOrderByTableIdAndOrderId(
+  orderId: string | undefined | null,
+  restaurantTableId: string | undefined | null
+): Promise<Order | null> {
+  if (!restaurantTableId || !orderId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.order.findFirst({
+      where: {
+        id: orderId,
+        tableId: restaurantTableId,
+        status: {
+          in: [OrderStatus.PENDING, OrderStatus.ORDERED],
+        },
+      },
+      include: {
+        table: {
+          include: {
+            restaurant: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+    "getActiveOrderByTableIdAndOrderId"
+  );
+}
+
 export async function getActiveOrderById(
   orderId: string | undefined | null
 ): Promise<Order | null> {

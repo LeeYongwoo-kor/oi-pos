@@ -19,7 +19,7 @@ interface ConfigType {
     res: NextApiResponse,
     session?: Session | null
   ) => void;
-  isLoginRequired?: boolean;
+  isLoginRequired?: boolean | Method[];
 }
 
 export default function withApiHandler({
@@ -33,7 +33,12 @@ export default function withApiHandler({
   ): Promise<any> {
     const session = await getSession({ req });
 
-    if (isLoginRequired && !session) {
+    const requireLoginForMethod =
+      typeof isLoginRequired === "boolean"
+        ? isLoginRequired
+        : isLoginRequired.includes(req.method as Method);
+
+    if (requireLoginForMethod && !session) {
       throw new UnauthorizedError("Unauthorized. You must be signed in");
     }
 

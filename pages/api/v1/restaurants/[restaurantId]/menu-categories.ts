@@ -1,4 +1,3 @@
-import { MenuCategoryOptionForm } from "@/components/menu/CategoryEdit";
 import { Method } from "@/constants/fetch";
 import {
   CreateMenuCategoryParams,
@@ -19,6 +18,7 @@ import {
   UnexpectedError,
   ValidationError,
 } from "@/lib/shared/error/ApiError";
+import { MenuOptionForm } from "@/utils/menu/validateMenuOptions";
 import isEmpty from "@/utils/validation/isEmpty";
 import {
   DeleteObjectCommandInput,
@@ -28,12 +28,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IPostMenuCategoryBody {
   menuCategoryInfo: CreateMenuCategoryParams;
-  menuCategoryOptions?: MenuCategoryOptionForm[];
+  menuCategoryOptions?: MenuOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
 export interface IPatchMenuCategoryBody {
   menuCategoryInfo: UpdateMenuCategoryParams;
-  menuCategoryOptions?: MenuCategoryOptionForm[];
+  menuCategoryOptions?: MenuOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
 export interface IDeleteMenuCategoryBody {
@@ -52,7 +52,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!isEmpty(allCategories)) {
       const isExists = await awsS3CheckIfFolderExists(`menus/${restaurantId}/`);
       if (!isExists) {
-        // TODO: Update Category Status to "Unavailable"
         throw new NotFoundError(
           "No found folders were found on Cloud Storage. Please try again or contact support for assistance"
         );
@@ -157,4 +156,5 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 export default withApiHandler({
   methods: ["GET", "POST", "PATCH", "DELETE"],
   handler,
+  isLoginRequired: ["POST", "PATCH", "DELETE"],
 });

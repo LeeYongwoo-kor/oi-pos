@@ -1,7 +1,8 @@
 import { FieldValues } from "react-hook-form";
 import isEmpty from "./isEmpty";
 
-const normalizeValue = (value: any) => (value === "" ? null : value);
+const normalizeValue = (value: any) =>
+  value === "" || value === undefined ? null : value;
 const isFormChanged = <T extends Record<string, any>>(
   originData: T,
   formData: FieldValues

@@ -2,7 +2,11 @@ import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
 import Menu from "@/components/menu/Menu";
-import { RESTAURANT_ENDPOINT } from "@/constants/endpoint";
+import Modal from "@/components/ui/Modal";
+import {
+  RESTAURANT_ENDPOINT,
+  RESTAURANT_MENU_ENDPOINT,
+} from "@/constants/endpoint";
 import {
   AUTH_EXPECTED_ERROR,
   AUTH_QUERY_PARAMS,
@@ -13,6 +17,7 @@ import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
 import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
 import {
   IMenuCategory,
+  IRestaurant,
   getAllCategoriesByRestaurantId,
   getRestaurant,
 } from "@/database";
@@ -22,7 +27,7 @@ import useMutation from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { IPostDemoMenuCategoryBody } from "@/pages/api/v1/restaurants/[restaurantId]/demo/menu-categories";
-import { menuOpenState } from "@/recoil/state/menuState";
+import { menuOpenState, mobileState } from "@/recoil/state/menuState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import isEmpty from "@/utils/validation/isEmpty";
 import { Prisma } from "@prisma/client";
@@ -31,38 +36,49 @@ import { Session, getServerSession } from "next-auth";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { useRecoilState } from "recoil";
+import { useRecoilState, useRecoilValue } from "recoil";
 import useSWR, { SWRConfig } from "swr";
 
 type RestaurantMenusProps = {
-  restaurantId: string | undefined | null;
+  restaurantInfo: IRestaurant | undefined;
   initErrMsg: string;
 };
 
-function RestaurantsMenus({ restaurantId, initErrMsg }: RestaurantMenusProps) {
+function RestaurantsMenus({
+  restaurantInfo,
+  initErrMsg,
+}: RestaurantMenusProps) {
   const [isMenuOpen, setIsMenuOpen] = useRecoilState(menuOpenState);
+  const isMobile = useRecoilValue(mobileState);
   const {
     data: categoriesData,
     error: categoriesError,
     isValidating,
   } = useSWR<IMenuCategory[]>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null
+    restaurantInfo?.id
+      ? RESTAURANT_MENU_ENDPOINT.MENU_CATEGORY(restaurantInfo.id)
+      : null
   );
   const [createDemoMenuItems, { error: createDemoMenuItemsErr }] = useMutation<
     Prisma.BatchPayload,
     IPostDemoMenuCategoryBody
   >(
-    RESTAURANT_ENDPOINT.DEMO_MENU_CATEGORY(restaurantId ? restaurantId : ""),
+    restaurantInfo?.id
+      ? RESTAURANT_ENDPOINT.DEMO_MENU_CATEGORY(restaurantInfo.id)
+      : null,
     Method.POST
   );
   const { addToast } = useToast();
   const router = useRouter();
   const withLoading = useLoading();
+  const widthSize = isMobile ? 36 : 56;
 
   const handleOpenMenu = async () => {
-    if (restaurantId) {
+    if (restaurantInfo?.id) {
       if (isEmpty(categoriesData)) {
-        const result = await createDemoMenuItems({ restaurantId });
+        const result = await createDemoMenuItems({
+          restaurantId: restaurantInfo.id,
+        });
         if (result) {
           addToast(
             "success",
@@ -164,9 +180,9 @@ function RestaurantsMenus({ restaurantId, initErrMsg }: RestaurantMenusProps) {
         </div>
       )}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50">
-          <Menu />
-        </div>
+        <Modal width={widthSize}>
+          <Menu restaurantInfo={restaurantInfo} role={"owner"} />
+        </Modal>
       )}
     </Layout>
   );
@@ -192,6 +208,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     const restaurantInfo = convertDatesToISOString(
       await getRestaurant(session.id)
     );
+
     if (!restaurantInfo) {
       return {
         redirect: {
@@ -208,9 +225,10 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     return {
       props: {
         fallback: {
-          [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantInfo.id)]: categoryInfo,
+          [RESTAURANT_MENU_ENDPOINT.MENU_CATEGORY(restaurantInfo.id)]:
+            categoryInfo,
         },
-        restaurantId: restaurantInfo.id ?? null,
+        restaurantInfo: restaurantInfo ?? null,
       },
     };
   } catch (err) {
@@ -226,10 +244,13 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   }
 }
 
-export default function Page({ fallback, restaurantId, initErrMsg }: any) {
+export default function Page({ fallback, restaurantInfo, initErrMsg }: any) {
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantsMenus restaurantId={restaurantId} initErrMsg={initErrMsg} />
+      <RestaurantsMenus
+        restaurantInfo={restaurantInfo}
+        initErrMsg={initErrMsg}
+      />
     </SWRConfig>
   );
 }

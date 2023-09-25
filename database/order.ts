@@ -3,10 +3,15 @@ import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import { Order, OrderStatus, Prisma } from "@prisma/client";
+import { IOrderRequestForDashboard } from "./orderRequest";
 import { IRestaurantTable } from "./restaurantTable";
 
 export interface IOrder extends Order {
   table: IRestaurantTable;
+}
+
+export interface IOrderForDashboard extends Order {
+  orderRequests: IOrderRequestForDashboard[];
 }
 
 export async function getOrdersByTableId(

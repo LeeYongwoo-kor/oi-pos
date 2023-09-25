@@ -3,8 +3,35 @@ import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
-import { OrderRequest, OrderRequestStatus, Prisma } from "@prisma/client";
-import { CreateOrderItemParams } from "./orderItem";
+import {
+  OrderItem,
+  OrderRequest,
+  OrderRequestStatus,
+  OrderStatus,
+  Prisma,
+  TableStatus,
+} from "@prisma/client";
+import { IOrder } from "./order";
+import { CreateOrderItemParams, IOrderItem } from "./orderItem";
+
+export interface IOrderRequest extends OrderRequest {
+  order: IOrder[];
+  orderItems: IOrderItem[];
+}
+
+export interface IOrderRequestForAlarm extends OrderRequest {
+  order: {
+    table: {
+      number: number;
+      tableType: TableType;
+    };
+  };
+  orderItems: IOrderItem[];
+}
+
+export interface IOrderRequestForDashboard extends OrderRequest {
+  orderItems: OrderItem[];
+}
 
 export async function getOrderRequestsByOrderId(
   orderId: string | undefined | null
@@ -23,6 +50,30 @@ export async function getOrderRequestsByOrderId(
       },
     }),
     "getOrderRequestsByOrderId"
+  );
+}
+
+export async function getOrderRequestsByOrderIdAndTableId(
+  tableId: string | undefined | null,
+  orderId: string | undefined | null
+): Promise<OrderRequest[] | null> {
+  if (!orderId || !tableId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.orderRequest.findMany({
+      where: {
+        orderId,
+        order: {
+          tableId,
+        },
+      },
+      include: {
+        orderItems: true,
+      },
+    }),
+    "getOrderRequestsByOrderIdAndTableId"
   );
 }
 
@@ -45,6 +96,73 @@ export async function getOrderRequestsByOrderIdAndStatus(
       },
     }),
     "getOrderRequestsByOrderIdAndStatus"
+  );
+}
+
+export async function getAllOrderRequestsInUseByRestaurantId(
+  restaurantId: string | undefined | null,
+  limit?: number | undefined,
+  offset?: number | undefined,
+  orderRequestStatus?: OrderRequestStatus | undefined
+): Promise<IOrderRequestForAlarm[] | null> {
+  if (!restaurantId) {
+    return null;
+  }
+
+  let orderRequestStatusQuery: Prisma.OrderRequestWhereInput = {
+    status: {
+      in: [
+        OrderRequestStatus.ACCEPTED,
+        OrderRequestStatus.PLACED,
+        OrderRequestStatus.CANCELLED,
+      ],
+    },
+  };
+
+  if (orderRequestStatus) {
+    orderRequestStatusQuery = {
+      status: orderRequestStatus,
+    };
+  }
+
+  return prismaRequestHandler(
+    prisma.orderRequest.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: limit || 20,
+      skip: offset || 0,
+      where: {
+        ...orderRequestStatusQuery,
+        order: {
+          table: {
+            restaurantId,
+            status: TableStatus.OCCUPIED,
+          },
+          status: {
+            in: [OrderStatus.PENDING, OrderStatus.ORDERED],
+          },
+        },
+      },
+      include: {
+        orderItems: {
+          include: {
+            selectedOptions: true,
+          },
+        },
+        order: {
+          select: {
+            table: {
+              select: {
+                number: true,
+                tableType: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    "getAllOrderRequestsInUseByRestaurantId"
   );
 }
 

@@ -3,8 +3,25 @@ import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
-import { OrderItem, Prisma } from "@prisma/client";
+import {
+  OrderItem,
+  OrderItemOption,
+  OrderRequestStatus,
+  Prisma,
+} from "@prisma/client";
 import { CreateOrderItemOptionParams } from "./orderItemOption";
+
+export interface IOrderItem extends OrderItem {
+  selectedOptions: OrderItemOption[];
+}
+
+export interface IOrderItemForHistory extends OrderItem {
+  selectedOptions: OrderItemOption[];
+  menuItem: {
+    imageUrl: string | null;
+    imageVersion: number;
+  } | null;
+}
 
 export interface CreateOrderItemParams {
   menuItemId: string;
@@ -12,6 +29,44 @@ export interface CreateOrderItemParams {
   name: string;
   price: number;
   selectedOptions: CreateOrderItemOptionParams[];
+}
+
+export async function getOrderItemsByOrderIdAndTableId(
+  tableId: string | undefined | null,
+  orderId: string | undefined | null
+): Promise<IOrderItemForHistory[] | null> {
+  if (!tableId || !orderId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.orderItem.findMany({
+      orderBy: {
+        createdAt: "asc",
+      },
+      where: {
+        orderRequest: {
+          orderId,
+          status: {
+            notIn: [OrderRequestStatus.CANCELLED],
+          },
+          order: {
+            tableId,
+          },
+        },
+      },
+      include: {
+        menuItem: {
+          select: {
+            imageUrl: true,
+            imageVersion: true,
+          },
+        },
+        selectedOptions: true,
+      },
+    }),
+    "getOrderItemsByOrderIdAndTableId"
+  );
 }
 
 export async function createManyOrderItems(

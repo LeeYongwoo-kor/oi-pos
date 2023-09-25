@@ -3,7 +3,7 @@ import {
   createMenuSubCategory,
   deleteMenuSubCategory,
   updateMenuSubCategory,
-} from "@/database/menuSubCategory";
+} from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { UnexpectedError, ValidationError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";

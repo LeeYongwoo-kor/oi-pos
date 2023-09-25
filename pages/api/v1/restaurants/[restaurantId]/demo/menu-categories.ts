@@ -1,7 +1,7 @@
 import { AWS_S3_YOSHI_BUCKET } from "@/constants/service";
 import { createDemoMenus } from "@/database";
-import awsS3CopyObject from "@/lib/server/awsS3CopyObject";
-import awsS3Delete from "@/lib/server/awsS3Delete";
+import awsS3CopyObject from "@/lib/server/aws/awsS3CopyObject";
+import awsS3Delete from "@/lib/server/aws/awsS3Delete";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";

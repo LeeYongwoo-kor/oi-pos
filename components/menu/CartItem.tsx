@@ -1,18 +1,24 @@
-import { CART_ENDPOINT, RESTAURANT_TABLE_ENDPOINT } from "@/constants/endpoint";
+import { CART_ENDPOINT, RESTAURANT_ORDER_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { CART_ITEM_MAX_QUANTITY } from "@/constants/menu";
 import { CreateOrderItemOptionParams, IMenuItem } from "@/database";
+import useLoading from "@/hooks/context/useLoading";
 import { useToast } from "@/hooks/useToast";
 import { useCartActions } from "@/hooks/util/useCartActions";
 import useMutation from "@/lib/client/useMutation";
 import { fetcher } from "@/pages/_app";
-import { IPostRestaurantTableOrderBody } from "@/pages/api/v1/restaurant-tables/[restaurantTableId]/orders/[orderId]";
-import { ICartItem, cartItemState } from "@/recoil/state/cartItemState";
-import { showCartItemState } from "@/recoil/state/menuState";
+import { IPostRestaurantTableOrderBody } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders/[orderId]/requests";
+import {
+  ICartItem,
+  cartItemState,
+  showCartItemState,
+} from "@/recoil/state/cartItemState";
 import { orderInfoState } from "@/recoil/state/orderState";
+import { getCartStorage } from "@/utils/menu/cartItemStorage";
 import createAndValidateEncodedUrl from "@/utils/menu/createAndValidateEncodedUrl";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import isEmpty from "@/utils/validation/isEmpty";
+import isFormChanged from "@/utils/validation/isFormChanged";
 import { faMinus, faPlus, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { OrderRequest, OrderRequestStatus } from "@prisma/client";
@@ -21,9 +27,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 import useSWRMutation from "swr/mutation";
 import Loader from "../Loader";
-import useLoading from "@/hooks/context/useLoading";
-import isFormChanged from "@/utils/validation/isFormChanged";
-import { getCartStorage } from "@/utils/menu/cartItemStorage";
+import BottomSheet from "../ui/BottomSheet";
+
+type CartItemProps = {
+  restaurantId: string | undefined | null;
+};
 
 const calculateItemTotalPrice = (cartItem: ICartItem, apiItem: IMenuItem) => {
   if (isEmpty(cartItem) || isEmpty(apiItem)) {
@@ -38,7 +46,7 @@ const calculateItemTotalPrice = (cartItem: ICartItem, apiItem: IMenuItem) => {
   return cartItem?.quantity * (apiItem.price + optionPrice);
 };
 
-export default function Cart() {
+export default function Cart({ restaurantId }: CartItemProps) {
   const cartItems = useRecoilValue(cartItemState);
   const orderInfo = useRecoilValue(orderInfoState);
   const [isVisible, openCartItem] = useRecoilState(showCartItemState);
@@ -58,7 +66,7 @@ export default function Cart() {
     { error: createOrderRequestErr, loading: createOrderRequestLoading },
   ] = useMutation<OrderRequest, IPostRestaurantTableOrderBody>(
     orderInfo
-      ? RESTAURANT_TABLE_ENDPOINT.ORDER_REQUEST(
+      ? RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST(
           orderInfo.tableId,
           orderInfo.orderId
         )
@@ -75,6 +83,8 @@ export default function Cart() {
   } = useCartActions();
   const { addToast } = useToast();
   const withLoading = useLoading();
+
+  const isDisabled = !orderInfo || isEmpty(orderInfo) || freshCartLoading;
 
   const validateCartItems = useCallback(
     (cartItems: ICartItem[], apiData: IMenuItem[]): string[] => {
@@ -114,6 +124,7 @@ export default function Cart() {
   const handleOrderRequest = async () => {
     if (
       createOrderRequestLoading ||
+      !restaurantId ||
       !totalPrice ||
       !orderInfo ||
       isEmpty(orderInfo) ||
@@ -173,7 +184,9 @@ export default function Cart() {
     };
 
     const result = await createOrderRequest(orderRequestBody, {
-      additionalKeys: [RESTAURANT_TABLE_ENDPOINT.BASE],
+      additionalKeys: [
+        RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_FOR_ALARM(restaurantId),
+      ],
     });
     if (result) {
       removeAllCartItems();
@@ -227,194 +240,163 @@ export default function Cart() {
   }, [freshCartErr]);
 
   return (
-    <div
-      className={`absolute bottom-0 left-0 right-0 transform transition-transform duration-300 ease-in-out ${
-        isVisible ? "z-30" : "z-0"
-      }`}
-      style={{
-        transform: `translateY(${isVisible ? "0%" : "100%"})`,
-      }}
-    >
-      {isVisible && (
-        <div className="flex flex-col h-fit p-4 rounded-t-[2rem] scrollbar-hide bg-slate-700 overflow-y-auto">
-          <div className="flex justify-between mb-5 sm:mb-4">
-            <button
-              onClick={handleCloseCartItem}
-              className="w-full py-1 text-lg font-semibold text-black bg-gray-200 border-2 border-white rounded-full hover:bg-gray-300"
-            >
-              Back
-            </button>
-          </div>
-          <div className="flex flex-col items-center justify-between sm:px-2">
-            {freshCartLoading ? (
-              <Loader color="white" />
-            ) : (
-              <div className="grid w-full grid-cols-1 gap-4">
-                {freshCartData &&
-                  freshCartData.map((apiItem, index) => {
-                    const cartItem = cartItems[index];
-                    const itemTotalPrice = calculateItemTotalPrice(
-                      cartItem,
-                      apiItem
-                    );
+    <BottomSheet handleState={[isVisible, openCartItem]}>
+      <div className="flex flex-col items-center justify-between sm:px-2">
+        {freshCartLoading ? (
+          <Loader color="white" />
+        ) : (
+          <div className="grid w-full grid-cols-1 gap-4">
+            {freshCartData &&
+              freshCartData.map((apiItem, index) => {
+                const cartItem = cartItems[index];
+                const itemTotalPrice = calculateItemTotalPrice(
+                  cartItem,
+                  apiItem
+                );
 
-                    return (
-                      <div
-                        key={apiItem.id + index}
-                        className="relative flex items-center justify-between px-2 py-2 bg-white rounded shadow sm:px-4"
-                      >
-                        {/* image*/}
-                        <div className="flex w-[60%] sm:w-[35%]">
-                          <div className="relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20">
-                            <Image
-                              src={`${
-                                process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL
-                              }/${apiItem.imageUrl || ""}?v=${
-                                apiItem.imageVersion || 0
-                              }`}
-                              alt={apiItem.name || "menuName"}
-                              quality={50}
-                              fill
-                              className="object-cover w-full rounded-full"
-                              draggable={false}
-                            />
-                          </div>
-                          {/* name. price */}
-                          <div className="flex flex-col justify-center flex-grow w-full ml-2 text-base sm:ml-4 sm:text-lg sm:cart-item-truncate-width">
-                            <h2 className="w-full max-w-full font-semibold truncate">
-                              {apiItem.name}
-                            </h2>
-                            <p className="hidden font-bold sm:block">
-                              {getCurrency(apiItem.price, "JPY")}
-                            </p>
-                            <p className="block font-bold sm:hidden">
-                              {getCurrency(itemTotalPrice, "JPY")}
-                            </p>
-                            <p className="block -mt-1 sm:hidden">
-                              {cartItems[index]?.selectedOptions?.length > 0 &&
-                                cartItems[index].selectedOptions.map(
-                                  (optionId) => {
-                                    const option =
-                                      apiItem?.menuItemOptions?.find(
-                                        (o) => o.id === optionId
-                                      );
-                                    if (!option) {
-                                      return null;
-                                    }
-                                    return (
-                                      <span
-                                        key={option.id}
-                                        className="w-fit h-4 inline-flex items-center px-0.5 text-[0.5rem] text-white bg-amber-600 rounded-xl"
-                                      >
-                                        {option.name}
-                                      </span>
-                                    );
-                                  }
-                                )}
-                            </p>
-                          </div>
-                        </div>
-                        {/* quantity */}
-                        <div className="flex w-[40%] sm:w-[20%]">
-                          <div className="flex items-center font-bold">
-                            <button
-                              onClick={() =>
-                                handleQuantityChange(
-                                  index,
-                                  cartItem.quantity - 1
-                                )
-                              }
-                              className="px-3 py-1.5 text-white bg-red-500 rounded-full hover:bg-red-600"
-                            >
-                              <FontAwesomeIcon
-                                className="text-sm sm:text-base"
-                                icon={faMinus}
-                              />
-                            </button>
-                            <span className="mx-2 text-xl sm:mx-3">
-                              {cartItems[index]?.quantity}
-                            </span>
-                            <button
-                              onClick={() =>
-                                handleQuantityChange(
-                                  index,
-                                  cartItem.quantity + 1
-                                )
-                              }
-                              className="px-3 py-1.5 text-white bg-red-500 rounded-full hover:bg-red-600"
-                            >
-                              <FontAwesomeIcon
-                                className="text-sm sm:text-base"
-                                icon={faPlus}
-                              />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="hidden sm:flex flex-col w-[40%] sm:flex-row sm:w-[45%]">
-                          {/* options */}
-                          <div className="flex items-center text-xs sm:w-2/3 sm:text-base">
-                            {cartItems[index]?.selectedOptions?.length > 0 &&
-                              cartItems[index].selectedOptions.map(
-                                (optionId) => {
-                                  const option = apiItem?.menuItemOptions?.find(
-                                    (o) => o.id === optionId
-                                  );
-                                  if (!option) {
-                                    return null;
-                                  }
-                                  return (
-                                    <div key={optionId}>
-                                      {option.name} -{" "}
-                                      {getCurrency(option.price, "JPY")}
-                                    </div>
-                                  );
-                                }
-                              )}
-                          </div>
-                          {/* item price */}
-                          <div className="hidden w-1/3 sm:flex sm:flex-col">
-                            <label className="hidden sm:block">
-                              Item Price
-                            </label>
-                            <p className="text-lg font-bold">
-                              {getCurrency(itemTotalPrice, "JPY")}
-                            </p>
-                          </div>
-                        </div>
-                        {/* delete button */}
-                        <div className="absolute transform -translate-y-1/2 top-1/2 right-3">
-                          <button
-                            onClick={() => handleDeleteItem(index)}
-                            className="ml-2 text-red-600 hover:text-red-700"
-                          >
-                            <FontAwesomeIcon
-                              className="w-6 h-6 sm:w-8 sm:h-8"
-                              icon={faTrashCan}
-                            />
-                          </button>
-                        </div>
+                return (
+                  <div
+                    key={apiItem.id + index}
+                    className="relative flex items-center justify-between px-2 py-2 bg-white rounded shadow sm:px-4"
+                  >
+                    {/* image*/}
+                    <div className="flex w-[60%] sm:w-[35%]">
+                      <div className="relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20">
+                        <Image
+                          src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
+                            apiItem.imageUrl || ""
+                          }?v=${apiItem.imageVersion || 0}`}
+                          alt={apiItem.name || "menuName"}
+                          quality={50}
+                          fill
+                          className="object-cover w-full rounded-full"
+                          draggable={false}
+                        />
                       </div>
-                    );
-                  })}
-              </div>
-            )}
-            <div className="flex self-end justify-center w-full mt-4">
-              <div className="text-lg font-bold text-white">
-                Total Price: {getCurrency(totalPrice, "JPY")}
-              </div>
-              <button
-                onClick={async (e) => {
-                  e.preventDefault();
-                  await withLoading(() => handleOrderRequest());
-                }}
-                className="w-full px-4 py-2 text-lg font-semibold text-white bg-green-500 rounded-full hover:bg-green-600"
-              >
-                Order
-              </button>
-            </div>
+                      {/* name. price */}
+                      <div className="flex flex-col justify-center flex-grow w-full ml-2 text-base sm:ml-4 sm:text-lg sm:cart-item-truncate-width">
+                        <h2 className="w-full max-w-full font-semibold truncate">
+                          {apiItem.name}
+                        </h2>
+                        <p className="hidden font-bold sm:block">
+                          {getCurrency(apiItem.price, "JPY")}
+                        </p>
+                        <p className="block font-bold sm:hidden">
+                          {getCurrency(itemTotalPrice, "JPY")}
+                        </p>
+                        <p className="block -mt-1 sm:hidden">
+                          {cartItems[index]?.selectedOptions?.length > 0 &&
+                            cartItems[index].selectedOptions.map((optionId) => {
+                              const option = apiItem?.menuItemOptions?.find(
+                                (o) => o.id === optionId
+                              );
+                              if (!option) {
+                                return null;
+                              }
+                              return (
+                                <span
+                                  key={option.id}
+                                  className="w-fit h-4 inline-flex items-center px-0.5 text-[0.5rem] text-white bg-amber-600 rounded-xl"
+                                >
+                                  {option.name}
+                                </span>
+                              );
+                            })}
+                        </p>
+                      </div>
+                    </div>
+                    {/* quantity */}
+                    <div className="flex w-[40%] sm:w-[20%]">
+                      <div className="flex items-center font-bold">
+                        <button
+                          onClick={() =>
+                            handleQuantityChange(index, cartItem.quantity - 1)
+                          }
+                          className="px-3 py-1.5 text-white bg-red-500 rounded-full hover:bg-red-600"
+                        >
+                          <FontAwesomeIcon
+                            className="text-sm sm:text-base"
+                            icon={faMinus}
+                          />
+                        </button>
+                        <span className="mx-2 text-xl sm:mx-3">
+                          {cartItems[index]?.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            handleQuantityChange(index, cartItem.quantity + 1)
+                          }
+                          className="px-3 py-1.5 text-white bg-red-500 rounded-full hover:bg-red-600"
+                        >
+                          <FontAwesomeIcon
+                            className="text-sm sm:text-base"
+                            icon={faPlus}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="hidden sm:flex flex-col w-[40%] sm:flex-row sm:w-[45%]">
+                      {/* options */}
+                      <div className="flex items-center text-xs sm:flex-col sm:w-2/3 sm:text-base">
+                        {cartItems[index]?.selectedOptions?.length > 0 &&
+                          cartItems[index].selectedOptions.map((optionId) => {
+                            const option = apiItem?.menuItemOptions?.find(
+                              (o) => o.id === optionId
+                            );
+                            if (!option) {
+                              return null;
+                            }
+                            return (
+                              <div key={optionId}>
+                                {option.name} (
+                                {getCurrency(option.price, "JPY")})
+                              </div>
+                            );
+                          })}
+                      </div>
+                      {/* item price */}
+                      <div className="hidden w-1/3 sm:flex sm:flex-col">
+                        <label className="hidden sm:block">Item Price</label>
+                        <p className="text-lg font-bold">
+                          {getCurrency(itemTotalPrice, "JPY")}
+                        </p>
+                      </div>
+                    </div>
+                    {/* delete button */}
+                    <div className="absolute transform -translate-y-1/2 top-1/2 right-3">
+                      <button
+                        onClick={() => handleDeleteItem(index)}
+                        className="ml-2 text-red-600 hover:text-red-700"
+                      >
+                        <FontAwesomeIcon
+                          className="w-6 h-6 sm:w-8 sm:h-8"
+                          icon={faTrashCan}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
+        )}
+      </div>
+      <div className="flex self-end justify-center w-full mt-4">
+        <div className="text-lg font-bold text-white">
+          Total Price: {getCurrency(totalPrice, "JPY")}
         </div>
-      )}
-    </div>
+        <button
+          disabled={isDisabled}
+          onClick={async (e) => {
+            e.preventDefault();
+            await withLoading(() => handleOrderRequest());
+          }}
+          className={`w-full px-4 py-2 text-lg font-semibold bg-green-500 text-white rounded-full  ${
+            isDisabled ? "opacity-75 cursor-not-allowed" : "hover:bg-green-600"
+          }`}
+        >
+          Order
+        </button>
+      </div>
+    </BottomSheet>
   );
 }

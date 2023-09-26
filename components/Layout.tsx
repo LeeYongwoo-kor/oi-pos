@@ -22,16 +22,19 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="bg-gray-100 ">
       <NavigationBar isAllInfoRegistered={isAllInfoRegistered} />
       <div className="flex min-h-screen">
-        <main className="flex-grow px-4 pt-16">{children}</main>
-        {isAllInfoRegistered && isAlarmVisible && (
-          <div className="w-64">
-            <Alarm onToggle={() => setIsAlarmVisible(false)} />
-          </div>
+        <main className={`flex-grow px-4 pt-16 ${isAlarmVisible && "mr-80"}`}>
+          {children}
+        </main>
+        {isAlarmVisible && session?.restaurantId && (
+          <Alarm
+            restaurantId={session.restaurantId}
+            onToggle={() => setIsAlarmVisible(false)}
+          />
         )}
-        {isAllInfoRegistered && !isAlarmVisible && (
+        {!isAlarmVisible && (
           <button
             onClick={() => setIsAlarmVisible(true)}
-            className="fixed right-0 p-2 bg-white border border-gray-300 shadow-md top-20 rounded-l-md"
+            className="fixed p-2 bg-white border border-gray-300 shadow-md hover:bg-gray-100 -right-1 top-16 rounded-l-md"
           >
             &laquo;
           </button>

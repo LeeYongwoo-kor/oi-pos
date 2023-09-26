@@ -11,3 +11,8 @@ export const cartItemState = atom<ICartItem[]>({
   key: "cartItem",
   default: [],
 });
+
+export const showCartItemState = atom<boolean>({
+  key: "showCartItemState",
+  default: false,
+});

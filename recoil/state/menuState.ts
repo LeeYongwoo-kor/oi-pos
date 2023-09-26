@@ -32,11 +32,6 @@ export const showMenuDetailState = atom<boolean>({
   default: false,
 });
 
-export const showCartItemState = atom<boolean>({
-  key: "showCartItemState",
-  default: false,
-});
-
 export const categoriesState = atom<IMenuCategory[]>({
   key: "categories",
   default: [],

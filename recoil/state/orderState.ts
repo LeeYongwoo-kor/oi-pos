@@ -12,3 +12,8 @@ export const orderInfoState = atom<IOrderInfo | null>({
   key: "orderInfoState",
   default: null,
 });
+
+export const showOrderHistoryState = atom<boolean>({
+  key: "showOrderHistoryState",
+  default: false,
+});

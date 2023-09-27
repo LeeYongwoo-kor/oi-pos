@@ -7,6 +7,7 @@ const redis = new Redis({
     ? parseInt(process.env.REDIS_PORT, 10)
     : REDIS_DEFAULT_PORT,
   password: process.env.REDIS_PASSWORD,
+  maxRetriesPerRequest: 1,
   retryStrategy: (times) => {
     // reconnect after
     return Math.min(times * 50, 2000);

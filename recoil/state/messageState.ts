@@ -7,10 +7,11 @@ export const messageState = atom<UseMessageReturn>({
     isOpen: false,
     title: "",
     message: "",
-    buttonType: "confirm",
     type: "confirm",
+    buttonType: "confirm",
     confirmText: "",
     cancelText: "",
+    placeholder: "",
   },
 });
 

@@ -7,7 +7,7 @@ export interface UseAlertReturn {
   showAlert: (
     config: Omit<
       UseMessageReturn,
-      "type" | "isOpen" | "onConfirm" | "confirmText"
+      "type" | "isOpen" | "onConfirm" | "confirmText" | "placeholder"
     >
   ) => void;
 }
@@ -19,7 +19,7 @@ export const useAlert = (): UseAlertReturn => {
     (
       config: Omit<
         UseMessageReturn,
-        "type" | "isOpen" | "onConfirm" | "confirmText"
+        "type" | "isOpen" | "onConfirm" | "confirmText" | "placeholder"
       >
     ) => {
       if (typeof window === "undefined") {

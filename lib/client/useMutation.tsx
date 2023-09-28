@@ -18,26 +18,28 @@ type UseMutationResult<T, U> = [
   (data: U, options?: UseMutationOptions) => Promise<T>,
   UseMutationState<T>
 ];
-type UseMutationOptionBase = {
+type UseMutationOptionBase<D = any> = {
   retry?: boolean;
-  dynamicUrl?: string;
+  dynamicUrl?: string | D;
   headers?: Record<string, string>;
   isMutate?: boolean;
   additionalKeys?: string[];
 };
-type UseMutationOptionsOptimistic = UseMutationOptionBase & {
+type UseMutationOptionsOptimistic<D = any> = UseMutationOptionBase<D> & {
   isRevalidate?: false;
   optimisticData?: any;
 };
-type UseMutationOptionsRevalidate = UseMutationOptionBase & {
+type UseMutationOptionsRevalidate<D = any> = UseMutationOptionBase<D> & {
   isRevalidate: true;
 };
-export type UseMutationOptions =
-  | UseMutationOptionsRevalidate
-  | UseMutationOptionsOptimistic;
+export type UseMutationOptions<D = any> =
+  | UseMutationOptionsRevalidate<D>
+  | UseMutationOptionsOptimistic<D>;
 
-const handleOptions = (options: UseMutationOptions) => {
-  const mutateOptions: UseMutationOptionsRevalidate = {
+type BaseUrlType<D> = ((dynamicUrl: D) => string) | string | null | undefined;
+
+function handleOptions<D>(options: UseMutationOptions<D>) {
+  const mutateOptions: UseMutationOptionsRevalidate<D> = {
     retry: false,
     dynamicUrl: "",
     headers: {},
@@ -57,7 +59,7 @@ const handleOptions = (options: UseMutationOptions) => {
     ...mutateOptions,
     ...options,
   };
-};
+}
 
 /**
  * Custom hook to make a mutation request to the server and handle the response
@@ -79,8 +81,8 @@ const handleOptions = (options: UseMutationOptions) => {
  *  if (error) addToast("error", error.message); // ... handle error
  * }
  */
-export default function useMutation<T, U>(
-  baseUrl: string | undefined | null,
+export default function useMutation<T, U, D = any>(
+  baseUrl: BaseUrlType<D>,
   method: Exclude<Method, "GET"> = "POST"
 ): UseMutationResult<T, U> {
   const { mutate } = useSWRConfig();
@@ -91,8 +93,11 @@ export default function useMutation<T, U>(
   });
 
   const mutation = useCallback(
-    async (data: U, options: UseMutationOptions = { isRevalidate: true }) => {
-      if (!baseUrl) {
+    async (
+      data: U,
+      options: UseMutationOptions<D> = { isRevalidate: true }
+    ) => {
+      if (typeof baseUrl !== "function" && !baseUrl) {
         return;
       }
 
@@ -104,9 +109,16 @@ export default function useMutation<T, U>(
         headers,
         additionalKeys,
         optimisticData,
-      } = handleOptions(options);
+      } = handleOptions<D>(options);
 
-      const url = `${dynamicUrl ? baseUrl + "/" + dynamicUrl : baseUrl}`;
+      const url =
+        typeof baseUrl === "function" && dynamicUrl
+          ? baseUrl(dynamicUrl as D)
+          : baseUrl;
+
+      if (!url) {
+        return;
+      }
 
       setState((prev) => ({ ...prev, loading: true }));
       try {
@@ -126,7 +138,7 @@ export default function useMutation<T, U>(
             ]);
           }
 
-          const response = await fetch(url, {
+          const response = await fetch(url as string, {
             method,
             headers: {
               "Content-type": "application/json",

@@ -4,18 +4,26 @@ import { useToast } from "@/hooks/useToast";
 import { joinCls } from "@/utils/cssHelper";
 import React, { useEffect } from "react";
 
+export type ToastSizeType = "small" | "big";
 export type ToastKindType = (typeof ToastKind)[keyof typeof ToastKind];
 export type ToastType = {
   id: string;
   type: ToastKindType;
   message: string;
+  size?: ToastSizeType;
 };
 
 interface ToastProps extends ToastType {
   onDismiss: (id: string) => void;
 }
 
-const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
+const Toast = ({
+  id,
+  type,
+  message,
+  onDismiss,
+  size = "small",
+}: ToastProps) => {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     if (type !== ToastKind.PRESERVE) {
@@ -41,12 +49,14 @@ const Toast = ({ id, type, message, onDismiss }: ToastProps) => {
 
   return (
     <div
-      className={`flex animate-fadeInUp mt-4 p-4 shadow-lg rounded-lg ${bgColor} w-96 h-20 z-50 transform transition-all duration-300 translate-y-0`}
+      className={`flex self-end animate-fadeInUp mt-4 p-4 shadow-lg rounded-lg ${bgColor} ${
+        size === "big" ? "w-172" : "w-96"
+      } min-h-[5rem] h-auto z-50 transform transition-all duration-300 translate-y-0`}
     >
       <div className="flex items-center justify-between w-full">
         <span
           className={joinCls(
-            "text-base",
+            "text-base break-all whitespace-pre-line",
             type === ToastKind.PRESERVE ? "text-black" : "text-white"
           )}
         >

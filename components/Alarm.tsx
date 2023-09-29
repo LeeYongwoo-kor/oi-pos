@@ -1,15 +1,27 @@
-import { RESTAURANT_ORDER_ENDPOINT } from "@/constants/endpoint";
-import { ALARM_ORDER_REQUEST_LIMIT } from "@/constants/fetch";
+import {
+  RESTAURANT_ORDER_ENDPOINT,
+  RESTAURANT_TABLE_ENDPOINT,
+} from "@/constants/endpoint";
+import { ALARM_ORDER_REQUEST_LIMIT, Method } from "@/constants/fetch";
+import { PROMPT_DIALOG_MESSAGE } from "@/constants/message/prompt";
 import { MULTIPLICATION_SYMBOL } from "@/constants/unicode";
 import { IOrderRequestForAlarm } from "@/database";
+import { usePrompt } from "@/hooks/usePrompt";
 import { useToast } from "@/hooks/useToast";
-import { sortRequestedOrderState } from "@/recoil/state/alarmState";
-import { OrderRequestStatus } from "@prisma/client";
+import useMutation from "@/lib/client/useMutation";
+import { IPatchOrderRequestBody } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders/[orderId]/requests/[requestId]";
+import {
+  showAlarmState,
+  sortRequestedOrderState,
+} from "@/recoil/state/alarmState";
+import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
+import convertNumberToOrderNumber from "@/utils/converter/convertNumberToOrderNumber";
+import { OrderRequest, OrderRequestStatus } from "@prisma/client";
 import { useEffect, useRef, useState } from "react";
-import { useRecoilState } from "recoil";
+import { useRecoilState, useRecoilValue } from "recoil";
+import { useSWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 import Loader from "./Loader";
-import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
 
 type AlarmProps = {
   restaurantId: string | undefined;
@@ -20,25 +32,49 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
   const [isSortedRequest, changeOrderRequestSort] = useRecoilState(
     sortRequestedOrderState
   );
-  const { data, error, size, setSize, isValidating, isLoading } =
-    useSWRInfinite<IOrderRequestForAlarm[]>((index, previousPageData) => {
+  const isVisible = useRecoilValue(showAlarmState);
+  const { mutate } = useSWRConfig();
+  const {
+    data,
+    error,
+    size,
+    setSize,
+    isValidating,
+    isLoading,
+    mutate: boundMutate,
+  } = useSWRInfinite<IOrderRequestForAlarm[]>(
+    (index, previousPageData) => {
       if (!restaurantId || (previousPageData && !previousPageData.length)) {
         return null;
       }
       const offset = index * ALARM_ORDER_REQUEST_LIMIT;
       return isSortedRequest
-        ? `${RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST(
+        ? `${RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_FOR_ALARM(
             restaurantId
           )}?limit=${ALARM_ORDER_REQUEST_LIMIT}&offset=${offset}&status=${
             OrderRequestStatus.PLACED
           }`
-        : `${RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST(
+        : `${RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_FOR_ALARM(
             restaurantId
           )}?limit=${ALARM_ORDER_REQUEST_LIMIT}&offset=${offset}`;
-    });
+    },
+    { refreshInterval: 5000 }
+  );
+  const [updateOrderRequest, { error: updateOrderRequestErr }] = useMutation<
+    OrderRequest,
+    IPatchOrderRequestBody,
+    OrderRequestDynamicUrl
+  >(({ restaurantTableId, orderId, requestId }) => {
+    return RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_BY_ID(
+      restaurantTableId,
+      orderId,
+      requestId
+    );
+  }, Method.PATCH);
   const sentinelRef = useRef(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const { addToast } = useToast();
+  const { showPrompt } = usePrompt();
 
   const allData: IOrderRequestForAlarm[] = data
     ? ([] as IOrderRequestForAlarm[]).concat(...data)
@@ -46,9 +82,75 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
 
   console.log("allData", allData);
 
-  const handleStatusChange = async (orderRequestId: string, status: string) => {
-    return null;
+  const handleStatusChange = async (
+    orderRequest: IOrderRequestForAlarm,
+    status: OrderRequestStatus,
+    rejectedReason = ""
+  ) => {
+    const {
+      id,
+      orderId,
+      order: {
+        table: { id: tableId },
+      },
+    } = orderRequest;
+
+    if (!id || !orderId || !tableId) {
+      return;
+    }
+
+    const updatedCurrentData = data?.map((page) =>
+      page.map((item) =>
+        item.id === orderRequest.id ? { ...item, status } : item
+      )
+    );
+
+    if (updatedCurrentData) {
+      boundMutate(updatedCurrentData, false);
+    }
+
+    const params: IPatchOrderRequestBody = {
+      updateOrderRequestInfo: {
+        status,
+        rejectedReason,
+        rejectedReasonDisplay: true,
+      },
+    };
+
+    await updateOrderRequest(params, {
+      dynamicUrl: { restaurantTableId: tableId, orderId, requestId: id },
+      isMutate: false,
+      additionalKeys: [RESTAURANT_TABLE_ENDPOINT.BASE],
+    });
   };
+
+  const handleAcceptRequest = async (orderRequest: IOrderRequestForAlarm) => {
+    await handleStatusChange(orderRequest, OrderRequestStatus.ACCEPTED);
+  };
+
+  const handleRejectRequest = async (orderRequest: IOrderRequestForAlarm) => {
+    showPrompt({
+      title: PROMPT_DIALOG_MESSAGE.REJECT_ORDER_REQUEST.TITLE,
+      message: PROMPT_DIALOG_MESSAGE.REJECT_ORDER_REQUEST.MESSAGE,
+      confirmText: PROMPT_DIALOG_MESSAGE.REJECT_ORDER_REQUEST.CONFIRM_TEXT,
+      cancelText: PROMPT_DIALOG_MESSAGE.REJECT_ORDER_REQUEST.CANCEL_TEXT,
+      placeholder: PROMPT_DIALOG_MESSAGE.REJECT_ORDER_REQUEST.PLACEHOLDER,
+      buttonType: "info",
+      onConfirm: (rejectMessage) => {
+        handleStatusChange(
+          orderRequest,
+          OrderRequestStatus.CANCELLED,
+          rejectMessage
+        );
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (data) {
+      mutate(RESTAURANT_TABLE_ENDPOINT.BASE);
+    }
+  }, [data]);
 
   useEffect(() => {
     if (!isLoading && !isValidating) {
@@ -90,8 +192,19 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
     }
   }, [error]);
 
+  useEffect(() => {
+    if (updateOrderRequestErr) {
+      boundMutate(data, false);
+      addToast("error", updateOrderRequestErr.message);
+    }
+  }, [updateOrderRequestErr]);
+
   return (
-    <div className="fixed right-0 h-screen pt-16 overflow-x-hidden overflow-y-auto bg-white select-none max-h-fit w-80 font-archivo">
+    <div
+      className={`fixed right-0 h-screen pt-16 overflow-x-hidden overflow-y-auto bg-white select-none max-h-fit w-80 font-archivo transition-all duration-200 ease-in-out ${
+        isVisible ? "transform translate-x-0" : "transform translate-x-96"
+      }`}
+    >
       <div className="relative h-full p-2">
         <button
           onClick={onToggle}
@@ -127,7 +240,7 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
           <span>Request</span>
         </div>
         <div className="w-full h-full p-2 bg-white">
-          {isLoading && <Loader />}
+          {(isLoading || !restaurantId) && <Loader />}
           {allData?.map((orderRequest, orderIndex) => (
             <div
               key={orderRequest.id + orderIndex}
@@ -144,8 +257,14 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
                   <span>{orderRequest.order.table.tableType}</span>
                   <span>{orderRequest.order.table.number}</span>
                 </div>
-                <div className="text-sm text-slate-500">
-                  {convertDatesToIntlString(orderRequest.createdAt)}
+                <div className="flex flex-col justify-end text-xs text-slate-500">
+                  <div className="self-end">
+                    Order No.{" "}
+                    {convertNumberToOrderNumber(orderRequest.order.orderNumber)}
+                  </div>
+                  <div className="self-end">
+                    {convertDatesToIntlString(orderRequest.createdAt)}
+                  </div>
                 </div>
               </div>
               <div className="flex flex-col p-2 border border-gray-300 rounded">
@@ -169,13 +288,11 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
               </div>
               <div className="flex mt-2">
                 <button
-                  onClick={() =>
-                    handleStatusChange(orderRequest.id, "ACCEPTED")
-                  }
+                  onClick={() => handleAcceptRequest(orderRequest)}
                   disabled={orderRequest.status === OrderRequestStatus.ACCEPTED}
                   className={`w-3/5 px-3 py-0.5 mr-2 rounded ${
                     orderRequest.status === OrderRequestStatus.ACCEPTED
-                      ? "border border-gray-300 text-gray-400"
+                      ? "border border-green-500 text-green-500"
                       : "bg-green-500 hover:bg-green-600 text-white"
                   }`}
                 >
@@ -183,9 +300,7 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
                   Accept
                 </button>
                 <button
-                  onClick={() =>
-                    handleStatusChange(orderRequest.id, "CANCELLED")
-                  }
+                  onClick={() => handleRejectRequest(orderRequest)}
                   disabled={
                     orderRequest.status === OrderRequestStatus.CANCELLED
                   }

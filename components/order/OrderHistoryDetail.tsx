@@ -2,6 +2,7 @@ import { RESTAURANT_ORDER_ENDPOINT } from "@/constants/endpoint";
 import { IOrderItem, IOrderItemForHistory } from "@/database";
 import { useToast } from "@/hooks/useToast";
 import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
+import objectToQueryString from "@/utils/converter/objectToQueryString";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import { calculateTotalItemPrice } from "@/utils/order/setDefaultMenuOptions";
 import isEmpty from "@/utils/validation/isEmpty";
@@ -13,6 +14,7 @@ import Loader from "../Loader";
 type OrderHistoryDetailProps = {
   tableId: string | undefined;
   orderId: string | undefined;
+  queries?: Record<string, any>;
   onOrderItemDataChange?: (newData: IOrderItemForHistory[]) => void;
 };
 
@@ -27,6 +29,7 @@ const getAllQuantityOfOrderItems = (orderItem: IOrderItem[] | undefined) => {
 export default function OrderHistoryDetail({
   tableId,
   orderId,
+  queries,
   onOrderItemDataChange,
 }: OrderHistoryDetailProps) {
   const {
@@ -35,7 +38,10 @@ export default function OrderHistoryDetail({
     isValidating: orderItemLoading,
   } = useSWR<IOrderItemForHistory[]>(
     tableId && orderId
-      ? RESTAURANT_ORDER_ENDPOINT.ORDER_ITEM(tableId, orderId)
+      ? `${RESTAURANT_ORDER_ENDPOINT.ORDER_ITEM(
+          tableId,
+          orderId
+        )}?${objectToQueryString(queries)}`
       : null
   );
   const { addToast } = useToast();
@@ -57,7 +63,7 @@ export default function OrderHistoryDetail({
       {orderItemLoading ? (
         <Loader color="white" />
       ) : (
-        <div>
+        <div className="flex flex-col">
           <div className="grid grid-cols-8 gap-2 mb-2 text-center text-white">
             <div className="col-span-1">Image</div>
             <div className="col-span-1">Name</div>
@@ -117,7 +123,7 @@ export default function OrderHistoryDetail({
                 </div>
               );
             })}
-          <div className="text-lg font-semibold text-white">
+          <div className="self-end text-lg font-semibold text-white">
             Total Quantity Ordered: {getAllQuantityOfOrderItems(orderItemData)}
           </div>
         </div>

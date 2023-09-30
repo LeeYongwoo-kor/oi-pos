@@ -1,5 +1,6 @@
 import { IRestaurant } from "@/database";
 import { editingState } from "@/recoil/state/menuState";
+import { showOrderHistoryState } from "@/recoil/state/orderState";
 import {
   faBellConcierge,
   faClockRotateLeft,
@@ -7,7 +8,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
-import { useRecoilValue } from "recoil";
+import { useRecoilValue, useSetRecoilState } from "recoil";
 
 type MenuHeaderProps = {
   restaurantInfo: IRestaurant | undefined;
@@ -15,6 +16,7 @@ type MenuHeaderProps = {
 
 export default function MenuHeader({ restaurantInfo }: MenuHeaderProps) {
   const isEditing = useRecoilValue(editingState);
+  const openOrderHistory = useSetRecoilState(showOrderHistoryState);
   return (
     <header className="flex items-center justify-between pt-3 pb-6">
       <button className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]">
@@ -52,7 +54,10 @@ export default function MenuHeader({ restaurantInfo }: MenuHeaderProps) {
           <h2 className="text-base font-medium">{restaurantInfo?.branch}</h2>
         </div>
       </div>
-      <button className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]">
+      <button
+        onClick={() => openOrderHistory(true)}
+        className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]"
+      >
         <FontAwesomeIcon
           className="text-white group-hover:animate-spin"
           size="lg"

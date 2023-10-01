@@ -2,7 +2,15 @@ import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
-import { Order, OrderStatus, Prisma } from "@prisma/client";
+import {
+  CurrencyType,
+  Order,
+  OrderRequestStatus,
+  OrderStatus,
+  PaymentType,
+  Prisma,
+  TableStatus,
+} from "@prisma/client";
 import { IOrderRequestForDashboard } from "./orderRequest";
 import { IRestaurantTable } from "./restaurantTable";
 
@@ -63,7 +71,7 @@ export async function getActiveOrderByTableIdAndOrderId(
   );
 }
 
-export async function getActiveOrderById(
+export async function getOrderById(
   orderId: string | undefined | null
 ): Promise<Order | null> {
   if (!orderId) {
@@ -71,12 +79,9 @@ export async function getActiveOrderById(
   }
 
   return prismaRequestHandler(
-    prisma.order.findFirst({
+    prisma.order.findUnique({
       where: {
         id: orderId,
-        status: {
-          in: [OrderStatus.PENDING, OrderStatus.ORDERED],
-        },
       },
       include: {
         table: {
@@ -85,11 +90,8 @@ export async function getActiveOrderById(
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
     }),
-    "getActiveOrderById"
+    "getOrderById"
   );
 }
 
@@ -134,6 +136,38 @@ export async function getCompletedOrdersByTableId(
   );
 }
 
+export async function getActiveOrderByTableNumberAndOrderNumber(
+  tableType: TableType | undefined | null,
+  tableNumber: number | undefined | null,
+  orderNumber: number | undefined | null
+): Promise<Order | null> {
+  if (!tableNumber || !orderNumber || !tableType) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.order.findFirst({
+      where: {
+        orderNumber,
+        table: {
+          tableType,
+          number: tableNumber,
+        },
+        status: {
+          notIn: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
+        },
+      },
+      include: {
+        table: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+    "getActiveOrderByTableNumberAndOrderNumber"
+  );
+}
+
 export async function getAllOrder(): Promise<Order[] | null> {
   return null;
 }
@@ -158,9 +192,10 @@ export async function createOrder(
   );
 }
 
-export async function updateOrderById<
-  T extends Partial<Omit<Order, "id" | "tableId">>
->(orderId: string | undefined | null, updateInfo: T): Promise<Order> {
+export async function updateOrderById(
+  orderId: string | undefined | null,
+  updateInfo: Prisma.OrderUpdateInput
+): Promise<Order> {
   const { hasNullUndefined } = checkNullUndefined(updateInfo);
 
   if (!orderId || hasNullUndefined) {
@@ -172,8 +207,67 @@ export async function updateOrderById<
       where: {
         id: orderId,
       },
-      data: updateInfo as Prisma.OrderUpdateInput,
+      data: updateInfo,
     }),
     "updateOrderById"
+  );
+}
+
+export async function createOrderPaymentAndUpateOrderStatus(
+  orderId: string | undefined | null,
+  totalAmount: number,
+  paymentType?: PaymentType,
+  currencyType?: CurrencyType
+): Promise<Order> {
+  if (!orderId || !totalAmount) {
+    throw new ValidationError(
+      "Failed to update order status and create order payment. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.order.update({
+      where: {
+        id: orderId,
+      },
+      data: {
+        status: OrderStatus.COMPLETED,
+        table: {
+          update: {
+            status: TableStatus.AVAILABLE,
+          },
+        },
+        orderPayment: {
+          create: {
+            totalAmount,
+            currency: currencyType || CurrencyType.JPY,
+            paymentType: paymentType || PaymentType.CASH,
+          },
+        },
+        orderRequests: {
+          updateMany: [
+            {
+              where: {
+                orderId,
+                status: OrderRequestStatus.ACCEPTED,
+              },
+              data: {
+                status: OrderRequestStatus.COMPLETED,
+              },
+            },
+            {
+              where: {
+                orderId,
+                status: OrderRequestStatus.PLACED,
+              },
+              data: {
+                status: OrderRequestStatus.CANCELLED,
+              },
+            },
+          ],
+        },
+      },
+    }),
+    "updateOrderStatusAndCreateOrderPayment"
   );
 }

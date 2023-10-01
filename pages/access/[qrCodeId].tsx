@@ -1,11 +1,10 @@
-import LoadingOverlay from "@/components/LoadingOverlay";
 import {
   ACCESS_QR_CODE_ERROR,
   COMMON_ERROR,
 } from "@/constants/errorMessage/client";
 import { RESTAURANT_URL } from "@/constants/url";
 import {
-  activateOrder,
+  createAndActivateOrder,
   getActiveOrderByTableId,
   getRestaurantTableByQrCodeId,
 } from "@/database";
@@ -18,27 +17,17 @@ import {
 import { TableStatus } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
 
 type QrCodeAccessProps = {
   initErrMsg: string;
 };
 
 export default function QrCodeAccess({ initErrMsg }: QrCodeAccessProps) {
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   const handleRetry = () => {
     router.reload();
   };
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
-
-  if (loading) {
-    return <LoadingOverlay />;
-  }
 
   return (
     initErrMsg && (
@@ -83,7 +72,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
         throw new UnexpectedError(COMMON_ERROR.SYSTEM_BUSY);
       }
 
-      const activatedOrder = await activateOrder(restaurantTable.id);
+      const activatedOrder = await createAndActivateOrder(restaurantTable.id);
       const encodedOrderId = Buffer.from(activatedOrder.id).toString("base64");
       return {
         redirect: {

@@ -1,6 +1,11 @@
+interface ConvertDatesToIntlStringOptions {
+  hideSecond?: boolean;
+  onlyTime?: boolean;
+}
+
 export default function convertDatesToIntlString(
   date: Date,
-  hiddenSecond = false
+  options?: ConvertDatesToIntlStringOptions
 ): string | null {
   if (!date || new Date(date).toString() === "Invalid Date") {
     // Send error to Sentry
@@ -9,14 +14,17 @@ export default function convertDatesToIntlString(
   }
 
   const intlOption: Intl.DateTimeFormatOptions = {
-    month: "numeric",
-    day: "numeric",
     hour: "numeric",
     minute: "numeric",
   };
 
-  if (!hiddenSecond) {
+  if (!options?.hideSecond) {
     intlOption.second = "numeric";
+  }
+
+  if (!options?.onlyTime) {
+    intlOption.month = "numeric";
+    intlOption.day = "numeric";
   }
 
   const intl = new Intl.DateTimeFormat("en-US", intlOption);

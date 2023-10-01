@@ -11,7 +11,7 @@ import { useEffect } from "react";
 import useSWR from "swr";
 import Loader from "../Loader";
 
-type OrderHistoryDetailProps = {
+type OrderItemDetailProps = {
   tableId: string | undefined;
   orderId: string | undefined;
   queries?: Record<string, any>;
@@ -26,12 +26,12 @@ const getAllQuantityOfOrderItems = (orderItem: IOrderItem[] | undefined) => {
   return orderItem.reduce((totalAcc, item) => totalAcc + item.quantity, 0);
 };
 
-export default function OrderHistoryDetail({
+export default function OrderItemDetail({
   tableId,
   orderId,
   queries,
   onOrderItemDataChange,
-}: OrderHistoryDetailProps) {
+}: OrderItemDetailProps) {
   const {
     data: orderItemData,
     error: orderItemErr,

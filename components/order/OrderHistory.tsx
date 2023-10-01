@@ -16,7 +16,7 @@ import { SetStateAction, useEffect, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 import Loader from "../Loader";
 import BottomSheet from "../ui/BottomSheet";
-import OrderHistoryDetail from "./OrderHistoryDetail";
+import OrderItemDetail from "./OrderItemDetail";
 
 export default function OrderHistory() {
   const orderInfo = useRecoilValue(orderInfoState);
@@ -78,7 +78,7 @@ export default function OrderHistory() {
 
   return (
     <BottomSheet handleState={[isVisible, openOrderHistory]}>
-      <OrderHistoryDetail
+      <OrderItemDetail
         tableId={orderInfo?.tableId}
         orderId={orderInfo?.orderId}
         queries={{

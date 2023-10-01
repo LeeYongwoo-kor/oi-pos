@@ -288,6 +288,7 @@ model Order {
   id               String   @id @default(cuid())
   tableId          String   @map("table_id")
   status           OrderStatus
+  orderNumber      Int     @map("order_number") @default(autoincrement())
   customerName     String?  @map("customer_name")
   createdAt        DateTime @default(now())
   updatedAt        DateTime? @updatedAt
@@ -298,12 +299,16 @@ model Order {
 
   @@map("orders")
   @@index([tableId])
+  @@index([orderNumber])
 }
 
 model OrderRequest {
   id          String   @id @default(cuid())
   orderId     String   @map("order_id")
   status      OrderRequestStatus @default(PLACED)
+  orderRequestNumber Int @map("order_request_number") @default(autoincrement())
+  rejectedReason String? @map("rejected_reason")
+  rejectedReasonDisplay Boolean @map("rejected_reason_display") @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime? @updatedAt
   orderItems  OrderItem[]
@@ -312,6 +317,7 @@ model OrderRequest {
 
   @@map("orderrequests")
   @@index([orderId])
+  @@index([orderRequestNumber])
 }
 
 model OrderItem {
@@ -410,6 +416,7 @@ enum TableStatus {
 enum OrderStatus {
   PENDING
   ORDERED
+  PAYMENT_REQUESTED
   CANCELLED
   COMPLETED
 }
@@ -451,8 +458,7 @@ enum PlanType {
 
 enum PaymentType {
   CASH
-  VISA
-  MASTERCARD
+  CREDIT_CARD
   PAYPAY
   LINEPAY
 }

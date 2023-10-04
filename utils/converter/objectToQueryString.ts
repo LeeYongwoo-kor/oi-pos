@@ -11,8 +11,8 @@ export default function objectToQueryString<T>(obj: T | undefined): string {
     if (
       value === undefined ||
       value === null ||
-      value.trim() === "" ||
-      isEmpty(value)
+      value === "" ||
+      (Array.isArray(value) && isEmpty(value))
     ) {
       continue;
     }

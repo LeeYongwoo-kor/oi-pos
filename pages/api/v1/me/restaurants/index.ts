@@ -1,6 +1,6 @@
 import { ME_ENDPOINT } from "@/constants/endpoint";
 import { RESTAURANT_URL } from "@/constants/url";
-import { getRestaurantAllInfo } from "@/database";
+import { getRestaurantByUserId } from "@/database";
 import getFromCache from "@/lib/server/cache/getFromCache";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { NotFoundError } from "@/lib/shared/error/ApiError";
@@ -15,7 +15,7 @@ async function handler(
   const restaurant = await getFromCache(
     ME_ENDPOINT.RESTAURANT,
     session?.id,
-    () => getRestaurantAllInfo(session?.id)
+    () => getRestaurantByUserId(session?.id)
   );
   if (!restaurant) {
     throw NotFoundError.builder()

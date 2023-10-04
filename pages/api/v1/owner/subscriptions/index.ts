@@ -22,6 +22,7 @@ async function handler(
 
     return res.status(200).json(subscription);
   }
+
   if (req.method === Method.POST) {
     const { planId }: IPostSubscriptionBody = req.body;
     const createSubscription = await upsertSubscription(session?.id, planId);

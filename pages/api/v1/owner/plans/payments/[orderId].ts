@@ -6,12 +6,11 @@ import {
   updatePlanPaymentStatus,
 } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { NotFoundError } from "@/lib/shared/error/ApiError";
+import { NotFoundError, ValidationError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IGetPaymentQuery {
   orderId: string;
-  [key: string]: string | string[] | undefined;
 }
 export interface IPostPaymentBody {
   planId: string;
@@ -30,7 +29,10 @@ export interface IDeletePaymentBody {
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.GET) {
-    const { orderId } = req.query as IGetPaymentQuery;
+    const { orderId } = req.query;
+    if (!orderId || typeof orderId !== "string") {
+      throw new ValidationError("Failed to get payment info. Please try again");
+    }
 
     const payment = await getPlanPaymentByOrderId(orderId);
     if (!payment) {

@@ -1,6 +1,6 @@
 import { getUserByEmail } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { NotFoundError } from "@/lib/shared/ApiError";
+import { NotFoundError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 

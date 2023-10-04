@@ -3,7 +3,7 @@ import {
   getAllRestaurantPhoneNumbers,
 } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { ValidationError } from "@/lib/shared/ApiError";
+import { ValidationError } from "@/lib/shared/error/ApiError";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IGetPhoneNumberQuery {

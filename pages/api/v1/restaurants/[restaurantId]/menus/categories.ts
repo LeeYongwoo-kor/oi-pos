@@ -1,23 +1,12 @@
-import { Method } from "@/constants/fetch";
 import {
   CreateMenuCategoryParams,
   UpdateMenuCategoryParams,
-  createMenuCategory,
-  createMenuCategoryAndCategoryOptions,
-  deleteMenuCategory,
   getAllCategoriesByRestaurantId,
-  updateMenuCategory,
-  updateMenuCategoryAndUpsertCategoryOptions,
+  getTopSellingItems,
 } from "@/database";
 import awsS3CheckIfFolderExists from "@/lib/server/aws/awsS3CheckIfFolderExists";
-import awsS3Delete from "@/lib/server/aws/awsS3Delete";
-import awsS3Upload from "@/lib/server/aws/awsS3Upload";
 import withApiHandler from "@/lib/server/withApiHandler";
-import {
-  NotFoundError,
-  UnexpectedError,
-  ValidationError,
-} from "@/lib/shared/error/ApiError";
+import { NotFoundError, ValidationError } from "@/lib/shared/error/ApiError";
 import { MenuOptionForm } from "@/utils/menu/validateMenuOptions";
 import isEmpty from "@/utils/validation/isEmpty";
 import {
@@ -42,119 +31,49 @@ export interface IDeleteMenuCategoryBody {
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === Method.GET) {
-    const { restaurantId } = req.query;
-    if (typeof restaurantId !== "string") {
-      throw new ValidationError("Invalid restaurantId type in query");
-    }
-
-    const allCategories = await getAllCategoriesByRestaurantId(restaurantId);
-    if (!isEmpty(allCategories)) {
-      const isExists = await awsS3CheckIfFolderExists(`menus/${restaurantId}/`);
-      if (!isExists) {
-        throw new NotFoundError(
-          "No found folders were found on Cloud Storage. Please try again or contact support for assistance"
-        );
-      }
-    }
-
-    return res.status(200).json(allCategories);
+  const { restaurantId } = req.query;
+  if (typeof restaurantId !== "string") {
+    throw new ValidationError(
+      "Failed to get menu categories. Please try again"
+    );
   }
 
-  if (req.method === Method.POST) {
-    const {
-      menuCategoryInfo,
-      menuCategoryOptions,
-      uploadParams,
-    }: IPostMenuCategoryBody = req.body;
-    if (!menuCategoryInfo.name) {
-      throw new ValidationError("Menu category name is required");
-    }
-
-    if (uploadParams) {
-      await awsS3Upload(uploadParams);
-    }
-
-    try {
-      if (menuCategoryOptions && !isEmpty(menuCategoryOptions)) {
-        const newMenuCategoryWithOptions =
-          await createMenuCategoryAndCategoryOptions(
-            menuCategoryInfo,
-            menuCategoryOptions
-          );
-
-        return res.status(201).json(newMenuCategoryWithOptions);
-      }
-
-      const newMenuCategory = await createMenuCategory(menuCategoryInfo);
-      return res.status(201).json(newMenuCategory);
-    } catch (err: unknown) {
-      if (uploadParams) {
-        const { Bucket, Key }: DeleteObjectCommandInput = uploadParams;
-        await awsS3Delete({ Bucket, Key });
-      }
-
-      throw err;
-    }
-  }
-
-  if (req.method === Method.PATCH) {
-    const {
-      menuCategoryInfo,
-      menuCategoryOptions,
-      uploadParams,
-    }: IPatchMenuCategoryBody = req.body;
-    if (!menuCategoryInfo.name) {
-      throw new ValidationError("Menu category name is required");
-    }
-
-    if (uploadParams) {
-      await awsS3Upload(uploadParams);
-    }
-
-    try {
-      if (menuCategoryOptions && !isEmpty(menuCategoryOptions)) {
-        const newMenuCategoryWithOptions =
-          await updateMenuCategoryAndUpsertCategoryOptions(
-            menuCategoryInfo,
-            menuCategoryOptions
-          );
-
-        return res.status(200).json(newMenuCategoryWithOptions);
-      }
-
-      const menuCategories = await updateMenuCategory(
-        menuCategoryInfo.id,
-        menuCategoryInfo
+  const allCategories = await getAllCategoriesByRestaurantId(restaurantId);
+  if (!isEmpty(allCategories)) {
+    const isExists = await awsS3CheckIfFolderExists(`menus/${restaurantId}/`);
+    if (!isExists) {
+      throw new NotFoundError(
+        "No found folders were found on Cloud Storage. Please try again or contact support for assistance"
       );
-      return res.status(200).json(menuCategories);
-    } catch (err) {
-      if (uploadParams) {
-        const { Bucket, Key }: DeleteObjectCommandInput = uploadParams;
-        await awsS3Delete({ Bucket, Key });
+    }
+  }
+
+  const topSellingItems = await getTopSellingItems(5);
+
+  if (allCategories && !isEmpty(allCategories) && !isEmpty(topSellingItems)) {
+    let topSellingItemsCount = topSellingItems.length;
+
+    outer: for (const category of allCategories) {
+      for (const menuItem of category.menuItems) {
+        for (let k = 0; k < topSellingItems.length; k++) {
+          if (topSellingItems[k].menuItemId === menuItem.id) {
+            menuItem.rank = k + 1;
+            topSellingItemsCount--;
+            if (topSellingItemsCount === 0) {
+              break outer;
+            }
+            break;
+          }
+        }
       }
-
-      throw err;
     }
   }
 
-  if (req.method === Method.DELETE) {
-    const { menuCategoryId, deleteParams }: IDeleteMenuCategoryBody = req.body;
-    if (!menuCategoryId) {
-      throw new UnexpectedError("Error occurred while deleting menu category");
-    }
-
-    if (deleteParams) {
-      await awsS3Delete(deleteParams);
-    }
-
-    const deletedMenuCategory = await deleteMenuCategory(menuCategoryId);
-    return res.status(200).json(deletedMenuCategory);
-  }
+  return res.status(200).json(allCategories);
 }
 
 export default withApiHandler({
-  methods: ["GET", "POST", "PATCH", "DELETE"],
+  methods: ["GET"],
   handler,
-  isLoginRequired: ["POST", "PATCH", "DELETE"],
+  isLoginRequired: false,
 });

@@ -2,8 +2,15 @@ import { ValidationError } from "@/lib/shared/error/ApiError";
 import isValidEnumValue from "./isValidEnumValue";
 import isEmpty from "./isEmpty";
 
+type QueryParameterDefinitionType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "date"
+  | { enum: object };
+
 type QueryParameterDefinition = {
-  type: "string" | "number" | "boolean" | "date" | { enum: object };
+  type: QueryParameterDefinitionType;
   required?: boolean;
 };
 
@@ -13,6 +20,68 @@ type TypeDefinition<T> = {
 
 function isEnumDefinition(type: any): type is { enum: object } {
   return typeof type === "object" && "enum" in type;
+}
+
+function validateValue(
+  key: string,
+  value: any,
+  type: QueryParameterDefinitionType,
+  required: boolean
+): boolean {
+  if (
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    (Array.isArray(value) && isEmpty(value))
+  ) {
+    if (required) {
+      // Send error to sentry
+      console.error(`Missing query parameter: ${key}`);
+      return false;
+    }
+    return true;
+  }
+
+  if (isEnumDefinition(type)) {
+    return isValidEnumValue(value, type.enum);
+  }
+
+  switch (type) {
+    case "string":
+      return typeof value === "string";
+    case "number":
+      return !isNaN(Number(value));
+    case "boolean":
+      return value === "true" || value === "false";
+    case "date":
+      return !isNaN(new Date(value).getTime());
+    default:
+      return false;
+  }
+}
+
+function convertValue(
+  value: any,
+  type: QueryParameterDefinitionType
+): string | string[] | number | boolean | Date | null {
+  if (isEnumDefinition(type)) {
+    return Array.isArray(value) ? value : [value];
+  }
+
+  switch (type) {
+    case "string":
+      return value;
+    case "number":
+      return Number(value);
+    case "boolean":
+      return value === "true";
+    case "date":
+      return new Date(value);
+    default:
+      // Send error to sentry
+      console.error(`Invalid query parameter: ${value}`);
+      throw new ValidationError("Failed to fetch. Please try again");
+  }
 }
 
 export default function validateAndConvertQuery<T>(
@@ -25,35 +94,17 @@ export default function validateAndConvertQuery<T>(
     string,
     QueryParameterDefinition
   ][]) {
-    const value = query[key as keyof typeof query];
-    if (
-      (Array.isArray(value) && isEmpty(value)) ||
-      (typeof value === "string" && value === "") ||
-      value === null ||
-      value === undefined
-    ) {
-      if (required) {
-        // Send error to sentry
-        console.error(`Missing query parameter: ${key}`);
-        throw new ValidationError("Failed to fetch. Please try again");
-      }
-      continue;
+    const value = query[key];
+
+    if (!validateValue(key, value, type, Boolean(required))) {
+      throw new ValidationError("Failed to fetch. Please try again");
     }
 
-    if (type === "date" && typeof value === "string") {
-      params[key as keyof T] = new Date(value) as any;
-    } else if (isEnumDefinition(type) && isValidEnumValue(value, type.enum)) {
-      params[key as keyof T] = Array.isArray(value) ? value : ([value] as any);
-    } else if (type === "number" && !isNaN(Number(value))) {
-      params[key as keyof T] = Number(value) as any;
-    } else if (type === "boolean" && (value === "true" || value === "false")) {
-      (params[key as keyof T] as any) = value === "true";
-    } else if (type === "string" && typeof value === "string") {
-      params[key as keyof T] = value as any;
-    } else {
-      // Send error to sentry
-      console.error(`Invalid query parameter: ${key}`);
-      throw new ValidationError("Failed to fetch. Please try again");
+    if (
+      (value !== null && value !== undefined) ||
+      (Array.isArray(value) && !isEmpty(value))
+    ) {
+      params[key as keyof T] = convertValue(value, type) as any;
     }
   }
 

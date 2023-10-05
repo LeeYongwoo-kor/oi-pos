@@ -1,7 +1,4 @@
-import {
-  RESTAURANT_ORDER_ENDPOINT,
-  RESTAURANT_TABLE_ENDPOINT,
-} from "@/constants/endpoint";
+import { ME_ENDPOINT, OWNER_ENDPOINT } from "@/constants/endpoint";
 import { ALARM_ORDER_REQUEST_LIMIT, Method } from "@/constants/fetch";
 import { PROMPT_DIALOG_MESSAGE } from "@/constants/message/prompt";
 import { MULTIPLICATION_SYMBOL } from "@/constants/unicode";
@@ -9,14 +6,21 @@ import { IOrderRequestForAlarm } from "@/database";
 import { usePrompt } from "@/hooks/usePrompt";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { IPatchOrderRequestBody } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders/[orderId]/requests/[requestId]";
+import { IGetMyOrderRequestRawQuery } from "@/pages/api/v1/me/restaurants/tables/orders/requests";
+import { IPatchOrderRequestBody } from "@/pages/api/v1/owner/restaurants/tables/[restaurantTableId]/orders/[orderId]/requests/[requestId]";
 import {
   showAlarmState,
   sortRequestedOrderState,
+  tableNumberState,
+  tableTypeState,
 } from "@/recoil/state/alarmState";
+import buildEndpointWithQuery from "@/utils/converter/buildEndpointWithQuery";
 import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
 import convertNumberToOrderNumber from "@/utils/converter/convertNumberToOrderNumber";
-import { OrderRequest, OrderRequestStatus } from "@prisma/client";
+import isEmpty from "@/utils/validation/isEmpty";
+import { faFilter } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { OrderRequest, OrderRequestStatus, TableType } from "@prisma/client";
 import { useEffect, useRef, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 import { useSWRConfig } from "swr";
@@ -33,6 +37,8 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
     sortRequestedOrderState
   );
   const isVisible = useRecoilValue(showAlarmState);
+  const [tableType, setTableType] = useRecoilState(tableTypeState);
+  const [tableNumber, setTableNumber] = useRecoilState(tableNumberState);
   const { mutate } = useSWRConfig();
   const {
     data,
@@ -47,16 +53,21 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
       if (!restaurantId || (previousPageData && !previousPageData.length)) {
         return null;
       }
-      const offset = index * ALARM_ORDER_REQUEST_LIMIT;
-      return isSortedRequest
-        ? `${RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_FOR_ALARM(
-            restaurantId
-          )}?limit=${ALARM_ORDER_REQUEST_LIMIT}&offset=${offset}&status=${
-            OrderRequestStatus.PLACED
-          }`
-        : `${RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_FOR_ALARM(
-            restaurantId
-          )}?limit=${ALARM_ORDER_REQUEST_LIMIT}&offset=${offset}`;
+
+      const queries: IGetMyOrderRequestRawQuery = {
+        limit: ALARM_ORDER_REQUEST_LIMIT,
+        offset: index * ALARM_ORDER_REQUEST_LIMIT,
+        status: isSortedRequest ? OrderRequestStatus.PLACED : undefined,
+        tableNumber: tableNumber || undefined,
+        tableType: tableType === "all" ? undefined : tableType,
+      };
+
+      const endpoint = buildEndpointWithQuery(
+        ME_ENDPOINT.ORDER_REQUEST,
+        queries
+      );
+
+      return endpoint;
     },
     { refreshInterval: 5000 }
   );
@@ -65,7 +76,7 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
     IPatchOrderRequestBody,
     OrderRequestDynamicUrl
   >(({ restaurantTableId, orderId, requestId }) => {
-    return RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_BY_ID(
+    return OWNER_ENDPOINT.RESTAURANT.TABLE.ORDER.REQUEST(
       restaurantTableId,
       orderId,
       requestId
@@ -79,8 +90,6 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
   const allData: IOrderRequestForAlarm[] = data
     ? ([] as IOrderRequestForAlarm[]).concat(...data)
     : [];
-
-  console.log("allData", allData);
 
   const handleStatusChange = async (
     orderRequest: IOrderRequestForAlarm,
@@ -120,7 +129,7 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
     await updateOrderRequest(params, {
       dynamicUrl: { restaurantTableId: tableId, orderId, requestId: id },
       isMutate: false,
-      additionalKeys: [RESTAURANT_TABLE_ENDPOINT.BASE],
+      additionalKeys: [ME_ENDPOINT.TABLE],
     });
   };
 
@@ -148,7 +157,7 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
 
   useEffect(() => {
     if (data) {
-      mutate(RESTAURANT_TABLE_ENDPOINT.BASE);
+      mutate(ME_ENDPOINT.TABLE);
     }
   }, [data]);
 
@@ -212,6 +221,38 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
         >
           &raquo;
         </button>
+        <div className="flex items-center text-[0.95rem] mb-1 space-x-2 text-base border border-gray-200">
+          <FontAwesomeIcon
+            className="pl-1 text-gray-600"
+            size="sm"
+            icon={faFilter}
+          />
+          <select
+            value={tableType}
+            onChange={(e) => {
+              setTableType(e.target.value);
+              setTableNumber("");
+            }}
+          >
+            <option value="all">All</option>
+            {Object.values(TableType).map((type, index) => (
+              <option key={type + index} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          <input
+            disabled={tableType === "all"}
+            className={`font-semibold ${
+              tableType === "all" ? "bg-gray-200" : ""
+            }`}
+            type="text"
+            maxLength={3}
+            placeholder="Number"
+            value={tableNumber}
+            onChange={(e) => setTableNumber(e.target.value)}
+          />
+        </div>
         <div className="flex items-center space-x-2">
           <span>All</span>
           <div className="relative inline-block w-10 align-middle cursor-pointer select-none">
@@ -321,7 +362,15 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
               <Loader />
             </div>
           )}
-          <div className="h-1" ref={sentinelRef}></div>
+          {isEmpty(allData) && (
+            <div className="flex items-center justify-center h-full text-3xl font-bold text-gray-400">
+              No Alarm
+            </div>
+          )}
+          <div
+            className={`${isEmpty(allData) ? "hidden" : "h-1"}`}
+            ref={sentinelRef}
+          ></div>
         </div>
       </div>
     </div>

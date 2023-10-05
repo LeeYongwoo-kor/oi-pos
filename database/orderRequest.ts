@@ -1,6 +1,7 @@
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
+import { IGetMyOrderRequestQuery } from "@/pages/api/v1/me/restaurants/tables/orders/requests";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import {
@@ -21,7 +22,9 @@ export interface IOrderRequest extends OrderRequest {
 
 export interface IOrderRequestForAlarm extends OrderRequest {
   order: {
+    orderNumber: number;
     table: {
+      id: string;
       number: number;
       tableType: TableType;
     };
@@ -99,31 +102,28 @@ export async function getOrderRequestsByOrderIdAndStatus(
   );
 }
 
-export async function getAllOrderRequestsInUseByRestaurantId(
+export async function getOrderRequestsForAlarm(
   restaurantId: string | undefined | null,
-  limit?: number | undefined,
-  offset?: number | undefined,
-  orderRequestStatus?: OrderRequestStatus | undefined
+  { status, tableType, tableNumber, limit, offset }: IGetMyOrderRequestQuery
 ): Promise<IOrderRequestForAlarm[] | null> {
   if (!restaurantId) {
     return null;
   }
 
-  let orderRequestStatusQuery: Prisma.OrderRequestWhereInput = {
-    status: {
-      in: [
-        OrderRequestStatus.ACCEPTED,
-        OrderRequestStatus.PLACED,
-        OrderRequestStatus.CANCELLED,
-      ],
-    },
-  };
+  const orderRequestStatusQuery: Prisma.OrderRequestWhereInput = status
+    ? { status: { in: status } }
+    : {
+        status: {
+          notIn: [OrderRequestStatus.COMPLETED],
+        },
+      };
 
-  if (orderRequestStatus) {
-    orderRequestStatusQuery = {
-      status: orderRequestStatus,
-    };
-  }
+  const tableConditions: Prisma.RestaurantTableWhereInput = {
+    restaurantId,
+    status: TableStatus.OCCUPIED,
+    ...(tableType && { tableType: { in: tableType } }),
+    ...(tableNumber && { number: tableNumber }),
+  };
 
   return prismaRequestHandler(
     prisma.orderRequest.findMany({
@@ -136,11 +136,10 @@ export async function getAllOrderRequestsInUseByRestaurantId(
         ...orderRequestStatusQuery,
         order: {
           table: {
-            restaurantId,
-            status: TableStatus.OCCUPIED,
+            ...tableConditions,
           },
           status: {
-            in: [OrderStatus.PENDING, OrderStatus.ORDERED],
+            notIn: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
           },
         },
       },
@@ -152,8 +151,10 @@ export async function getAllOrderRequestsInUseByRestaurantId(
         },
         order: {
           select: {
+            orderNumber: true,
             table: {
               select: {
+                id: true,
                 number: true,
                 tableType: true,
               },
@@ -162,7 +163,29 @@ export async function getAllOrderRequestsInUseByRestaurantId(
         },
       },
     }),
-    "getAllOrderRequestsInUseByRestaurantId"
+    "getOrderRequestsForAlarm"
+  );
+}
+
+export async function getOrderRequestByConditions(
+  orderId: string | undefined | null,
+  conditions: Prisma.OrderRequestWhereInput
+): Promise<OrderRequest[] | null> {
+  if (!orderId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.orderRequest.findMany({
+      where: {
+        orderId,
+        ...conditions,
+      },
+      include: {
+        orderItems: true,
+      },
+    }),
+    "getOrderRequestByConditions"
   );
 }
 
@@ -226,15 +249,14 @@ export async function createOrderRequestWithItemsAndOptions(
   );
 }
 
-export async function updateOrderRequest<
-  T extends Partial<Omit<OrderRequest, "id" | "orderId">>
->(
+export async function updateOrderRequest(
+  orderId: string | undefined | null,
   orderRequestId: string | undefined | null,
-  updateInfo: T
+  updateInfo: Prisma.OrderRequestUpdateInput
 ): Promise<OrderRequest> {
   const { hasNullUndefined } = checkNullUndefined(updateInfo);
 
-  if (!orderRequestId || hasNullUndefined) {
+  if (!orderId || !orderRequestId || hasNullUndefined) {
     throw new ValidationError(
       "Failed to update order request. Please try again later"
     );
@@ -245,8 +267,61 @@ export async function updateOrderRequest<
       where: {
         id: orderRequestId,
       },
-      data: updateInfo,
+      data: {
+        order: {
+          connect: {
+            id: orderId,
+          },
+        },
+        ...updateInfo,
+      },
     }),
     "updateOrderRequest"
+  );
+}
+
+export async function updateOrderRequestStatus(
+  orderRequestId: string | undefined | null,
+  status: OrderRequestStatus
+): Promise<OrderRequest> {
+  if (!orderRequestId || !status) {
+    throw new ValidationError(
+      "Failed to update order request status. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.orderRequest.update({
+      where: {
+        id: orderRequestId,
+      },
+      data: {
+        status,
+      },
+    }),
+    "updateOrderRequestStatus"
+  );
+}
+
+export async function updateOrderRequestRejectedReasonDisplay(
+  orderId: string | undefined | null,
+  rejectedFlag: boolean | undefined
+): Promise<Prisma.BatchPayload> {
+  if (!orderId || rejectedFlag === undefined) {
+    throw new ValidationError(
+      "Failed to update order request status. Please try again later"
+    );
+  }
+
+  return prismaRequestHandler(
+    prisma.orderRequest.updateMany({
+      where: {
+        orderId,
+      },
+      data: {
+        rejectedReasonDisplay: rejectedFlag,
+      },
+    }),
+    "updateOrderRequestRejectedReasonDisplay"
   );
 }

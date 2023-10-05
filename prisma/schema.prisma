@@ -17,7 +17,7 @@ model User {
   id            String    @id @default(cuid())
   email         String?   @unique 
   role          UserRole  @default(OWNER)
-  status        UserStatus @default(ACTIVE)
+  status        UserStatus @default(INACTIVE)
   emailVerified DateTime? @map("email_verified")
   name          String?
   image         String?

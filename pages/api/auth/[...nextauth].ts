@@ -1,4 +1,9 @@
 import {
+  AUTH_EXPECTED_ERROR,
+  AUTH_QUERY_PARAMS,
+} from "@/constants/errorMessage/auth";
+import { AUTH_ERROR_URL, AUTH_URL } from "@/constants/url";
+import {
   createAccountByNewProvider,
   getAccount,
   getUserByEmail,
@@ -6,10 +11,10 @@ import {
 } from "@/database";
 import { deleteVerificationTokens } from "@/database/verificationToken";
 import { generateVerifyLoginEmail } from "@/email/generateVerifyLoginEmail";
-import { withErrorRetry } from "@/lib/server/withErrorRetry";
 import prisma from "@/lib/services/prismadb";
 import { sendEmail } from "@/lib/services/sendEmail";
-import { CustomError } from "@/lib/shared/CustomError";
+import { CustomError } from "@/lib/shared/error/CustomError";
+import { withErrorRetry } from "@/lib/shared/withErrorRetry";
 import { assignRefreshToken } from "@/utils/nextauth/assignRefreshToken";
 import { verifyUserInformation } from "@/utils/nextauth/verifyUserInformation";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
@@ -83,8 +88,6 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     // strategy: "database",
     maxAge: 60 * 60 * 24 * 28, // 28 days
-    // Note: This option is ignored if using JSON Web Tokens
-    // updateAge: 60 * 60 * 24, // 24 hours
   },
   jwt: {
     maxAge: 60 * 15, // 15 minutes
@@ -93,7 +96,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     // The jwt callback is called whenever a JSON Web Token is created or updated
     async jwt({ token, user, account, profile, isNewUser }) {
-      console.log("called next-auth jwt callback");
+      if (process.env.NODE_ENV === "development") {
+        console.log("next-auth jwt callback called");
+      }
       // new user registration
       if (isNewUser) {
         try {
@@ -105,8 +110,7 @@ export const authOptions: NextAuthOptions = {
           console.error("Update user role failed: ", errMessage);
           return {
             ...token,
-            errorName: "UpdateUserError",
-            message: errMessage,
+            errorName: AUTH_EXPECTED_ERROR.UPDATE_USER_ERROR,
           };
         }
       }
@@ -115,8 +119,7 @@ export const authOptions: NextAuthOptions = {
         if (user.status !== UserStatus.ACTIVE) {
           return {
             ...token,
-            errorName: "NotActiveUser",
-            message: "You are not active user. Please contact support team.",
+            errorName: AUTH_EXPECTED_ERROR.NOT_ACTIVE_USER,
           };
         }
         token = { ...token, status: user.status, role: user.role };
@@ -165,7 +168,9 @@ export const authOptions: NextAuthOptions = {
     },
     // The session callback is called whenever a Session is accessed
     async session({ session, user, token }) {
-      console.log("called next-auth session callback");
+      if (process.env.NODE_ENV === "development") {
+        console.log("next-auth session callback called");
+      }
       const newSession: Partial<Session> = {
         ...session,
         user: {
@@ -189,6 +194,9 @@ export const authOptions: NextAuthOptions = {
         if (token.isAllInfoRegistered) {
           newSession.isAllInfoRegistered = token.isAllInfoRegistered;
         }
+        if (token.restaurantId) {
+          newSession.restaurantId = token.restaurantId;
+        }
       }
 
       return newSession as Session;
@@ -198,7 +206,7 @@ export const authOptions: NextAuthOptions = {
       try {
         if (email && !email.verificationRequest) {
           // not verified email
-          return "/errors/EmailAlreadyInUse?allowAccess=true";
+          return `${AUTH_ERROR_URL.BASE}/${AUTH_EXPECTED_ERROR.EMAIL_ALREADY_IN_USE}?${AUTH_QUERY_PARAMS.ALLOW_ACCESS}=true`;
         }
 
         const userByEmail = await withErrorRetry<User | null>(() =>
@@ -209,7 +217,7 @@ export const authOptions: NextAuthOptions = {
           if (email) {
             // not verified email
             if (!userByEmail.emailVerified) {
-              return "/errors/EmailAlreadyInUse?allowAccess=true";
+              return `${AUTH_ERROR_URL.BASE}/${AUTH_EXPECTED_ERROR.EMAIL_ALREADY_IN_USE}?${AUTH_QUERY_PARAMS.ALLOW_ACCESS}=true`;
             }
 
             return true;
@@ -235,7 +243,7 @@ export const authOptions: NextAuthOptions = {
           "An error occurred while checking the account: ",
           errMessage
         );
-        return `/errors/PrismaError?allowAccess=true`;
+        return `${AUTH_ERROR_URL.BASE}/${AUTH_EXPECTED_ERROR.PRISMA_ERROR}?${AUTH_QUERY_PARAMS.ALLOW_ACCESS}=true`;
       }
     },
   },
@@ -251,8 +259,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    verifyRequest: "/auth/verify-request",
-    signIn: "/auth/signin",
+    verifyRequest: AUTH_URL.VERIFY_REQUEST,
+    signIn: AUTH_URL.LOGIN,
   },
 };
 

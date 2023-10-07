@@ -1,44 +1,50 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
-import { ME_ENDPOINT, RESTAURANT_ENDPOINT } from "@/constants/endpoint";
 import {
-  AUTH_EXPECTED_ERROR,
-  AUTH_QUERY_PARAMS,
-} from "@/constants/errorMessage/auth";
-import { COMMON_ERROR } from "@/constants/errorMessage/client";
+  ME_ENDPOINT,
+  OWNER_ENDPOINT,
+  RESTAURANT_ENDPOINT,
+} from "@/constants/endpoint";
 import { RESTAURANT_INFO_ERROR } from "@/constants/errorMessage/validation";
 import { EXTERNAL_ENDPOINT } from "@/constants/external";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
-import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
+import { RESTAURANT_URL } from "@/constants/url";
 import { IRestaurant, getRestaurant } from "@/database";
 import useLoading from "@/hooks/context/useLoading";
+import { useAlert } from "@/hooks/useAlert";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { ApiError } from "@/lib/shared/error/ApiError";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { IPutRestaurantInfoBody } from "@/pages/api/v1/restaurants/infos";
+import withSSRHandler, { InitialMessage } from "@/lib/server/withSSRHandler";
+import { IPutRestaurantInfoBody } from "@/pages/api/v1/owner/restaurants/[restaurantId]";
+import { allInfoRegisteredState } from "@/recoil/state/infoState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import { getInputFormCls } from "@/utils/cssHelper";
-import { isFormChanged } from "@/utils/formHelper";
+import isEmpty from "@/utils/validation/isEmpty";
+import isFormChanged from "@/utils/validation/isFormChanged";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Restaurant } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
-import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { FieldErrors, FieldValues, useForm } from "react-hook-form";
+import { useRecoilValue } from "recoil";
 import useSWR, { SWRConfig } from "swr";
 import * as yup from "yup";
 
 type RestaurantInfoProps = {
   fallbackData: IRestaurant | null;
-  initErrMsg: string;
+  initMsg: InitialMessage | undefined | null;
 };
+
+type PageProps = Pick<RestaurantInfoProps, "initMsg"> & {
+  fallback: any;
+};
+
 interface IAddress {
   address1: string;
   address2: string;
@@ -121,14 +127,14 @@ const useCheckDuplicatePhoneNumber = (
     isDuplicate: boolean;
   }>(
     !errors.phoneNumber && phoneNumber && phoneNumber.length >= 10
-      ? `${RESTAURANT_ENDPOINT.CHECK_PHONE_NUMBER}/${phoneNumber}`
+      ? `${OWNER_ENDPOINT.RESTAURANT.CHECK_PHONE_NUMBER}/${phoneNumber}`
       : null
   );
 
   return { checkDuplicatePhoneNumberResult, checkDuplicatePhoneNumberErr };
 };
 
-function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
+function RestaurantInfo({ fallbackData, initMsg }: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
@@ -146,7 +152,8 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
     data: restaurantInfo,
     error: restaurantInfoErr,
     isValidating,
-  } = useSWR<IRestaurant>(fallbackData ? `${ME_ENDPOINT.RESTAURANT}` : null);
+  } = useSWR<IRestaurant>(fallbackData ? ME_ENDPOINT.RESTAURANT : null);
+  const isAllInfoRegistered = useRecoilValue(allInfoRegisteredState);
 
   const { postCodeResult, postCodeErr, checkPostCodeLoading } =
     useCheckPostCode(watchFields.postCode, errors);
@@ -154,14 +161,23 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
     useCheckDuplicatePhoneNumber(watchFields.phoneNumber, errors);
   const [upsertRestaurantInfo, { error: upsertRestaurantInfoErr }] =
     useMutation<Restaurant, IPutRestaurantInfoBody>(
-      RESTAURANT_ENDPOINT.INFO,
+      OWNER_ENDPOINT.RESTAURANT.BASE(restaurantInfo?.id),
       Method.PUT
     );
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
+  const { showAlert } = useAlert();
   const [addressValue, setAddressValue] = useState("");
   const router = useRouter();
   const withLoading = useLoading();
+
+  const isDisabled =
+    !isValid ||
+    isSubmitting ||
+    checkPostCodeLoading ||
+    postCodeResult?.results === null ||
+    (checkDuplicatePhoneNumberResult?.isDuplicate &&
+      restaurantInfo?.phoneNumber !== watchFields.phoneNumber);
 
   const handleNext = (formData: FieldValues) => {
     if (isSubmitting || !isValid) {
@@ -174,6 +190,13 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
     }
 
     if (restaurantInfo && !isFormChanged(restaurantInfo, formData)) {
+      if (isAllInfoRegistered) {
+        showAlert({
+          title: "案内",
+          message: "変更された内容がありません",
+        });
+        return;
+      }
       router.push(RESTAURANT_URL.SETUP.HOURS);
       return;
     }
@@ -183,6 +206,7 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
       message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
+      buttonType: "info",
       onConfirm: () => withLoading(() => handleSubmitRestaurantInfo(formData)),
       onCancel: () => {
         router.push(RESTAURANT_URL.SETUP.HOURS);
@@ -196,12 +220,19 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
       return;
     }
 
+    const additionalKeys: string[] = [ME_ENDPOINT.RESTAURANT];
+    if (restaurantInfo?.id) {
+      additionalKeys.push(RESTAURANT_ENDPOINT.BASE(restaurantInfo.id));
+    }
+
     const paramData = formData as IPutRestaurantInfoBody;
     const resultData = await upsertRestaurantInfo(paramData, {
-      additionalKeys: [ME_ENDPOINT.RESTAURANT],
+      additionalKeys,
     });
     if (resultData) {
-      await router.push(RESTAURANT_URL.SETUP.HOURS);
+      if (!isAllInfoRegistered) {
+        await router.push(RESTAURANT_URL.SETUP.HOURS);
+      }
       addToast(
         "info",
         restaurantInfo
@@ -244,12 +275,12 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
     }
   }, [restaurantInfo]);
 
-  // If error occurs when SSR, reload the page
+  // If error occurs when SSR, show Toast message
   useEffect(() => {
-    if (initErrMsg) {
-      addToast("error", initErrMsg);
+    if (initMsg && !isEmpty(initMsg)) {
+      addToast(initMsg.type, initMsg.message);
     }
-  }, [initErrMsg]);
+  }, [initMsg?.message, initMsg?.type]);
 
   // Handles any errors related to restaurantInfo
   useEffect(() => {
@@ -322,7 +353,9 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
 
   return (
     <Layout>
-      <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Info" />
+      {!isAllInfoRegistered && (
+        <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Info" />
+      )}
       {isSubmitting && <LoadingOverlay />}
       {isValidating ? (
         <LoadingOverlay />
@@ -468,27 +501,15 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
               )}
             </div>
             <button
-              className={`p-2 text-white bg-green-600 rounded ${
-                isValid &&
-                !isSubmitting &&
-                !checkPostCodeLoading &&
-                postCodeResult?.results !== null &&
-                (checkDuplicatePhoneNumberResult?.isDuplicate === false ||
-                  restaurantInfo?.phoneNumber === watchFields.phoneNumber)
-                  ? "hover:bg-green-700"
-                  : "opacity-60 cursor-not-allowed"
-              }}`}
+              className={`mt-2 p-2 w-28 text-lg text-white bg-green-600 rounded ${
+                isDisabled
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-green-700"
+              }`}
               type="submit"
-              disabled={
-                !isValid ||
-                isSubmitting ||
-                checkPostCodeLoading ||
-                postCodeResult?.results === null ||
-                (checkDuplicatePhoneNumberResult?.isDuplicate &&
-                  restaurantInfo?.phoneNumber !== watchFields.phoneNumber)
-              }
+              disabled={isDisabled}
             >
-              Next
+              {isAllInfoRegistered ? "Edit" : "Next"}
             </button>
           </form>
         </div>
@@ -498,50 +519,19 @@ function RestaurantInfo({ fallbackData, initErrMsg }: RestaurantInfoProps) {
 }
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  try {
-    const session: Session | null = await getServerSession(
-      ctx.req,
-      ctx.res,
-      authOptions
-    );
-
-    if (!session) {
-      return {
-        redirect: {
-          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
-          permanent: false,
-        },
-      };
-    }
-
-    const restaurantInfo = await convertDatesToISOString(
-      getRestaurant(session.id)
-    );
-    return {
-      props: {
-        fallback: {
-          [ME_ENDPOINT.RESTAURANT]: restaurantInfo,
-        },
-      },
-    };
-  } catch (err) {
-    // TODO: Send error to Sentry
-    const errMessage =
-      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
-    console.error(err);
-    return {
-      props: {
-        initErrMsg: errMessage,
-      },
-    };
-  }
+  return await withSSRHandler(ctx, {
+    fetchers: {
+      [ME_ENDPOINT.RESTAURANT]: async (session) =>
+        convertDatesToISOString(await getRestaurant(session?.id)),
+    },
+  });
 }
 
-export default function Page({ fallback, initErrMsg }: any) {
+export default function Page({ fallback, initMsg }: PageProps) {
   const fallbackData = fallback[ME_ENDPOINT.RESTAURANT];
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantInfo fallbackData={fallbackData} initErrMsg={initErrMsg} />
+      <RestaurantInfo fallbackData={fallbackData} initMsg={initMsg} />
     </SWRConfig>
   );
 }

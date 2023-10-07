@@ -1,30 +1,31 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
-import { ME_ENDPOINT, RESTAURANT_ENDPOINT } from "@/constants/endpoint";
 import {
-  AUTH_EXPECTED_ERROR,
-  AUTH_QUERY_PARAMS,
-} from "@/constants/errorMessage/auth";
-import { COMMON_ERROR } from "@/constants/errorMessage/client";
+  ME_ENDPOINT,
+  OWNER_ENDPOINT,
+  RESTAURANT_ENDPOINT,
+} from "@/constants/endpoint";
 import { RESTAURANT_HOURS_ERROR } from "@/constants/errorMessage/validation";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
-import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
+import { RESTAURANT_URL } from "@/constants/url";
 import { IRestaurant, getRestaurant } from "@/database";
 import useLoading from "@/hooks/context/useLoading";
+import { useAlert } from "@/hooks/useAlert";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
+import withSSRHandler, { InitialMessage } from "@/lib/server/withSSRHandler";
 import { ApiError } from "@/lib/shared/error/ApiError";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { IPatchRestaurantInfoBody } from "@/pages/api/v1/restaurants/infos";
+import { IPatchRestaurantInfoBody } from "@/pages/api/v1/owner/restaurants/[restaurantId]";
+import { allInfoRegisteredState } from "@/recoil/state/infoState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
-import { isFormChanged } from "@/utils/formHelper";
 import isEmpty from "@/utils/validation/isEmpty";
 import isEqualArrays from "@/utils/validation/isEqualArrays";
+import isFormChanged from "@/utils/validation/isFormChanged";
 import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { MobileTimePicker } from "@mui/x-date-pickers";
 import { renderTimeViewClock } from "@mui/x-date-pickers/timeViewRenderers";
@@ -33,20 +34,24 @@ import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { GetServerSidePropsContext } from "next";
-import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
+import { useRecoilValue } from "recoil";
 import useSWR, { SWRConfig } from "swr";
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
 type RestaurantHoursProps = {
-  initErrMsg: string;
+  initMsg: InitialMessage | undefined | null;
 };
 
-function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
+type PageProps = RestaurantHoursProps & {
+  fallback: any;
+};
+
+function RestaurantHours({ initMsg }: RestaurantHoursProps) {
   const {
     register,
     handleSubmit,
@@ -58,8 +63,8 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
   } = useForm({
     defaultValues: {
       startTime: "17:00",
-      endTime: "00:00",
-      lastOrder: "23:00",
+      endTime: "23:00",
+      lastOrder: "22:00",
     },
   });
   const {
@@ -75,8 +80,8 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
     },
   });
   const [updateRestaurantInfo, { error: updateRestaurantInfoErr }] =
-    useMutation<Restaurant, IPatchRestaurantInfoBody>(
-      RESTAURANT_ENDPOINT.INFO,
+    useMutation<Restaurant, IPatchRestaurantInfoBody, RestaurantDynamicUrl>(
+      ({ restaurantId }) => OWNER_ENDPOINT.RESTAURANT.BASE(restaurantId),
       Method.PATCH
     );
   const router = useRouter();
@@ -90,11 +95,15 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
     "Sunday",
   ];
   const { startTime, endTime, lastOrder } = watch();
+  const isAllInfoRegistered = useRecoilValue(allInfoRegisteredState);
   const [days, setDays] = useState<string[]>([]);
   const [unspecified, setUnspecified] = useState(false);
   const { addToast } = useToast();
+  const { showAlert } = useAlert();
   const { showConfirm } = useConfirm();
   const withLoading = useLoading();
+
+  const isDisabled = !isEmpty(errors) || isSubmitting;
 
   const sortDays = (days: string[]) => {
     return days.sort((a, b) => {
@@ -147,6 +156,13 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
         !isFormChanged(prevRestaurantHours, formData) &&
         isEqualArrays(safeHolidays, days)
       ) {
+        if (isAllInfoRegistered) {
+          showAlert({
+            title: "案内",
+            message: "変更された内容がありません",
+          });
+          return;
+        }
         router.push(destination);
         return;
       }
@@ -157,9 +173,17 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
       message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
+      buttonType: "info",
       onConfirm: () =>
         withLoading(() => handleSubmitRestaurantHours(formData, destination)),
       onCancel: () => {
+        if (isAllInfoRegistered) {
+          showAlert({
+            title: "案内",
+            message: "変更された内容がありません",
+          });
+          return;
+        }
         router.push(destination);
         return;
       },
@@ -170,7 +194,7 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
     formData: FieldValues,
     destination: string
   ) => {
-    if (isSubmitting || !isEmpty(errors)) {
+    if (isSubmitting || !isEmpty(errors) || !restaurantInfo) {
       return;
     }
 
@@ -180,13 +204,21 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
     } as IPatchRestaurantInfoBody;
 
     const resultData = await updateRestaurantInfo(paramData, {
-      additionalKeys: [ME_ENDPOINT.RESTAURANT],
+      dynamicUrl: {
+        restaurantId: restaurantInfo.id,
+      },
+      additionalKeys: [
+        ME_ENDPOINT.RESTAURANT,
+        RESTAURANT_ENDPOINT.BASE(restaurantInfo.id),
+      ],
     });
     if (resultData) {
-      await router.push(destination);
+      if (!isAllInfoRegistered) {
+        await router.push(destination);
+      }
       addToast(
         "info",
-        restaurantInfo?.startTime && restaurantInfo?.endTime
+        restaurantInfo.startTime && restaurantInfo.endTime
           ? TOAST_MESSAGE.INFO.UPDATE_SUCCESS
           : TOAST_MESSAGE.INFO.REGISTRATION_SUCCESS
       );
@@ -258,10 +290,10 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
   }, [updateRestaurantInfoErr]);
 
   useEffect(() => {
-    if (initErrMsg) {
-      addToast("error", initErrMsg);
+    if (initMsg && !isEmpty(initMsg)) {
+      addToast(initMsg.type, initMsg.message);
     }
-  }, [initErrMsg]);
+  }, [initMsg?.message, initMsg?.type]);
 
   useEffect(() => {
     if (restaurantInfoErr) {
@@ -278,7 +310,9 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
 
   return (
     <Layout>
-      <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Hours" />
+      {!isAllInfoRegistered && (
+        <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Hours" />
+      )}
       {isSubmitting && <LoadingOverlay />}
       {isValidating ? (
         <LoadingOverlay />
@@ -332,7 +366,6 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
                     ampm={false}
                     minutesStep={5}
                     {...register("endTime")}
-                    // renderInput={(props) => <TextField {...props} />}
                     value={dayjs(endTime, "HH:mm")}
                     viewRenderers={{
                       hours: renderTimeViewClock,
@@ -418,24 +451,26 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
                 <p className="text-red-600">{errors.lastOrder.message}</p>
               )}
             </div>
+            {!isAllInfoRegistered && (
+              <button
+                type="button"
+                className="p-2 mt-2 mr-4 text-lg text-white rounded w-28 bg-sky-600 hover:bg-sky-700"
+                onClick={handleSubmit(handlePrevious)}
+              >
+                Previous
+              </button>
+            )}
             <button
-              type="button"
-              className="p-2 mr-4 text-white rounded bg-sky-600 hover:bg-sky-700"
-              onClick={handleSubmit(handlePrevious)}
-            >
-              Previous
-            </button>
-            <button
-              className={`p-2 text-white bg-green-600 rounded ${
-                isEmpty(errors) && !isSubmitting
-                  ? "hover:bg-green-700"
-                  : "opacity-60 cursor-not-allowed"
+              className={`mt-2 p-2 w-28 text-lg text-white bg-green-600 rounded ${
+                isDisabled
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-green-700"
               }`}
               type="button"
-              disabled={!isEmpty(errors) || isSubmitting}
+              disabled={isDisabled}
               onClick={handleSubmit(handleNext)}
             >
-              Next
+              {isAllInfoRegistered ? "Edit" : "Next"}
             </button>
           </form>
         </div>
@@ -445,49 +480,18 @@ function RestaurantHours({ initErrMsg }: RestaurantHoursProps) {
 }
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  try {
-    const session: Session | null = await getServerSession(
-      ctx.req,
-      ctx.res,
-      authOptions
-    );
-
-    if (!session) {
-      return {
-        redirect: {
-          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
-          permanent: false,
-        },
-      };
-    }
-
-    const restaurantInfo = await convertDatesToISOString(
-      getRestaurant(session.id)
-    );
-    return {
-      props: {
-        fallback: {
-          [ME_ENDPOINT.RESTAURANT]: restaurantInfo,
-        },
-      },
-    };
-  } catch (err) {
-    // TODO: Send error to Sentry
-    const errMessage =
-      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
-    console.error(err);
-    return {
-      props: {
-        initErrMsg: errMessage,
-      },
-    };
-  }
+  return await withSSRHandler(ctx, {
+    fetchers: {
+      [ME_ENDPOINT.RESTAURANT]: async (session) =>
+        convertDatesToISOString(await getRestaurant(session?.id)),
+    },
+  });
 }
 
-export default function Page({ fallback, initErrMsg }: any) {
+export default function Page({ fallback, initMsg }: PageProps) {
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantHours initErrMsg={initErrMsg} />
+      <RestaurantHours initMsg={initMsg} />
     </SWRConfig>
   );
 }

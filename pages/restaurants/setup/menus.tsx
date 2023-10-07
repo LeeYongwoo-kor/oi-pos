@@ -3,18 +3,10 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
 import Menu from "@/components/menu/Menu";
 import Modal from "@/components/ui/Modal";
-import {
-  RESTAURANT_ENDPOINT,
-  RESTAURANT_MENU_ENDPOINT,
-} from "@/constants/endpoint";
-import {
-  AUTH_EXPECTED_ERROR,
-  AUTH_QUERY_PARAMS,
-} from "@/constants/errorMessage/auth";
-import { COMMON_ERROR } from "@/constants/errorMessage/client";
+import { OWNER_ENDPOINT, RESTAURANT_MENU_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
-import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
+import { RESTAURANT_URL } from "@/constants/url";
 import {
   IMenuCategory,
   IRestaurant,
@@ -24,15 +16,13 @@ import {
 import useLoading from "@/hooks/context/useLoading";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { ApiError } from "@/lib/shared/error/ApiError";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { IPostDemoMenuCategoryBody } from "@/pages/api/v1/restaurants/[restaurantId]/demo/menu-categories";
+import withSSRHandler, { InitialMessage } from "@/lib/server/withSSRHandler";
+import { IPostDemoMenuCategoryBody } from "@/pages/api/v1/owner/restaurants/[restaurantId]/menus/categories/demo";
 import { menuOpenState, mobileState } from "@/recoil/state/menuState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import isEmpty from "@/utils/validation/isEmpty";
 import { Prisma } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
-import { Session, getServerSession } from "next-auth";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
@@ -41,13 +31,14 @@ import useSWR, { SWRConfig } from "swr";
 
 type RestaurantMenusProps = {
   restaurantInfo: IRestaurant | undefined;
-  initErrMsg: string;
+  initMsg: InitialMessage | undefined | null;
 };
 
-function RestaurantsMenus({
-  restaurantInfo,
-  initErrMsg,
-}: RestaurantMenusProps) {
+type PageProps = RestaurantMenusProps & {
+  fallback: any;
+};
+
+function RestaurantsMenus({ restaurantInfo, initMsg }: RestaurantMenusProps) {
   const [isMenuOpen, setIsMenuOpen] = useRecoilState(menuOpenState);
   const isMobile = useRecoilValue(mobileState);
   const {
@@ -56,7 +47,7 @@ function RestaurantsMenus({
     isValidating,
   } = useSWR<IMenuCategory[]>(
     restaurantInfo?.id
-      ? RESTAURANT_MENU_ENDPOINT.MENU_CATEGORY(restaurantInfo.id)
+      ? RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantInfo.id)
       : null
   );
   const [createDemoMenuItems, { error: createDemoMenuItemsErr }] = useMutation<
@@ -64,7 +55,7 @@ function RestaurantsMenus({
     IPostDemoMenuCategoryBody
   >(
     restaurantInfo?.id
-      ? RESTAURANT_ENDPOINT.DEMO_MENU_CATEGORY(restaurantInfo.id)
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.CATEGORY.DEMO(restaurantInfo.id)
       : null,
     Method.POST
   );
@@ -107,10 +98,10 @@ function RestaurantsMenus({
   };
 
   useEffect(() => {
-    if (initErrMsg) {
-      addToast("error", initErrMsg);
+    if (initMsg && !isEmpty(initMsg)) {
+      addToast(initMsg.type, initMsg.message);
     }
-  }, [initErrMsg]);
+  }, [initMsg?.message, initMsg?.type]);
 
   useEffect(() => {
     if (categoriesError) {
@@ -131,7 +122,7 @@ function RestaurantsMenus({
         <LoadingOverlay />
       ) : (
         <div className="flex flex-col items-center justify-center h-[47rem]">
-          <div className="relative h-96 w-144">
+          <div className="relative h-120 w-172">
             <Image
               src="/images/platter.jpg"
               alt="Platter"
@@ -159,13 +150,13 @@ function RestaurantsMenus({
           <div className="mt-8">
             <button
               type="button"
-              className="w-20 p-2 mr-4 text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="p-2 mr-4 text-lg text-white rounded w-28 bg-sky-600 hover:bg-sky-700"
               onClick={handlePrevious}
             >
               Previous
             </button>
             <button
-              className={`w-20 p-2 text-white bg-green-600 rounded ${
+              className={`w-28 text-lg p-2 text-white bg-green-600 rounded ${
                 isEmpty(categoriesData)
                   ? "opacity-60 cursor-not-allowed"
                   : "hover:bg-green-700"
@@ -189,68 +180,36 @@ function RestaurantsMenus({
 }
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  try {
-    const session: Session | null = await getServerSession(
-      ctx.req,
-      ctx.res,
-      authOptions
-    );
+  return withSSRHandler(ctx, {
+    fetchers: {
+      restaurantInfo: async (session) => {
+        return convertDatesToISOString(await getRestaurant(session?.id));
+      },
+    },
+    callback: async (session, fallback) => {
+      const restaurantInfo = fallback?.restaurantInfo;
+      if (!restaurantInfo) {
+        return { fallback: {}, restaurantInfo: null };
+      }
 
-    if (!session) {
+      const categories = convertDatesToISOString(
+        await getAllCategoriesByRestaurantId(restaurantInfo.id)
+      );
+
       return {
-        redirect: {
-          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
-          permanent: false,
-        },
-      };
-    }
-
-    const restaurantInfo = convertDatesToISOString(
-      await getRestaurant(session.id)
-    );
-
-    if (!restaurantInfo) {
-      return {
-        redirect: {
-          destination: RESTAURANT_URL.SETUP.INFO,
-          permanent: false,
-        },
-      };
-    }
-
-    const categoryInfo = convertDatesToISOString(
-      await getAllCategoriesByRestaurantId(restaurantInfo.id)
-    );
-
-    return {
-      props: {
         fallback: {
-          [RESTAURANT_MENU_ENDPOINT.MENU_CATEGORY(restaurantInfo.id)]:
-            categoryInfo,
+          [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantInfo.id)]: categories,
         },
-        restaurantInfo: restaurantInfo ?? null,
-      },
-    };
-  } catch (err) {
-    // TODO: Send error to Sentry
-    const errMessage =
-      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
-    console.error(err);
-    return {
-      props: {
-        initErrMsg: errMessage,
-      },
-    };
-  }
+        restaurantInfo,
+      };
+    },
+  });
 }
 
-export default function Page({ fallback, restaurantInfo, initErrMsg }: any) {
+export default function Page({ fallback, restaurantInfo, initMsg }: PageProps) {
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantsMenus
-        restaurantInfo={restaurantInfo}
-        initErrMsg={initErrMsg}
-      />
+      <RestaurantsMenus restaurantInfo={restaurantInfo} initMsg={initMsg} />
     </SWRConfig>
   );
 }

@@ -1,12 +1,11 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import { StatusBar } from "@/components/StatusBar";
-import { ME_ENDPOINT, RESTAURANT_ENDPOINT } from "@/constants/endpoint";
 import {
-  AUTH_EXPECTED_ERROR,
-  AUTH_QUERY_PARAMS,
-} from "@/constants/errorMessage/auth";
-import { COMMON_ERROR } from "@/constants/errorMessage/client";
+  ME_ENDPOINT,
+  OWNER_ENDPOINT,
+  RESTAURANT_ENDPOINT,
+} from "@/constants/endpoint";
 import { RESTAURANT_TABLES_ERROR } from "@/constants/errorMessage/validation";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
@@ -14,32 +13,38 @@ import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "@/constants/plan";
 import { RESTAURANT_SETUP_STEPS } from "@/constants/status";
 import { TableType } from "@/constants/type";
-import { AUTH_URL, RESTAURANT_URL } from "@/constants/url";
-import { IRestaurant, getRestaurantAllInfo } from "@/database";
+import { RESTAURANT_URL } from "@/constants/url";
+import { IRestaurant, getRestaurantByUserId } from "@/database";
 import useLoading from "@/hooks/context/useLoading";
+import { useAlert } from "@/hooks/useAlert";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
+import withSSRHandler, { InitialMessage } from "@/lib/server/withSSRHandler";
 import { ApiError } from "@/lib/shared/error/ApiError";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { IPostRestaurantTableBody } from "@/pages/api/v1/restaurants/tables";
+import { IPostRestaurantTableBody } from "@/pages/api/v1/owner/restaurants/[restaurantId]";
+import { allInfoRegisteredState } from "@/recoil/state/infoState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import convertStringsToNumbers from "@/utils/converter/convertStringsToNumbers";
-import { isFormChanged } from "@/utils/formHelper";
 import isEmpty from "@/utils/validation/isEmpty";
+import isFormChanged from "@/utils/validation/isFormChanged";
 import { Restaurant } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
-import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
+import { useRecoilValue } from "recoil";
 import useSWR, { SWRConfig } from "swr";
 
 type RestaurantInfoProps = {
-  initErrMsg: string;
+  initMsg: InitialMessage | undefined | null;
 };
 
-function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
+type PageProps = RestaurantInfoProps & {
+  fallback: any;
+};
+
+function RestaurantsTables({ initMsg }: RestaurantInfoProps) {
   const {
     register,
     handleSubmit,
@@ -70,25 +75,24 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
     createOrDeleteRestaurantTables,
     { error: createOrDeleteRestaurantTablesErr },
   ] = useMutation<Restaurant, IPostRestaurantTableBody>(
-    RESTAURANT_ENDPOINT.TABLE,
+    restaurantInfo ? OWNER_ENDPOINT.RESTAURANT.BASE(restaurantInfo.id) : null,
     Method.POST
   );
+  const isAllInfoRegistered = useRecoilValue(allInfoRegisteredState);
+  const [prevTableNumber, setPrevTableNumber] = useState(0);
+  const [prevCounterNumber, setPrevCounterNumber] = useState(0);
   const { addToast } = useToast();
+  const { showAlert } = useAlert();
   const { showConfirm } = useConfirm();
   const router = useRouter();
   const withLoading = useLoading();
-
-  const prevTableNumber = restaurantInfo?.restaurantTables?.filter(
-    (data) => data.tableType === TableType.TABLE
-  ).length;
-  const prevCounterNumber = restaurantInfo?.restaurantTables?.filter(
-    (data) => data.tableType === TableType.COUNTER
-  ).length;
 
   const isValid =
     (Number(tableNumber) > 0 || Number(counterNumber) > 0) &&
     tableNumber !== undefined &&
     counterNumber !== undefined;
+
+  const isDisabled = !isValid || !isEmpty(errors) || isSubmitting;
 
   const handleNext = async (formData: FieldValues) => {
     if (isEmpty(restaurantInfo?.restaurantTables)) {
@@ -108,10 +112,6 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
   };
 
   const handleConfirm = (formData: FieldValues, destination: string) => {
-    if (isSubmitting || !isValid || !isEmpty(errors)) {
-      return;
-    }
-
     if (
       !isFormChanged(
         {
@@ -121,7 +121,18 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
         convertStringsToNumbers(formData)
       )
     ) {
+      if (isAllInfoRegistered) {
+        showAlert({
+          title: "案内",
+          message: "変更された内容がありません",
+        });
+        return;
+      }
       router.push(destination);
+      return;
+    }
+
+    if (isSubmitting || !isValid || !isEmpty(errors)) {
       return;
     }
 
@@ -130,11 +141,19 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
       message: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.MESSAGE,
       confirmText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CONFIRM_TEXT,
       cancelText: CONFIRM_DIALOG_MESSAGE.UPDATE_INFO.CANCEL_TEXT,
+      buttonType: "info",
       onConfirm: () =>
         withLoading(() =>
           handleCreateOrDeleteRestaurantTables(formData, destination)
         ),
       onCancel: () => {
+        if (isAllInfoRegistered) {
+          showAlert({
+            title: "案内",
+            message: "変更された内容がありません",
+          });
+          return;
+        }
         router.push(destination);
         return;
       },
@@ -145,12 +164,12 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
     formData: FieldValues,
     destination: string
   ) => {
-    if (isSubmitting || !isValid || !isEmpty(errors)) {
+    if (isSubmitting || !isValid || !isEmpty(errors) || !restaurantInfo) {
       return;
     }
 
     const paramData = {
-      restaurantId: restaurantInfo?.id,
+      restaurantId: restaurantInfo.id,
       seatingConfig: {
         tableNumber: formData?.tableNumber,
         counterNumber: formData?.counterNumber,
@@ -158,13 +177,18 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
     } as IPostRestaurantTableBody;
 
     const resultData = await createOrDeleteRestaurantTables(paramData, {
-      additionalKeys: [ME_ENDPOINT.RESTAURANT],
+      additionalKeys: [
+        ME_ENDPOINT.RESTAURANT,
+        RESTAURANT_ENDPOINT.BASE(restaurantInfo.id),
+      ],
     });
     if (resultData) {
-      await router.push(destination);
+      if (!isAllInfoRegistered) {
+        await router.push(destination);
+      }
       addToast(
         "info",
-        restaurantInfo?.restaurantTables
+        restaurantInfo.restaurantTables
           ? TOAST_MESSAGE.INFO.UPDATE_SUCCESS
           : TOAST_MESSAGE.INFO.REGISTRATION_SUCCESS
       );
@@ -172,19 +196,29 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
   };
 
   useEffect(() => {
-    if (restaurantInfo) {
-      if (prevTableNumber) {
-        setValue("tableNumber", prevTableNumber, {
-          shouldTouch: true,
-        });
-      }
-      if (prevCounterNumber) {
-        setValue("counterNumber", prevCounterNumber, {
-          shouldTouch: true,
-        });
-      }
+    if (restaurantInfo && restaurantInfo.restaurantTables) {
+      const prevTableNumber =
+        restaurantInfo.restaurantTables.filter(
+          (data) => data.tableType === TableType.TABLE
+        ).length ?? 0;
+
+      const prevCounterNumber =
+        restaurantInfo.restaurantTables.filter(
+          (data) => data.tableType === TableType.COUNTER
+        ).length ?? 0;
+
+      setPrevTableNumber(prevTableNumber);
+      setPrevCounterNumber(prevCounterNumber);
+
+      setValue("tableNumber", prevTableNumber, {
+        shouldTouch: true,
+      });
+
+      setValue("counterNumber", prevCounterNumber, {
+        shouldTouch: true,
+      });
     }
-  }, [restaurantInfo, prevTableNumber, prevCounterNumber]);
+  }, [restaurantInfo, setValue, restaurantInfo?.restaurantTables]);
 
   useEffect(() => {
     if (createOrDeleteRestaurantTablesErr) {
@@ -193,10 +227,10 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
   }, [createOrDeleteRestaurantTablesErr]);
 
   useEffect(() => {
-    if (initErrMsg) {
-      addToast("error", initErrMsg);
+    if (initMsg && !isEmpty(initMsg)) {
+      addToast(initMsg.type, initMsg.message);
     }
-  }, [initErrMsg]);
+  }, [initMsg?.message, initMsg?.type]);
 
   useEffect(() => {
     if (restaurantInfoErr) {
@@ -213,7 +247,9 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
 
   return (
     <Layout>
-      <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Tables" />
+      {!isAllInfoRegistered && (
+        <StatusBar steps={RESTAURANT_SETUP_STEPS} currentStep="Tables" />
+      )}
       {isSubmitting && <LoadingOverlay />}
       {isValidating ? (
         <LoadingOverlay />
@@ -307,24 +343,26 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
                 </p>
               </div>
             )}
+            {!isAllInfoRegistered && (
+              <button
+                type="button"
+                className="p-2 mt-2 mr-4 text-lg text-white rounded w-28 bg-sky-600 hover:bg-sky-700"
+                onClick={handleSubmit(handlePrevious)}
+              >
+                Previous
+              </button>
+            )}
             <button
-              type="button"
-              className="p-2 mr-4 text-white rounded bg-sky-600 hover:bg-sky-700"
-              onClick={handleSubmit(handlePrevious)}
-            >
-              Previous
-            </button>
-            <button
-              className={`p-2 text-white bg-green-600 rounded ${
-                isValid && isEmpty(errors) && !isSubmitting
-                  ? "hover:bg-green-700"
-                  : "opacity-60 cursor-not-allowed"
+              className={`p-2 mt-2 text-lg w-28 text-white bg-green-600 rounded ${
+                isDisabled
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-green-700"
               }`}
               type="button"
-              disabled={!isValid || !isEmpty(errors) || isSubmitting}
+              disabled={isDisabled}
               onClick={handleSubmit(handleNext)}
             >
-              Next
+              {isAllInfoRegistered ? "Edit" : "Next"}
             </button>
           </form>
         </div>
@@ -334,49 +372,18 @@ function RestaurantsTables({ initErrMsg }: RestaurantInfoProps) {
 }
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  try {
-    const session: Session | null = await getServerSession(
-      ctx.req,
-      ctx.res,
-      authOptions
-    );
-
-    if (!session) {
-      return {
-        redirect: {
-          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
-          permanent: false,
-        },
-      };
-    }
-
-    const restaurantInfo = await convertDatesToISOString(
-      getRestaurantAllInfo(session.id)
-    );
-    return {
-      props: {
-        fallback: {
-          [ME_ENDPOINT.RESTAURANT]: restaurantInfo,
-        },
-      },
-    };
-  } catch (err) {
-    // TODO: Send error to Sentry
-    const errMessage =
-      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
-    console.error(err);
-    return {
-      props: {
-        initErrMsg: errMessage,
-      },
-    };
-  }
+  return await withSSRHandler(ctx, {
+    fetchers: {
+      [ME_ENDPOINT.RESTAURANT]: async (session) =>
+        convertDatesToISOString(await getRestaurantByUserId(session?.id)),
+    },
+  });
 }
 
-export default function Page({ fallback, initErrMsg }: any) {
+export default function Page({ fallback, initMsg }: PageProps) {
   return (
     <SWRConfig value={{ fallback }}>
-      <RestaurantsTables initErrMsg={initErrMsg} />
+      <RestaurantsTables initMsg={initMsg} />
     </SWRConfig>
   );
 }

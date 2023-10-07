@@ -31,24 +31,24 @@ export default function withApiHandler({
     req: NextApiRequest,
     res: NextApiResponse
   ): Promise<any> {
-    const session = await getSession({ req });
-
-    const requireLoginForMethod =
-      typeof isLoginRequired === "boolean"
-        ? isLoginRequired
-        : isLoginRequired.includes(req.method as Method);
-
-    if (requireLoginForMethod && !session) {
-      throw new UnauthorizedError("Unauthorized. You must be signed in");
-    }
-
-    if (req.method && !methods.includes(req.method as Method)) {
-      throw new MethodNotAllowedError(
-        "Method Not Allowed. Please try request with correct method"
-      );
-    }
-
     try {
+      const session = await getSession({ req });
+
+      const requireLoginForMethod =
+        typeof isLoginRequired === "boolean"
+          ? isLoginRequired
+          : isLoginRequired.includes(req.method as Method);
+
+      if (requireLoginForMethod && !session) {
+        throw new UnauthorizedError("Unauthorized. You must be signed in");
+      }
+
+      if (req.method && !methods.includes(req.method as Method)) {
+        throw new MethodNotAllowedError(
+          "Method Not Allowed. Please try request with correct method"
+        );
+      }
+
       await handler(req, res, session);
     } catch (err) {
       //TODO: send error to sentry (client side not showing error)

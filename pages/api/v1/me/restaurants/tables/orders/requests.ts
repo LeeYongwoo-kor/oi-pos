@@ -11,7 +11,7 @@ export type IGetMyOrderRequestRawQuery = ToRawQuery<IGetMyOrderRequestQuery>;
 
 export interface IGetMyOrderRequestQuery {
   status?: OrderRequestStatus | OrderRequestStatus[];
-  tableType?: TableType | TableType[];
+  tableType?: TableType;
   tableNumber?: number;
   limit?: number;
   offset?: number;

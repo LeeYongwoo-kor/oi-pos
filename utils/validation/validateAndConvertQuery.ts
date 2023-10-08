@@ -1,6 +1,7 @@
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import isValidEnumValue from "./isValidEnumValue";
 import isEmpty from "./isEmpty";
+import { TableType } from "@prisma/client";
 
 type QueryParameterDefinitionType =
   | "string"
@@ -65,6 +66,10 @@ function convertValue(
   type: QueryParameterDefinitionType
 ): string | string[] | number | boolean | Date | null {
   if (isEnumDefinition(type)) {
+    if (value === TableType.COUNTER || value === TableType.TABLE) {
+      return value;
+    }
+
     return Array.isArray(value) ? value : [value];
   }
 

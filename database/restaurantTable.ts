@@ -1,4 +1,5 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import { COUNTER_NUMBER_MAX, TABLE_NUMBER_MAX } from "@/constants/plan";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined, {
@@ -6,8 +7,32 @@ import checkNullUndefined, {
 } from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import isPositiveInteger from "@/utils/validation/isPositiveInteger";
-import { Prisma, RestaurantTable, TableType } from "@prisma/client";
+import {
+  OrderStatus,
+  Prisma,
+  Restaurant,
+  RestaurantTable,
+  TableType,
+} from "@prisma/client";
 import { nanoid } from "nanoid";
+import { IOrderForDashboard } from "./order";
+import { IRestaurant } from "./restaurant";
+import { IGetMyOrderQuery } from "@/pages/api/v1/me/restaurants/tables/orders";
+
+export interface IRestaurantTable extends RestaurantTable {
+  restaurant: IRestaurant;
+}
+
+export interface IRestaurantTableForDashboard extends RestaurantTable {
+  orders: IOrderForDashboard[];
+}
+
+export interface IRestaurantTableForAccess extends RestaurantTable {
+  restaurant: Pick<
+    Restaurant,
+    "startTime" | "endTime" | "lastOrder" | "holidays"
+  >;
+}
 
 export interface CreateAndDeleteRestaurantTablesResult {
   result: "CREATED" | "DELETED" | "NO_CHANGE";
@@ -20,9 +45,10 @@ export interface CreateRestaurantTablesInput {
   number: number;
 }
 
-export async function getRestaurantTablesById(
-  restaurantId: string | undefined | null
-): Promise<RestaurantTable[] | null> {
+export async function getRestaurantTablesByRestaurantId(
+  restaurantId: string | undefined | null,
+  limit?: number | undefined
+): Promise<IRestaurantTableForDashboard[] | null> {
   if (!restaurantId) {
     return null;
   }
@@ -32,15 +58,38 @@ export async function getRestaurantTablesById(
       where: {
         restaurantId,
       },
+      take: limit || TABLE_NUMBER_MAX + COUNTER_NUMBER_MAX,
       orderBy: {
         number: "asc",
       },
+      include: {
+        orders: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          where: {
+            status: {
+              notIn: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
+            },
+          },
+          include: {
+            orderRequests: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              include: {
+                orderItems: true,
+              },
+            },
+          },
+        },
+      },
     }),
-    "getRestaurantTablesById"
+    "getRestaurantTablesByRestaurantId"
   );
 }
 
-export async function getRestaurantTablesByIdAndType(
+export async function getRestaurantTablesByRestaurantIdAndType(
   restaurantId: string,
   tableType: TableType
 ): Promise<RestaurantTable[] | null> {
@@ -58,13 +107,13 @@ export async function getRestaurantTablesByIdAndType(
         number: "asc",
       },
     }),
-    "getRestaurantTablesByIdAndType"
+    "getRestaurantTablesByRestaurantIdAndType"
   );
 }
 
 export async function getRestaurantTableByQrCodeId(
   qrCodeId: string | undefined | null
-): Promise<RestaurantTable | null> {
+): Promise<IRestaurantTableForAccess | null> {
   if (!qrCodeId) {
     return null;
   }
@@ -74,15 +123,19 @@ export async function getRestaurantTableByQrCodeId(
       where: {
         qrCodeId,
       },
+      include: {
+        restaurant: {
+          select: {
+            startTime: true,
+            endTime: true,
+            holidays: true,
+            lastOrder: true,
+          },
+        },
+      },
     }),
     "getRestaurantTableByQrCodeId"
   );
-}
-
-export async function getAllRestaurantTables(): Promise<
-  RestaurantTable[] | null
-> {
-  return null;
 }
 
 export async function getMaxNumberOfRestaurantTable(
@@ -105,6 +158,28 @@ export async function getMaxNumberOfRestaurantTable(
   );
 
   return maxNumberTable ? maxNumberTable.number : 0;
+}
+
+export async function getRestuarnatTableForTableHistory(
+  restaurantId: string | undefined | null,
+  { tableType, tableNumber }: IGetMyOrderQuery
+): Promise<RestaurantTable | null> {
+  if (!restaurantId || !tableNumber || !tableType) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.restaurantTable.findUnique({
+      where: {
+        restaurantId_tableType_number: {
+          number: tableNumber,
+          tableType,
+          restaurantId,
+        },
+      },
+    }),
+    "getRestuarnatTableForTableHistory"
+  );
 }
 
 export async function createRestaurantTable(
@@ -148,11 +223,10 @@ export async function createRestaurantTables(
   return createdRestaurantTables;
 }
 
-export async function updateRestaurantTable<
-  T extends Partial<
-    Omit<RestaurantTable, "id" | "qrCodeId" | "restaurantId" | "number">
-  >
->(tableId: string | undefined | null, updateInfo: T): Promise<RestaurantTable> {
+export async function updateRestaurantTable(
+  tableId: string | undefined | null,
+  updateInfo: Prisma.RestaurantTableUpdateInput
+): Promise<RestaurantTable> {
   const { hasNullUndefined } = checkNullUndefined(updateInfo);
 
   if (!tableId || hasNullUndefined) {

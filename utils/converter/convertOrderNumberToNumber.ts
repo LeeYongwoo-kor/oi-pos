@@ -2,13 +2,13 @@ import isPositiveInteger from "../validation/isPositiveInteger";
 
 export default function convertOrderNumberToNumber(
   orderNumber: string
-): number | null {
+): number {
   if (!orderNumber || typeof orderNumber !== "string") {
     // Send error to Sentry
     console.error(
       `convertOrderNumberToNumber: ${orderNumber} is empty or not a string`
     );
-    return null;
+    return 0;
   }
 
   const formattedOrderNumber = Number(orderNumber.replace("-", ""));
@@ -17,7 +17,7 @@ export default function convertOrderNumberToNumber(
     console.error(
       `convertOrderNumberToNumber: ${formattedOrderNumber} is not positiveInteger`
     );
-    return null;
+    return 0;
   }
 
   return formattedOrderNumber;

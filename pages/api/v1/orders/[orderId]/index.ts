@@ -7,7 +7,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IPatchOrderBody {
   status: OrderStatus | undefined;
-  tableStatus?: TableStatus | undefined;
+  tableStatus?: TableStatus | null | undefined;
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

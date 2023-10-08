@@ -20,7 +20,10 @@ export default function objectToQueryString<T>(obj: T | undefined): string {
     if (Array.isArray(value)) {
       value.forEach((item) => params.append(key, String(item)));
     } else if (value instanceof Date) {
-      params.append(key, value.toISOString().split("T")[0]);
+      if (value.toString() === "Invalid Date") {
+        continue;
+      }
+      params.append(key, value.toISOString());
     } else {
       params.append(key, String(value));
     }

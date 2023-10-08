@@ -1,10 +1,14 @@
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
-import checkNullUndefined from "@/utils/validation/checkNullUndefined";
+import { IGetMyOrderQuery } from "@/pages/api/v1/me/restaurants/tables/orders";
+import checkNullUndefined, {
+  hasNullUndefined,
+} from "@/utils/validation/checkNullUndefined";
 import {
   CurrencyType,
   Order,
+  OrderPayment,
   OrderRequestStatus,
   OrderStatus,
   PaymentType,
@@ -13,6 +17,7 @@ import {
 } from "@prisma/client";
 import { IOrderRequestForDashboard } from "./orderRequest";
 import { IRestaurantTable } from "./restaurantTable";
+import { IGetOrderQuery } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders";
 
 export interface IOrder extends Order {
   table: IRestaurantTable;
@@ -20,6 +25,10 @@ export interface IOrder extends Order {
 
 export interface IOrderForDashboard extends Order {
   orderRequests: IOrderRequestForDashboard[];
+}
+
+export interface IOrderForOrderDetail extends Order {
+  orderPayment: OrderPayment;
 }
 
 export async function getOrdersByTableId(
@@ -53,7 +62,7 @@ export async function getActiveOrderByTableIdAndOrderId(
         id: orderId,
         tableId: restaurantTableId,
         status: {
-          in: [OrderStatus.PENDING, OrderStatus.ORDERED],
+          notIn: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
         },
       },
       include: {
@@ -136,12 +145,14 @@ export async function getCompletedOrdersByTableId(
   );
 }
 
-export async function getActiveOrderByTableNumberAndOrderNumber(
-  tableType: TableType | undefined | null,
-  tableNumber: number | undefined | null,
-  orderNumber: number | undefined | null
+export async function getActiveOrderForOrderPayment(
+  restaurantId: string | undefined | null,
+  { tableType, tableNumber, orderNumber }: IGetMyOrderQuery
 ): Promise<Order | null> {
-  if (!tableNumber || !orderNumber || !tableType) {
+  if (
+    !restaurantId ||
+    hasNullUndefined({ tableType, tableNumber, orderNumber })
+  ) {
     return null;
   }
 
@@ -150,8 +161,11 @@ export async function getActiveOrderByTableNumberAndOrderNumber(
       where: {
         orderNumber,
         table: {
-          tableType,
+          tableType: {
+            in: tableType,
+          },
           number: tableNumber,
+          restaurantId,
         },
         status: {
           notIn: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
@@ -164,7 +178,48 @@ export async function getActiveOrderByTableNumberAndOrderNumber(
         createdAt: "desc",
       },
     }),
-    "getActiveOrderByTableNumberAndOrderNumber"
+    "getActiveOrderForOrderPayment"
+  );
+}
+
+export async function getOrderTableIdAndConditions(
+  tableId: string | undefined | null,
+  { orderStatus, startDate, endDate }: IGetOrderQuery
+): Promise<Order[] | null> {
+  if (!tableId) {
+    return null;
+  }
+
+  const orderConditions: Prisma.OrderWhereInput = {
+    ...(orderStatus && { status: { in: orderStatus } }),
+    ...(startDate &&
+      endDate && {
+        AND: [
+          { createdAt: { gte: startDate } },
+          { createdAt: { lte: endDate } },
+        ],
+      }),
+  };
+
+  return prismaRequestHandler(
+    prisma.order.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      where: {
+        tableId,
+        ...orderConditions,
+      },
+      include: {
+        orderPayment: {
+          select: {
+            totalAmount: true,
+            createdAt: true,
+          },
+        },
+      },
+    }),
+    "getOrderTableIdAndConditions"
   );
 }
 

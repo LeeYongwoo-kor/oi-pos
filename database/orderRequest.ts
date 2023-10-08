@@ -14,6 +14,7 @@ import {
 } from "@prisma/client";
 import { IOrder } from "./order";
 import { CreateOrderItemParams, IOrderItem } from "./orderItem";
+import { IGetOrderRequestQuery } from "@/pages/api/v1/orders/[orderId]/requests";
 
 export interface IOrderRequest extends OrderRequest {
   order: IOrder[];
@@ -110,7 +111,7 @@ export async function getOrderRequestsForAlarm(
     return null;
   }
 
-  const orderRequestStatusQuery: Prisma.OrderRequestWhereInput = status
+  const orderRequestConditions: Prisma.OrderRequestWhereInput = status
     ? { status: { in: status } }
     : {
         status: {
@@ -133,7 +134,7 @@ export async function getOrderRequestsForAlarm(
       take: limit || 20,
       skip: offset || 0,
       where: {
-        ...orderRequestStatusQuery,
+        ...orderRequestConditions,
         order: {
           table: {
             ...tableConditions,
@@ -169,17 +170,25 @@ export async function getOrderRequestsForAlarm(
 
 export async function getOrderRequestByConditions(
   orderId: string | undefined | null,
-  conditions: Prisma.OrderRequestWhereInput
+  { rejected, status, ...conditions }: IGetOrderRequestQuery
 ): Promise<OrderRequest[] | null> {
   if (!orderId) {
     return null;
   }
 
+  const orderRequestConditions: Prisma.OrderRequestWhereInput = {
+    ...(status && { status: { in: status } }),
+    ...(typeof rejected !== "undefined" && {
+      rejectedReasonDisplay: rejected,
+    }),
+    ...conditions,
+  };
+
   return prismaRequestHandler(
     prisma.orderRequest.findMany({
       where: {
         orderId,
-        ...conditions,
+        ...orderRequestConditions,
       },
       include: {
         orderItems: true,

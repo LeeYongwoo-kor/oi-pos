@@ -1,11 +1,6 @@
-import { TableType } from "@/constants/type";
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
-import {
-  IPutRestaurantTableBody,
-  ISeatingConfig,
-} from "@/pages/api/v1/restaurants/tables";
 import {
   IMenuCategoryDemo,
   menuCategoriesDemo,
@@ -19,7 +14,6 @@ import {
 } from "@/utils/menu/validateMenuOptions";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
-import isPositiveInteger from "@/utils/validation/isPositiveInteger";
 import {
   MenuCategory,
   MenuItem,
@@ -27,10 +21,7 @@ import {
   OrderStatus,
   Plan,
   Prisma,
-  Restaurant,
-  RestaurantTable,
   TableStatus,
-  TableTypeAssignment,
 } from "@prisma/client";
 import {
   CreateMenuCategoryParams,
@@ -59,157 +50,6 @@ import {
   updateMenuItemOption,
 } from "./menuItemOption";
 import { CreatePlanParams, upsertPlan } from "./plan";
-import { createRestaurantTable } from "./restaurantTable";
-import {
-  createTableTypeAssignment,
-  upsertTableTypeAssignment,
-} from "./tableTypeAssignment";
-
-/**
- * @deprecated
- * This function is no longer used and will be removed in a future release
- */
-export async function createRestaurantAndTable(
-  userId: string
-): Promise<Restaurant> {
-  if (!userId) {
-    throw new ValidationError(
-      "Failed to create restaurant and restaurant table"
-    );
-  }
-
-  return await prismaRequestHandler(
-    prisma.$transaction(async (tx) => {
-      // Create a new restaurant
-      const restaurant = await tx.restaurant.create({
-        data: {
-          userId,
-          restaurantTables: {
-            create: {
-              qrCodeId: "test",
-              tableType: TableType.TABLE,
-              number: 1,
-            },
-          },
-        },
-        include: {
-          restaurantTables: true,
-        },
-      });
-
-      // Create a new restaurant table using the ID of the new restaurant
-      // const restaurantTable = await tx.restaurantTable.create({
-      //   data: {
-      //     restaurantId: restaurant.id,
-      //     qrCodeId: nanoid(),
-      //     tableType: TableType.TABLE,
-      //     number: 1,
-      //   },
-      // });
-
-      // Return the new restaurant and the new restaurant table
-      return restaurant;
-    }),
-    "createRestaurantAndTable"
-  );
-}
-
-/**
- * @deprecated
- * This function is no longer used and will be removed in a future release
- */
-export async function createRestaurantTableAndAssignment(
-  restaurantId: string,
-  seatingConfig: ISeatingConfig
-): Promise<(RestaurantTable | (TableTypeAssignment | null)[])[]> {
-  const result = await prismaRequestHandler(
-    prisma.$transaction(async () => {
-      if (!seatingConfig) {
-        throw new ValidationError(
-          "failed to create restaurant table and assignment"
-        );
-      }
-
-      const tableNumber = Number(seatingConfig.tableNumber);
-      const counterNumber = Number(seatingConfig.counterNumber);
-      let table = null;
-      let counter = null;
-
-      if (!tableNumber && !counterNumber) {
-        throw new ValidationError(
-          "TableNumber and CounterNumber are not set values"
-        );
-      }
-
-      const restaurantTable = await createRestaurantTable(
-        restaurantId,
-        "test",
-        TableType.TABLE,
-        1
-      );
-      if (tableNumber) {
-        if (!isPositiveInteger(tableNumber)) {
-          throw new ValidationError("TableNumber is not a positive number");
-        }
-
-        table = await createTableTypeAssignment(
-          restaurantTable.id,
-          TableType.TABLE,
-          tableNumber
-        );
-      }
-      if (counterNumber) {
-        if (!isPositiveInteger(counterNumber)) {
-          throw new ValidationError("CounterNumber is not a positive number");
-        }
-
-        counter = await createTableTypeAssignment(
-          restaurantTable.id,
-          TableType.COUNTER,
-          counterNumber
-        );
-      }
-
-      return [restaurantTable, [table, counter]];
-    }),
-    "createRestaurantTableAndAssignment"
-  );
-
-  return result;
-}
-
-/**
- * @deprecated
- * This function is no longer used and will be removed in a future release
- */
-export async function upsertTableTypeAssignments(
-  assignments: IPutRestaurantTableBody[]
-): Promise<TableTypeAssignment[]> {
-  const result = await prismaRequestHandler(
-    prisma.$transaction(async () => {
-      const assignmentPromises = assignments.map((assignment) =>
-        upsertTableTypeAssignment(assignment)
-      );
-
-      const assignmentResult = await Promise.allSettled(assignmentPromises);
-      const fullfilledResult = assignmentResult
-        .filter(
-          (result): result is PromiseFulfilledResult<TableTypeAssignment> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value);
-
-      if (fullfilledResult.length === 0) {
-        throw new ValidationError("Failed to upsert table type assignments");
-      }
-
-      return fullfilledResult;
-    }),
-    "upsertTableTypeAssignments"
-  );
-
-  return result;
-}
 
 export async function upsertPlans(plans: CreatePlanParams[]): Promise<Plan[]> {
   const result = await prismaRequestHandler(
@@ -224,7 +64,9 @@ export async function upsertPlans(plans: CreatePlanParams[]): Promise<Plan[]> {
   return result;
 }
 
-export async function activateOrder(restaurantTableId: string): Promise<Order> {
+export async function createAndActivateOrder(
+  restaurantTableId: string
+): Promise<Order> {
   if (!restaurantTableId) {
     throw new ValidationError(
       "Failed to activate order for restaurant table. Please try again"
@@ -258,7 +100,7 @@ export async function activateOrder(restaurantTableId: string): Promise<Order> {
   );
 }
 
-export async function reserveOrder(
+export async function createAndReserveOrder(
   restaurantTableId: string,
   customerName: string
 ): Promise<Order> {
@@ -278,7 +120,8 @@ export async function reserveOrder(
       const order = await tx.order.create({
         data: {
           tableId: restaurantTableId,
-          status: OrderStatus.PENDING,
+          customerName,
+          status: OrderStatus.ORDERED,
         },
       });
 
@@ -295,7 +138,7 @@ export async function reserveOrder(
       // Return the order
       return order;
     }),
-    "reserveOrder"
+    "createAndReserveOrder"
   );
 }
 

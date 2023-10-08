@@ -1,4 +1,3 @@
-import { ValidationError } from "yup";
 import {
   ApiError,
   BadGatewayError,
@@ -11,6 +10,7 @@ import {
   ServiceUnavailableError,
   UnauthorizedError,
   UnexpectedError,
+  ValidationError,
 } from "../ApiError";
 import BaseApiErrorBuilder from "./BaseApiErrorBuilder";
 

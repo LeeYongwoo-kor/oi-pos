@@ -13,16 +13,16 @@ export type IGetOrderRequestRawQuery = ToRawQuery<IGetOrderRequestQuery>;
 
 export interface IGetOrderRequestQuery {
   orderRequestId?: string;
-  status?: OrderRequestStatus;
+  status?: OrderRequestStatus | OrderRequestStatus[];
   orderRequestNumber?: number;
-  rejectedReasonDisplay?: boolean;
+  rejected?: boolean;
 }
 
 export interface IGetOrderRequestParam extends IGetOrderRequestQuery {
   orderId: string | null | undefined;
 }
 
-export interface IPatchOrderRequestRejectedFlagBody {
+export interface IPatchOrderRequestBody {
   rejectedFlag: boolean;
 }
 
@@ -41,7 +41,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         orderRequestId: { type: "string" },
         status: { type: { enum: OrderRequestStatus } },
         orderRequestNumber: { type: "number" },
-        rejectedReasonDisplay: { type: "boolean" },
+        rejected: { type: "boolean" },
       }
     );
 
@@ -56,7 +56,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (req.method === Method.PATCH) {
     const { orderId } = req.query;
-    const { rejectedFlag }: IPatchOrderRequestRejectedFlagBody = req.body;
+    const { rejectedFlag }: IPatchOrderRequestBody = req.body;
     if (typeof orderId !== "string") {
       throw new ValidationError(
         "Failed to update order request status. Please try again"
@@ -73,7 +73,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 export default withApiHandler({
-  methods: ["GET"],
+  methods: ["GET", "PATCH"],
   handler,
   isLoginRequired: false,
 });

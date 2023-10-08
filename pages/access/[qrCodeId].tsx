@@ -4,6 +4,7 @@ import {
 } from "@/constants/errorMessage/client";
 import { RESTAURANT_URL } from "@/constants/url";
 import {
+  IRestaurantTableForAccess,
   createAndActivateOrder,
   getActiveOrderByTableId,
   getRestaurantTableByQrCodeId,
@@ -14,18 +15,36 @@ import {
   NotFoundError,
   UnexpectedError,
 } from "@/lib/shared/error/ApiError";
+import { getTokyoUtcTime } from "@/utils/getTime";
 import { TableStatus } from "@prisma/client";
+import dayjs from "dayjs";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 type QrCodeAccessProps = {
   initErrMsg: string;
 };
 
+/**
+ * QrCodeAccessPage Component
+ *
+ * @prop initErrMsg エラーメッセージ
+ * @returns エラーメッセージが存在する場合、エラー画面を表示
+ *
+ * @description
+ * エラーメッセージが存在する場合、エラー画面を表示する。
+ * それ以外の場合は、テーブル情報と基にオーダー情報を確認し、オーダーページにリダイレクトを行う。
+ */
 export default function QrCodeAccess({ initErrMsg }: QrCodeAccessProps) {
   const router = useRouter();
 
   const handleRetry = () => {
+    // ページを再読み込みする
     router.reload();
   };
 
@@ -58,20 +77,31 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
 
     const decodedQrCodeId = Buffer.from(qrCodeId, "base64").toString("utf-8");
     const restaurantTable = await getRestaurantTableByQrCodeId(decodedQrCodeId);
+    // QRコードで有効なテーブル情報を取得できない場合
     if (!restaurantTable) {
       throw new NotFoundError(ACCESS_QR_CODE_ERROR.INVALID_QR_CODE);
     }
 
+    // テーブルが利用不可の場合
     if (restaurantTable.status === TableStatus.UNAVAILABLE) {
       throw new ForbiddenError(ACCESS_QR_CODE_ERROR.UNAVAILABLE_TABLE);
     }
 
     const order = await getActiveOrderByTableId(restaurantTable.id);
+    // 有効なオーダー情報が存在しない場合
     if (!order) {
+      // テーブルが利用可能ではない場合
       if (restaurantTable.status !== TableStatus.AVAILABLE) {
         throw new UnexpectedError(COMMON_ERROR.SYSTEM_BUSY);
       }
 
+      // 営業時間・休日のチェック
+      const errorMessage = checkBusinessHoursAndHolidays(restaurantTable);
+      if (errorMessage) {
+        throw new ForbiddenError(errorMessage);
+      }
+
+      // 新規オーダー情報を作成する
       const activatedOrder = await createAndActivateOrder(restaurantTable.id);
       const encodedOrderId = Buffer.from(activatedOrder.id).toString("base64");
       return {
@@ -101,3 +131,53 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     };
   }
 }
+
+/**
+ * 休日・営業時間をチェックする
+ *
+ * @param restaurantTable テーブル情報
+ * @returns エラーメッセージ
+ *
+ * @description 休日・営業時間をチェックする、休日か営業時間外の場合、エラーメッセージを返す
+ */
+const checkBusinessHoursAndHolidays = (
+  restaurantTable: IRestaurantTableForAccess
+): string | null => {
+  const now = getTokyoUtcTime(); // 現在時刻
+  const currentDay = now.format("dddd"); // 現在の曜日
+  const currentDate = getTokyoUtcTime().format("YYYY-MM-DD"); // 現在の日付
+  const startTime = dayjs(
+    `${currentDate}T${restaurantTable.restaurant.startTime}:00`
+  ); // 営業開始時間
+  const lastOrder = dayjs(
+    `${currentDate}T${restaurantTable.restaurant.lastOrder}:00`
+  ); // ラストオーダー
+  const holidays = restaurantTable?.restaurant?.holidays; // 休日
+
+  // ラストオーダーが当日の場合
+  if (startTime.isSameOrBefore(lastOrder)) {
+    // 当日が休日の場合
+    if (Array.isArray(holidays) && holidays.includes(currentDay)) {
+      return ACCESS_QR_CODE_ERROR.TODAY_IS_NOT_OPENING_DAY;
+    }
+
+    // 営業時間外の場合
+    if (now.isAfter(lastOrder)) {
+      return ACCESS_QR_CODE_ERROR.OUT_OF_BUSINESS_HOURS;
+    }
+  } else {
+    // ラストオーダーが翌日にまたがる場合
+    const previousDay = now.subtract(1, "day").format("dddd"); // 前日の曜日
+    // 前日が休日の場合
+    if (Array.isArray(holidays) && holidays.includes(previousDay)) {
+      return ACCESS_QR_CODE_ERROR.TODAY_IS_NOT_OPENING_DAY;
+    }
+
+    // 営業時間外の場合
+    if (now.isAfter(lastOrder.add(1, "day"))) {
+      return ACCESS_QR_CODE_ERROR.OUT_OF_BUSINESS_HOURS;
+    }
+  }
+
+  return null;
+};

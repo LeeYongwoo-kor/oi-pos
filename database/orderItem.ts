@@ -1,12 +1,13 @@
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
+import { IGetOrderItemQuery } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders/[orderId]/items";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import {
   OrderItem,
   OrderItemOption,
-  OrderRequestStatus,
+  OrderStatus,
   Prisma,
 } from "@prisma/client";
 import { CreateOrderItemOptionParams } from "./orderItemOption";
@@ -23,6 +24,13 @@ export interface IOrderItemForHistory extends OrderItem {
   } | null;
 }
 
+export interface ITopSellingItemResponse {
+  _sum: {
+    quantity: number;
+  };
+  menuItemId: string;
+}
+
 export interface CreateOrderItemParams {
   menuItemId: string;
   quantity: number;
@@ -31,13 +39,20 @@ export interface CreateOrderItemParams {
   selectedOptions: CreateOrderItemOptionParams[];
 }
 
-export async function getOrderItemsByOrderIdAndTableId(
+export async function getOrderItemsByOrderIdAndTableIdAndConditions(
   tableId: string | undefined | null,
-  orderId: string | undefined | null
+  orderId: string | undefined | null,
+  { requestStatus }: IGetOrderItemQuery
 ): Promise<IOrderItemForHistory[] | null> {
   if (!tableId || !orderId) {
     return null;
   }
+
+  const statusCondition: Prisma.OrderRequestWhereInput = requestStatus
+    ? {
+        status: { in: requestStatus },
+      }
+    : {};
 
   return prismaRequestHandler(
     prisma.orderItem.findMany({
@@ -47,12 +62,10 @@ export async function getOrderItemsByOrderIdAndTableId(
       where: {
         orderRequest: {
           orderId,
-          status: {
-            notIn: [OrderRequestStatus.CANCELLED],
-          },
           order: {
             tableId,
           },
+          ...statusCondition,
         },
       },
       include: {
@@ -65,7 +78,53 @@ export async function getOrderItemsByOrderIdAndTableId(
         selectedOptions: true,
       },
     }),
-    "getOrderItemsByOrderIdAndTableId"
+    "getOrderItemsByOrderIdAndTableIdAndStauts"
+  );
+}
+
+export async function getTopSellingItems(
+  restaurantId: string,
+  top?: number
+): Promise<ITopSellingItemResponse[] | []> {
+  if (!restaurantId) {
+    return [];
+  }
+
+  const topSellingItemsArgs: Prisma.OrderItemGroupByArgs = {
+    by: ["menuItemId"],
+    take: top || 10,
+    _sum: {
+      quantity: true,
+    },
+    where: {
+      AND: [
+        {
+          orderRequest: {
+            order: {
+              status: OrderStatus.COMPLETED,
+              table: {
+                restaurantId,
+              },
+            },
+          },
+        },
+        {
+          price: {
+            not: 0,
+          },
+        },
+      ],
+    },
+    orderBy: {
+      _sum: {
+        quantity: "desc",
+      },
+    },
+  };
+
+  return prismaRequestHandler(
+    prisma.orderItem.groupBy(topSellingItemsArgs as any),
+    "getTopSellingItems"
   );
 }
 

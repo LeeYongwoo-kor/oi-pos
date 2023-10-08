@@ -48,7 +48,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
   }
 
-  const topSellingItems = await getTopSellingItems(5);
+  const topSellingItems = await getTopSellingItems(restaurantId, 5);
 
   if (allCategories && !isEmpty(allCategories) && !isEmpty(topSellingItems)) {
     let topSellingItemsCount = topSellingItems.length;

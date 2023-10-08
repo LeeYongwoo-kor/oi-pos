@@ -9,8 +9,10 @@ import {
   showMenuEditState,
 } from "@/recoil/state/menuState";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import {
   faCirclePlus,
+  faMedal,
   faPenToSquare,
   faPlus,
 } from "@fortawesome/free-solid-svg-icons";
@@ -18,6 +20,14 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MenuItemStatus } from "@prisma/client";
 import Image from "next/image";
 import { useRecoilCallback, useRecoilValue } from "recoil";
+
+const rankColor: { [key: number]: string } = {
+  1: "from-yellow-400 via-yellow-300 to-yellow-500 text-red-800",
+  2: "from-gray-300 via-gray-200 to-gray-400",
+  3: "from-amber-500 via-amber-400 to-amber-600",
+  4: "bg-indigo-500 text-white",
+  5: "bg-lime-500 text-white",
+};
 
 export default function MenuItemArea() {
   const isMobile = useRecoilValue(mobileState);
@@ -87,19 +97,31 @@ export default function MenuItemArea() {
           )}
           <div className="relative h-40">
             {dish.status === MenuItemStatus.SOLD_OUT && (
-              <div className="absolute z-10 text-2xl italic font-bold transform -translate-x-1/2 -translate-y-1/2 text-slate-800 top-1/2 left-1/2">
+              <div className="absolute z-[5] text-2xl italic font-bold transform -translate-x-1/2 -translate-y-1/2 text-slate-900 top-1/2 left-1/2">
                 SOLD OUT
               </div>
             )}
+            {dish?.rank && (
+              <div className="absolute z-[5] flex inset-2">
+                <div
+                  className={`flex items-center font-bold justify-center py-0.5 shadow-md bg-gradient-to-r px-1.5 space-x-1 text-xs ${
+                    rankColor[dish.rank]
+                  } bg-opacity-75 opacity-90 rounded-full h-fit`}
+                >
+                  <span>
+                    <FontAwesomeIcon icon={faMedal} />
+                  </span>
+                  <span>TOP {dish.rank}</span>
+                </div>
+              </div>
+            )}
             <Image
-              src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-                dish.imageUrl || ""
-              }?v=${dish.imageVersion}`}
+              src={getCloudImageUrl(dish.imageUrl, dish.imageVersion)}
               alt={dish.name}
               fill
               className={`object-cover rounded-lg ${
                 dish.status === MenuItemStatus.SOLD_OUT
-                  ? "grayscale opacity-30"
+                  ? "grayscale opacity-50"
                   : ""
               }`}
               draggable={false}

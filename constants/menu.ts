@@ -1,2 +1,10 @@
-export const CROP_MIN_WIDTH = 360;
-export const CROP_MIN_HEIGHT = 270;
+export const PICTURE_CROP_MIN_WIDTH = 360;
+export const PICTURE_CROP_MIN_HEIGHT = 270;
+export const PICTURE_MAX_CAPACITY = 1024 * 512;
+export const PICTURE_CROP_MIN_SIZE = 1024;
+export const PICTURE_CROP_MIN_BUFFER = 100;
+export const PICTURE_DRAW_IMAGE_TYPE = "image/jpeg";
+export const SUB_CATEGORY_VALUE_NONE = "NONE";
+export const CART_ITEM_STORAGE_KEY = "cartItem";
+export const CART_ITEM_MAX_QUANTITY = 5;
+export const CART_ITEM_MAX_STORAGE = 4;

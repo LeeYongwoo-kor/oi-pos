@@ -7,3 +7,5 @@ export const Method = {
 } as const;
 
 export type RequestMethodType = keyof typeof Method;
+
+export const ALARM_ORDER_REQUEST_LIMIT = 5;

@@ -1,6 +1,7 @@
 export const RESTAURANT_URL = {
   BASE: `/restaurants`,
   SETUP: {
+    BASE: `/restaurants/setup`,
     INFO: `/restaurants/setup/info`,
     HOURS: `/restaurants/setup/hours`,
     TABLES: `/restaurants/setup/tables`,
@@ -43,3 +44,5 @@ export const ERROR_URL = {
 export const ACCESS_URL = {
   BASE: `/access`,
 } as const;
+
+export const NEXT_JS_INTERNAL_PREFIX = `/_next`;

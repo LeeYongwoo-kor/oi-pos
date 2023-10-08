@@ -3,6 +3,7 @@ const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION;
 const API_BASE_ENDPOINT = `${API_BASE_URL}/${API_VERSION}`;
 
 export const OWNER_ENDPOINT = {
+  USER: `${API_BASE_ENDPOINT}/owner/users`,
   SUBSCRIPTION: `${API_BASE_ENDPOINT}/owner/subscriptions`,
   EMAIL: {
     SEND_INVOICE: `${API_BASE_ENDPOINT}/owner/emails/send-invoice`,
@@ -29,10 +30,14 @@ export const OWNER_ENDPOINT = {
         BASE: (restaurantId: string) =>
           `${API_BASE_ENDPOINT}/owner/restaurants/${restaurantId}/menus/categories` as const,
         DEMO: (restaurantId: string) =>
-          `${API_BASE_ENDPOINT}/owner/restaurants/${restaurantId}/menus/demo/categories` as const,
+          `${API_BASE_ENDPOINT}/owner/restaurants/${restaurantId}/menus/categories/demo` as const,
       },
     } as const,
     TABLE: {
+      BASE: (restaurantTableId: string) =>
+        `${API_BASE_ENDPOINT}/owner/restaurants/tables/${restaurantTableId}` as const,
+      RESERVE: (restaurantTableId: string) =>
+        `${API_BASE_ENDPOINT}/owner/restaurants/tables/${restaurantTableId}/reserve` as const,
       ORDER: {
         REQUEST: (
           restaurantTableId: string,
@@ -51,6 +56,8 @@ export const ME_ENDPOINT = {
   USER: `${API_BASE_ENDPOINT}/me/users`,
   RESTAURANT: `${API_BASE_ENDPOINT}/me/restaurants`,
   TABLE: `${API_BASE_ENDPOINT}/me/restaurants/tables`,
+  TABLE_NUMBER: (tableNumber: string) =>
+    `${API_BASE_ENDPOINT}/me/restaurants/tables/${tableNumber}` as const,
   ORDER: `${API_BASE_ENDPOINT}/me/restaurants/tables/orders`,
   ORDER_REQUEST: `${API_BASE_ENDPOINT}/me/restaurants/tables/orders/requests`,
 } as const;
@@ -70,6 +77,8 @@ export const RESTAURANT_ENDPOINT = {
 } as const;
 
 export const RESTAURANT_ORDER_ENDPOINT = {
+  BASE: (restaurantTableId: string) =>
+    `${API_BASE_ENDPOINT}/restaurants/tables/${restaurantTableId}/orders` as const,
   ORDER_REQUEST: (restaurantTableId: string, orderId: string) =>
     `${API_BASE_ENDPOINT}/restaurants/tables/${restaurantTableId}/orders/${orderId}/requests` as const,
   ORDER_ITEM: (restaurantTableId: string, orderId: string) =>

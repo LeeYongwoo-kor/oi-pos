@@ -3,6 +3,10 @@ export const ACCESS_QR_CODE_ERROR = {
     "This restaurant table does not exist. Please ask the staff for assistance",
   UNAVAILABLE_TABLE:
     "This table is currently unavailable. Please ask the staff for assistance",
+  TODAY_IS_NOT_OPENING_DAY:
+    "Sorry😥 Today is not the opening day of this restaurant",
+  OUT_OF_BUSINESS_HOURS:
+    "Sorry😥 This restaurant is currently closed. Please come back during business hours",
 } as const;
 
 export const COMMON_ERROR = {

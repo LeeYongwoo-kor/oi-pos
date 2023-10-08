@@ -1,4 +1,4 @@
-import { RESTAURANT_ENDPOINT } from "@/constants/endpoint";
+import { OWNER_ENDPOINT, RESTAURANT_MENU_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { IMenuCategory } from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -8,7 +8,7 @@ import {
   IDeleteMenuSubCategoryBody,
   IPatchMenuSubCategoryBody,
   IPostMenuSubCategoryBody,
-} from "@/pages/api/v1/restaurants/[restaurantId]/menu-sub-categories";
+} from "@/pages/api/v1/owner/restaurants/[restaurantId]/menus/sub-categories";
 import { subCategoriesSelector } from "@/recoil/selector/menuSelector";
 import {
   editingState,
@@ -35,21 +35,27 @@ export default function SubCategory({
     MenuSubCategory,
     IPostMenuSubCategoryBody
   >(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_SUB_CATEGORY(restaurantId) : null,
+    restaurantId
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.SUB_CATEGORY(restaurantId)
+      : null,
     Method.POST
   );
   const [updateSubCategory, { error: updateSubCategoryErr }] = useMutation<
     MenuSubCategory,
     IPatchMenuSubCategoryBody
   >(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_SUB_CATEGORY(restaurantId) : null,
+    restaurantId
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.SUB_CATEGORY(restaurantId)
+      : null,
     Method.PATCH
   );
   const [deleteSubCategory, { error: deleteSubCategoryErr }] = useMutation<
     MenuSubCategory,
     IDeleteMenuSubCategoryBody
   >(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_SUB_CATEGORY(restaurantId) : null,
+    restaurantId
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.SUB_CATEGORY(restaurantId)
+      : null,
     Method.DELETE
   );
 
@@ -148,7 +154,7 @@ export default function SubCategory({
       isRevalidate: false,
       optimisticData: updateCategories,
       additionalKeys: [
-        RESTAURANT_ENDPOINT.MENU_CATEGORY(selectedCategory.restaurantId),
+        RESTAURANT_MENU_ENDPOINT.CATEGORY(selectedCategory.restaurantId),
       ],
     });
   };
@@ -185,7 +191,7 @@ export default function SubCategory({
       isRevalidate: false,
       optimisticData: updateCategories,
       additionalKeys: [
-        RESTAURANT_ENDPOINT.MENU_CATEGORY(selectedCategory.restaurantId),
+        RESTAURANT_MENU_ENDPOINT.CATEGORY(selectedCategory.restaurantId),
       ],
     });
   };
@@ -220,7 +226,7 @@ export default function SubCategory({
       isRevalidate: false,
       optimisticData: newCategories,
       additionalKeys: [
-        RESTAURANT_ENDPOINT.MENU_CATEGORY(selectedCategory.restaurantId),
+        RESTAURANT_MENU_ENDPOINT.CATEGORY(selectedCategory.restaurantId),
       ],
     });
   };

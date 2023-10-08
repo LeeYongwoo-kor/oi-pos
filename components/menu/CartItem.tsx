@@ -1,4 +1,8 @@
-import { CART_ENDPOINT, RESTAURANT_ORDER_ENDPOINT } from "@/constants/endpoint";
+import {
+  CART_ENDPOINT,
+  ME_ENDPOINT,
+  RESTAURANT_ORDER_ENDPOINT,
+} from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { CART_ITEM_MAX_QUANTITY } from "@/constants/menu";
 import { CreateOrderItemOptionParams, IMenuItem } from "@/database";
@@ -28,6 +32,7 @@ import { useRecoilState, useRecoilValue } from "recoil";
 import useSWRMutation from "swr/mutation";
 import Loader from "../Loader";
 import BottomSheet from "../ui/BottomSheet";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 
 type CartItemProps = {
   restaurantId: string | undefined | null;
@@ -184,9 +189,7 @@ export default function Cart({ restaurantId }: CartItemProps) {
     };
 
     const result = await createOrderRequest(orderRequestBody, {
-      additionalKeys: [
-        RESTAURANT_ORDER_ENDPOINT.ORDER_REQUEST_FOR_ALARM(restaurantId),
-      ],
+      additionalKeys: [ME_ENDPOINT.ORDER_REQUEST],
     });
     if (result) {
       removeAllCartItems();
@@ -263,9 +266,10 @@ export default function Cart({ restaurantId }: CartItemProps) {
                     <div className="flex w-[60%] sm:w-[35%]">
                       <div className="relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20">
                         <Image
-                          src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-                            apiItem.imageUrl || ""
-                          }?v=${apiItem.imageVersion || 0}`}
+                          src={getCloudImageUrl(
+                            apiItem.imageUrl,
+                            apiItem.imageVersion
+                          )}
                           alt={apiItem.name || "menuName"}
                           quality={50}
                           fill

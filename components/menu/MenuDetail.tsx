@@ -5,6 +5,7 @@ import {
   selectedMenuState,
   showMenuDetailState,
 } from "@/recoil/state/menuState";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import { faMinus, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -100,9 +101,10 @@ export default function MenuDetail() {
       <div className="flex flex-col justify-around px-2 space-x-0 sm:mt-6 sm:mb-10 sm:px-6 sm:flex-row sm:space-x-8">
         <div className="relative w-full h-64 mb-4 sm:flex-1 sm:h-80 sm:w-80 sm:mb-0">
           <Image
-            src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-              selectedMenu?.imageUrl || ""
-            }?v=${selectedMenu?.imageVersion || 0}`}
+            src={getCloudImageUrl(
+              selectedMenu?.imageUrl,
+              selectedMenu?.imageVersion
+            )}
             alt={selectedMenu?.name || "menuName"}
             fill
             className="object-cover w-full border-2 border-gray-200 rounded-3xl"

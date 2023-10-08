@@ -10,7 +10,7 @@ import { UseMutationOptions } from "@/lib/client/useMutation";
 import {
   IPostOpenAiImageBody,
   IPostOpenAiImageResponse,
-} from "@/pages/api/v1/open-ai-images";
+} from "@/pages/api/v1/owner/open-ai-images";
 import { EditImageAction } from "@/reducers/menu/editImageReducer";
 import generateNextImageURL from "@/utils/generateNextImageURL";
 import isEmpty from "@/utils/validation/isEmpty";

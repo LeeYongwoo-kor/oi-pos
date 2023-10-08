@@ -1,32 +1,28 @@
-import {
-  EMAIL_ENDPOINT,
-  PAYMENT_ENDPOINT,
-  SUBSCRIPTION_ENDPOINT,
-} from "@/constants/endpoint";
+import { OWNER_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { TOAST_MESSAGE } from "@/constants/message/toast";
 import { PaypalStatus } from "@/constants/status";
 import { RESTAURANT_URL } from "@/constants/url";
-import useVerifyOrder from "@/hooks/fetching/useVerifyOrder";
+import useVerifyOrder from "@/hooks/fetch/useVerifyOrder";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostSendInvoiceBody,
   IPostSendInvoiceResponse,
-} from "@/pages/api/v1/emails/send-invoice";
+} from "@/pages/api/v1/owner/emails/send-invoice";
 import {
   IDeletePaymentBody,
   IPostPaymentBody,
-} from "@/pages/api/v1/payments/[orderId]";
-import { IPostSubscriptionBody } from "@/pages/api/v1/subscriptions";
+} from "@/pages/api/v1/owner/plans/payments/[orderId]";
+import { IPostSubscriptionBody } from "@/pages/api/v1/owner/subscriptions";
 import { useNavigation } from "@/providers/NavigationContext";
 import {
   PayPalButtons,
   PayPalScriptProvider,
   usePayPalScriptReducer,
 } from "@paypal/react-paypal-js";
-import { PlanPayment, Plan, Subscription, CurrencyType } from "@prisma/client";
+import { CurrencyType, Plan, PlanPayment, Subscription } from "@prisma/client";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 
@@ -58,20 +54,28 @@ const ButtonWrapper = ({
   const { verifyOrder } = useVerifyOrder();
   const [createPayment, { error: createPaymentErr }] = useMutation<
     PlanPayment,
-    IPostPaymentBody
-  >(PAYMENT_ENDPOINT.BASE, Method.POST);
+    IPostPaymentBody,
+    CheckoutDynamicUrl
+  >(
+    ({ orderId }) => OWNER_ENDPOINT.PLAN.PAYMENT.CHECK_OUT(orderId),
+    Method.POST
+  );
   const [createSubscription, { error: createSubscriptionErr }] = useMutation<
     Subscription,
     IPostSubscriptionBody
-  >(SUBSCRIPTION_ENDPOINT.BASE, Method.POST);
+  >(OWNER_ENDPOINT.SUBSCRIPTION, Method.POST);
   const [sendInvoice, { error: sendInvoiceErr }] = useMutation<
     IPostSendInvoiceResponse,
     IPostSendInvoiceBody
-  >(EMAIL_ENDPOINT.SEND_INVOICE, Method.POST);
+  >(OWNER_ENDPOINT.EMAIL.SEND_INVOICE, Method.POST);
   const [deletePayment, { error: deletePaymentErr }] = useMutation<
     { count: number } | null,
-    IDeletePaymentBody
-  >(PAYMENT_ENDPOINT.BASE, Method.DELETE);
+    IDeletePaymentBody,
+    CheckoutDynamicUrl
+  >(
+    ({ orderId }) => OWNER_ENDPOINT.PLAN.PAYMENT.CHECK_OUT(orderId),
+    Method.DELETE
+  );
   const router = useRouter();
 
   useEffect(() => {

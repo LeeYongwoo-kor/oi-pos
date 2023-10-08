@@ -1,8 +1,9 @@
 import { RESTAURANT_ORDER_ENDPOINT } from "@/constants/endpoint";
 import { IOrderItem, IOrderItemForHistory } from "@/database";
 import { useToast } from "@/hooks/useToast";
+import buildEndpointWithQuery from "@/utils/converter/buildEndpointWithQuery";
 import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
-import objectToQueryString from "@/utils/converter/objectToQueryString";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import { calculateTotalItemPrice } from "@/utils/order/setDefaultMenuOptions";
 import isEmpty from "@/utils/validation/isEmpty";
@@ -10,11 +11,12 @@ import Image from "next/image";
 import { useEffect } from "react";
 import useSWR from "swr";
 import Loader from "../Loader";
+import { IGetOrderItemQuery } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders/[orderId]/items";
 
 type OrderItemDetailProps = {
   tableId: string | undefined;
   orderId: string | undefined;
-  queries?: Record<string, any>;
+  queries?: IGetOrderItemQuery;
   onOrderItemDataChange?: (newData: IOrderItemForHistory[]) => void;
 };
 
@@ -38,10 +40,10 @@ export default function OrderItemDetail({
     isValidating: orderItemLoading,
   } = useSWR<IOrderItemForHistory[]>(
     tableId && orderId
-      ? `${RESTAURANT_ORDER_ENDPOINT.ORDER_ITEM(
-          tableId,
-          orderId
-        )}?${objectToQueryString(queries)}`
+      ? buildEndpointWithQuery<IGetOrderItemQuery>(
+          RESTAURANT_ORDER_ENDPOINT.ORDER_ITEM(tableId, orderId),
+          queries
+        )
       : null
   );
   const { addToast } = useToast();
@@ -59,7 +61,7 @@ export default function OrderItemDetail({
   }, [orderItemErr]);
 
   return (
-    <div className="flex flex-col items-center justify-between flex-1 overflow-y-auto sm:px-2">
+    <div className="flex flex-col items-center justify-between flex-1 overflow-y-auto select-none sm:px-2">
       {orderItemLoading ? (
         <Loader color="white" />
       ) : (
@@ -85,9 +87,10 @@ export default function OrderItemDetail({
                   <div className="flex justify-center col-span-1">
                     <div className="relative w-14 h-14">
                       <Image
-                        src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-                          item.menuItem?.imageUrl || ""
-                        }?v=${item.menuItem?.imageVersion || 0}`}
+                        src={getCloudImageUrl(
+                          item.menuItem?.imageUrl,
+                          item.menuItem?.imageVersion
+                        )}
                         alt={item.name || "menuName"}
                         quality={50}
                         fill

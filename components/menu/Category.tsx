@@ -6,6 +6,7 @@ import {
   selectedEditCategoryState,
   showCategoryEditState,
 } from "@/recoil/state/menuState";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import {
   faBurger,
   faCirclePlus,
@@ -109,9 +110,10 @@ export default function Category() {
               )}
               {category.imageUrl ? (
                 <Image
-                  src={`${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-                    category.imageUrl || ""
-                  }?v=${category.imageVersion || 0}`}
+                  src={getCloudImageUrl(
+                    category.imageUrl,
+                    category.imageVersion
+                  )}
                   alt={category.name}
                   fill
                   className={`object-cover w-full ${

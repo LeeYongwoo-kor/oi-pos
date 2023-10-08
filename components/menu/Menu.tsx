@@ -55,8 +55,6 @@ export default function Menu({ restaurantInfo, role }: MenuProps) {
   const showOrderHistory = useRecoilValue(showOrderHistoryState);
   const setEditingState = useSetRecoilState(editingState);
 
-  console.log("categoryInfo", categoryInfo);
-
   useEffect(() => {
     const initialCartItems = getCartStorage();
     setCartItems(initialCartItems);
@@ -71,7 +69,7 @@ export default function Menu({ restaurantInfo, role }: MenuProps) {
   return (
     <>
       {role === "owner" && <MenuToggleButton />}
-      <div className="relative h-full max-h-full p-4 overflow-hidden font-archivo">
+      <div className="relative h-full max-h-full p-4 overflow-hidden select-none font-archivo">
         {categoryLoading && <LoadingOverlay />}
         <MenuHeader restaurantInfo={restaurantInfo} />
         <Category />

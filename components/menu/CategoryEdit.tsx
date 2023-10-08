@@ -1,8 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import {
-  OPEN_AI_IMAGE_ENDPOINT,
-  RESTAURANT_ENDPOINT,
-} from "@/constants/endpoint";
+import { OWNER_ENDPOINT, RESTAURANT_MENU_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { AWS_S3_YOSHI_BUCKET } from "@/constants/service";
@@ -16,12 +13,12 @@ import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostOpenAiImageBody,
   IPostOpenAiImageResponse,
-} from "@/pages/api/v1/open-ai-images";
+} from "@/pages/api/v1/owner/open-ai-images";
 import {
   IDeleteMenuCategoryBody,
   IPatchMenuCategoryBody,
   IPostMenuCategoryBody,
-} from "@/pages/api/v1/restaurants/[restaurantId]/menu-categories";
+} from "@/pages/api/v1/restaurants/[restaurantId]/menus/categories";
 import {
   selectedEditCategoryState,
   showCategoryEditState,
@@ -29,6 +26,7 @@ import {
 import menuCategoryEditReducer, {
   initialEditCategoryState,
 } from "@/reducers/menu/menuCategoryEditReducer";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import getS3UploadParams from "@/utils/menu/getS3UploadParams";
 import setDefaultMenuOptions from "@/utils/menu/setDefaultMenuOptions";
 import validateMenuOptions, {
@@ -58,28 +56,34 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     createCategory,
     { error: createCategoryErr, loading: createCategoryLoading },
   ] = useMutation<MenuCategory, IPostMenuCategoryBody>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null,
+    restaurantId
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.CATEGORY.BASE(restaurantId)
+      : null,
     Method.POST
   );
   const [
     updateCategory,
     { error: updateCategoryErr, loading: updateCategoryLoading },
   ] = useMutation<MenuCategory, IPatchMenuCategoryBody>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null,
+    restaurantId
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.CATEGORY.BASE(restaurantId)
+      : null,
     Method.PATCH
   );
   const [
     deleteCategory,
     { error: deleteCategoryErr, loading: deleteCategoryLoading },
   ] = useMutation<MenuCategory, IDeleteMenuCategoryBody>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId) : null,
+    restaurantId
+      ? OWNER_ENDPOINT.RESTAURANT.MENU.CATEGORY.BASE(restaurantId)
+      : null,
     Method.DELETE
   );
   const [
     createAiImage,
     { error: createAiImageErr, loading: createAiImageLoading },
   ] = useMutation<IPostOpenAiImageResponse, IPostOpenAiImageBody>(
-    OPEN_AI_IMAGE_ENDPOINT.BASE,
+    OWNER_ENDPOINT.OPEN_AI_IMAGE,
     Method.POST
   );
   const [isVisible, openEditCategory] = useRecoilState(showCategoryEditState);
@@ -162,7 +166,7 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
           },
           {
             additionalKeys: [
-              RESTAURANT_ENDPOINT.MENU_CATEGORY(
+              RESTAURANT_MENU_ENDPOINT.CATEGORY(
                 selectedEditCategory.restaurantId
               ),
             ],
@@ -185,9 +189,10 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
           description: selectedEditCategory?.description ?? "",
           previewUrl:
             selectedEditCategory?.imageUrl &&
-            `${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-              selectedEditCategory?.imageUrl
-            }?v=${selectedEditCategory?.imageVersion || 0}`,
+            getCloudImageUrl(
+              selectedEditCategory.imageUrl,
+              selectedEditCategory.imageVersion
+            ),
           menuCategoryStatus:
             selectedEditCategory?.status ?? MenuCategoryStatus.AVAILABLE,
         },
@@ -236,7 +241,7 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
         uploadParams,
       },
       {
-        additionalKeys: [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId)],
+        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
       }
     );
 
@@ -266,7 +271,7 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
         uploadParams,
       },
       {
-        additionalKeys: [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId)],
+        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
       }
     );
 

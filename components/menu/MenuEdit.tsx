@@ -1,8 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import {
-  OPEN_AI_IMAGE_ENDPOINT,
-  RESTAURANT_ENDPOINT,
-} from "@/constants/endpoint";
+import { OWNER_ENDPOINT, RESTAURANT_MENU_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { SUB_CATEGORY_VALUE_NONE } from "@/constants/menu";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
@@ -17,12 +14,12 @@ import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostOpenAiImageBody,
   IPostOpenAiImageResponse,
-} from "@/pages/api/v1/open-ai-images";
+} from "@/pages/api/v1/owner/open-ai-images";
 import {
   IDeleteMenuItemBody,
   IPatchMenuItemBody,
   IPostMenuItemBody,
-} from "@/pages/api/v1/restaurants/[restaurantId]/menu-items";
+} from "@/pages/api/v1/owner/restaurants/[restaurantId]/menus/items";
 import {
   mobileState,
   selectedCategoryState,
@@ -33,6 +30,7 @@ import {
 import menuItemEditReducer, {
   initialEditMenuState,
 } from "@/reducers/menu/menuItemEditReducer";
+import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import getS3UploadParams from "@/utils/menu/getS3UploadParams";
 import setDefaultMenuOptions from "@/utils/menu/setDefaultMenuOptions";
 import validateMenuOptions, {
@@ -62,28 +60,28 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     createMenuItem,
     { error: createMenuItemErr, loading: createMenuItemLoading },
   ] = useMutation<MenuItem, IPostMenuItemBody>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_ITEM(restaurantId) : null,
+    restaurantId ? OWNER_ENDPOINT.RESTAURANT.MENU.ITEM(restaurantId) : null,
     Method.POST
   );
   const [
     updateMenuItem,
     { error: updateMenuItemErr, loading: updateMenuItemLoading },
   ] = useMutation<MenuItem, IPatchMenuItemBody>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_ITEM(restaurantId) : null,
+    restaurantId ? OWNER_ENDPOINT.RESTAURANT.MENU.ITEM(restaurantId) : null,
     Method.PATCH
   );
   const [
     deleteMenuItem,
     { error: deleteMenuItemErr, loading: deleteMenuItemLoading },
   ] = useMutation<MenuItem, IDeleteMenuItemBody>(
-    restaurantId ? RESTAURANT_ENDPOINT.MENU_ITEM(restaurantId) : null,
+    restaurantId ? OWNER_ENDPOINT.RESTAURANT.MENU.ITEM(restaurantId) : null,
     Method.DELETE
   );
   const [
     createAiImage,
     { error: createAiImageErr, loading: createAiImageLoading },
   ] = useMutation<IPostOpenAiImageResponse, IPostOpenAiImageBody>(
-    OPEN_AI_IMAGE_ENDPOINT.BASE,
+    OWNER_ENDPOINT.OPEN_AI_IMAGE,
     Method.POST
   );
   const [isVisible, openEditMenu] = useRecoilState(showMenuEditState);
@@ -158,7 +156,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
             deleteParams,
           },
           {
-            additionalKeys: [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId)],
+            additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
           }
         );
 
@@ -179,9 +177,10 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
           description: selectedEditMenu?.description ?? "",
           previewUrl:
             selectedEditMenu?.imageUrl &&
-            `${process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL}/${
-              selectedEditMenu?.imageUrl
-            }?v=${selectedEditMenu?.imageVersion || 0}`,
+            getCloudImageUrl(
+              selectedEditMenu.imageUrl,
+              selectedEditMenu.imageVersion
+            ),
           menuItemStatus: selectedEditMenu?.status ?? MenuItemStatus.AVAILABLE,
         },
         {
@@ -230,7 +229,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
         uploadParams,
       },
       {
-        additionalKeys: [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId)],
+        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
       }
     );
 
@@ -260,7 +259,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
         uploadParams,
       },
       {
-        additionalKeys: [RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantId)],
+        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
       }
     );
 

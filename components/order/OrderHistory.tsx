@@ -28,7 +28,7 @@ export default function OrderHistory() {
     updateOrderStatus,
     { error: updateOrderStatusErr, loading: updateOrderStatusLoading },
   ] = useMutation<Order, IPatchOrderBody>(
-    orderInfo ? ORDER_ENDPOINT.ORDER_BY_ID(orderInfo.orderId) : null,
+    orderInfo ? ORDER_ENDPOINT.BASE(orderInfo.orderId) : null,
     Method.PATCH
   );
   const { addToast } = useToast();
@@ -99,12 +99,12 @@ export default function OrderHistory() {
         <button
           disabled={isDisabled}
           onClick={handleOrderPaymentRequest}
-          className={`w-full px-4 py-2 text-lg font-semibold text-white rounded-full  ${
+          className={`w-full px-4 py-2 text-lg bg-blue-500 font-semibold text-white rounded-full  ${
             isDisabled
               ? "opacity-75 cursor-not-allowed"
               : orderInfo?.orderStatus === OrderStatus.PAYMENT_REQUESTED
               ? "bg-red-500 hover:bg-red-600"
-              : "bg-blue-500 hover:bg-blue-600"
+              : "hover:bg-blue-600"
           }`}
         >
           {updateOrderStatusLoading ? (

@@ -1,23 +1,29 @@
 import Layout from "@/components/Layout";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import Menu from "@/components/menu/Menu";
 import OrderPayment from "@/components/order/OrderPayment";
 import QRCodeGenerate from "@/components/order/QRCodeGenerate";
+import TableHistory from "@/components/order/TableHistory";
 import Modal from "@/components/ui/Modal";
-import { RESTAURANT_TABLE_ENDPOINT } from "@/constants/endpoint";
-import {
-  AUTH_EXPECTED_ERROR,
-  AUTH_QUERY_PARAMS,
-} from "@/constants/errorMessage/auth";
-import { COMMON_ERROR } from "@/constants/errorMessage/client";
+import { ME_ENDPOINT } from "@/constants/endpoint";
 import { MULTIPLICATION_SYMBOL } from "@/constants/unicode";
-import { AUTH_URL, DASHBOARD_URL } from "@/constants/url";
+import { DASHBOARD_URL } from "@/constants/url";
 import {
+  IRestaurant,
   IRestaurantTableForDashboard,
+  getRestaurant,
   getRestaurantTablesByRestaurantId,
 } from "@/database";
 import { useToast } from "@/hooks/useToast";
-import { ApiError } from "@/lib/shared/error/ApiError";
+import withSSRHandler, { InitialMessage } from "@/lib/server/withSSRHandler";
+import {
+  showAlarmState,
+  sortRequestedOrderState,
+  tableNumberState,
+  tableTypeState,
+} from "@/recoil/state/alarmState";
 import { qrCodeOpenState } from "@/recoil/state/dashboardState";
+import { menuOpenState, mobileState } from "@/recoil/state/menuState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
 import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
 import convertNumberToOrderNumber from "@/utils/converter/convertNumberToOrderNumber";
@@ -36,22 +42,18 @@ import {
   TableType,
 } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
-import { Session, getServerSession } from "next-auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { useRecoilState, useSetRecoilState } from "recoil";
+import { useRecoilState, useRecoilValue, useSetRecoilState } from "recoil";
 import useSWR, { SWRConfig } from "swr";
-import { authOptions } from "../api/auth/[...nextauth]";
-import {
-  showAlarmState,
-  sortRequestedOrderState,
-  tableNumberState,
-  tableTypeState,
-} from "@/recoil/state/alarmState";
 
 type DashboardProps = {
-  fallbackData: IRestaurantTableForDashboard[];
-  initErrMsg: string;
+  restaurantInfo: IRestaurant | undefined;
+  initMsg: InitialMessage | undefined | null;
+};
+
+type PageProps = DashboardProps & {
+  fallback: any;
 };
 
 type ModalAction = "payment" | "detail";
@@ -104,7 +106,7 @@ const getStatusToText = (
   if (orderStatus === OrderStatus.PENDING) {
     return OrderStatus.PENDING;
   } else if (orderStatus === OrderStatus.PAYMENT_REQUESTED) {
-    return "PAYMENT";
+    return "PAYMENT_REQ";
   }
 
   return statusToText[tableStatus];
@@ -136,22 +138,45 @@ const getStatusToButtonColor = (
   return statusToButtonColor[tableStatus];
 };
 
-function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
+function Dashboard({ restaurantInfo, initMsg }: DashboardProps) {
   const [isOpenQrCode, setOpenQrCode] = useRecoilState(qrCodeOpenState);
+  const isMobile = useRecoilValue(mobileState);
+  const isMenuOpen = useRecoilValue(menuOpenState);
   const openAlarm = useSetRecoilState(showAlarmState);
   const setOrderRequestSort = useSetRecoilState(sortRequestedOrderState);
   const setAlarmTableType = useSetRecoilState(tableTypeState);
   const setAlarmTableNumber = useSetRecoilState(tableNumberState);
   const { data, error, isLoading } = useSWR<IRestaurantTableForDashboard[]>(
-    RESTAURANT_TABLE_ENDPOINT.BASE,
-    { fallbackData }
+    ME_ENDPOINT.TABLE
   );
   const [currentQrCodeId, setCurrentQrCodeId] = useState("");
   const { addToast } = useToast();
   const router = useRouter();
+  const widthSize = isMobile ? 36 : 56;
   const { modal, tableType, tableNumber, orderNumber } = router.query;
 
-  console.log("data", data);
+  const handleOpenTableHistory = async (newQuery: {
+    modal: ModalAction;
+    tableType: string;
+    tableNumber: number;
+  }) => {
+    const { modal, tableType, tableNumber } = newQuery;
+    if (!modal || !tableType || !tableNumber) {
+      return;
+    }
+
+    await router.push({
+      pathname: DASHBOARD_URL.BASE,
+      query: {
+        ...router.query,
+        modal,
+        tableType,
+        tableNumber: String(tableNumber),
+      },
+    }),
+      undefined,
+      { shallow: true };
+  };
 
   const handleOpenPayment = async (newQuery: {
     modal: ModalAction;
@@ -161,7 +186,7 @@ function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
   }) => {
     const { modal, tableType, tableNumber, orderNumber } = newQuery;
     if (!modal || !tableType || !tableNumber || !orderNumber) {
-      return null;
+      return;
     }
 
     const formattedOrderNumber = convertNumberToOrderNumber(orderNumber);
@@ -188,10 +213,10 @@ function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
   };
 
   useEffect(() => {
-    if (initErrMsg) {
-      addToast("error", initErrMsg);
+    if (initMsg && !isEmpty(initMsg)) {
+      addToast(initMsg.type, initMsg.message);
     }
-  }, [initErrMsg]);
+  }, [initMsg?.message, initMsg?.type]);
 
   useEffect(() => {
     if (error) {
@@ -199,21 +224,35 @@ function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
     }
   }, [error]);
 
-  console.log("modal", modal);
-
   return (
     <Layout>
       {isLoading && <LoadingOverlay />}
+      {isMenuOpen && (
+        <Modal width={widthSize}>
+          <Menu restaurantInfo={restaurantInfo} role={"owner"} />
+        </Modal>
+      )}
       {isOpenQrCode && (
         <Modal width={40} height={40}>
           <QRCodeGenerate qrCodeId={currentQrCodeId} />
         </Modal>
       )}
-      {tableNumber &&
+      {modal === "detail" &&
+        tableNumber &&
+        tableType &&
+        typeof tableNumber === "string" &&
+        typeof tableType === "string" && (
+          <Modal width={72} height={40}>
+            <TableHistory tableType={tableType} tableNumber={tableNumber} />
+          </Modal>
+        )}
+      {modal === "payment" &&
+        tableNumber &&
+        tableType &&
         orderNumber &&
         typeof tableNumber === "string" &&
-        typeof orderNumber === "string" &&
-        typeof tableType === "string" && (
+        typeof tableType === "string" &&
+        typeof orderNumber === "string" && (
           <Modal width={64} height={40}>
             <OrderPayment
               tableType={tableType}
@@ -317,57 +356,70 @@ function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
                             table.orders[0].orderNumber
                           )}
                         </p>
-                        <p className="font-medium text-yellow-300">
-                          [ Recently Order ]
-                        </p>
-                        {table.orders[0].orderRequests
-                          .filter(
-                            (orderRequest) =>
-                              orderRequest.status !==
-                                OrderRequestStatus.CANCELLED &&
-                              orderRequest.status !== OrderRequestStatus.PLACED
-                          )
-                          .slice(0, 3)
-                          .map((orderRequest, orderRequestIndex) => (
-                            <div
-                              key={orderRequest.id + orderRequestIndex}
-                              className="text-slate-200 indent-1"
-                            >
-                              <span>
-                                {convertDatesToIntlString(
-                                  orderRequest.createdAt
-                                )}
-                              </span>
-                              <div className="mb-2">
-                                {orderRequest.orderItems.map(
-                                  (orderItem, orderItemIndex) => (
-                                    <div
-                                      key={orderItem.id + orderItemIndex}
-                                      className="flex items-center space-x-1 indent-3"
-                                    >
-                                      <span className="text-xs truncate">
-                                        {orderItemIndex + 1}
-                                      </span>
-                                      <span className="text-xs">
-                                        {orderItem.name} (
-                                        {MULTIPLICATION_SYMBOL}
-                                        {orderItem.quantity})
-                                      </span>
-                                    </div>
-                                  )
-                                )}
+                        {table.status === TableStatus.RESERVED ? (
+                          <p className="flex flex-col items-center justify-center mt-8 text-lg">
+                            <span className="mr-1">Name: </span>
+                            <span className="text-2xl font-bold text-yellow-300">
+                              {table.orders[0].customerName}
+                            </span>
+                          </p>
+                        ) : (
+                          <>
+                            <p className="font-medium text-yellow-300">
+                              [ Recently Order ]
+                            </p>
+                            {table.orders[0].orderRequests
+                              .filter(
+                                (orderRequest) =>
+                                  orderRequest.status !==
+                                    OrderRequestStatus.CANCELLED &&
+                                  orderRequest.status !==
+                                    OrderRequestStatus.PLACED
+                              )
+                              .slice(0, 3)
+                              .map((orderRequest, orderRequestIndex) => (
+                                <div
+                                  key={orderRequest.id + orderRequestIndex}
+                                  className="text-slate-200 indent-1"
+                                >
+                                  <span>
+                                    {convertDatesToIntlString(
+                                      orderRequest.createdAt
+                                    )}
+                                  </span>
+                                  <div className="mb-2">
+                                    {orderRequest.orderItems.map(
+                                      (orderItem, orderItemIndex) => (
+                                        <div
+                                          key={orderItem.id + orderItemIndex}
+                                          className="flex items-center space-x-1 indent-3"
+                                        >
+                                          <span className="text-xs truncate">
+                                            {orderItemIndex + 1}
+                                          </span>
+                                          <span className="text-xs">
+                                            {orderItem.name} (
+                                            {MULTIPLICATION_SYMBOL}
+                                            {orderItem.quantity})
+                                          </span>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            {table.orders[0].orderRequests.filter(
+                              (orderRequest) =>
+                                orderRequest.status !==
+                                  OrderRequestStatus.CANCELLED &&
+                                orderRequest.status !==
+                                  OrderRequestStatus.PLACED
+                            ).length > 3 && (
+                              <div className="text-sm font-bold text-slate-100">
+                                ... and more
                               </div>
-                            </div>
-                          ))}
-                        {table.orders[0].orderRequests.filter(
-                          (orderRequest) =>
-                            orderRequest.status !==
-                              OrderRequestStatus.CANCELLED &&
-                            orderRequest.status !== OrderRequestStatus.PLACED
-                        ).length > 3 && (
-                          <div className="text-sm font-bold text-slate-100">
-                            ... and more
-                          </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -396,6 +448,13 @@ function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
                     </button>
                   )}
                   <button
+                    onClick={() =>
+                      handleOpenTableHistory({
+                        modal: "detail",
+                        tableType: table.tableType,
+                        tableNumber: table.number,
+                      })
+                    }
                     className={`w-full px-3 py-0.5 rounded ${getStatusToButtonColor(
                       table.status,
                       table.orders[0]?.status
@@ -421,69 +480,27 @@ function Dashboard({ fallbackData, initErrMsg }: DashboardProps) {
 }
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  try {
-    const session: Session | null = await getServerSession(
-      ctx.req,
-      ctx.res,
-      authOptions
-    );
-
-    if (!session) {
-      return {
-        redirect: {
-          destination: `${AUTH_URL.LOGIN}?${AUTH_QUERY_PARAMS.ERROR}=${AUTH_EXPECTED_ERROR.UNAUTHORIZED}`,
-          permanent: false,
-        },
-      };
-    }
-
-    if (!session.restaurantId) {
-      return {
-        props: {
-          initErrMsg:
-            "Not Found Restaurant Info. Please register your info or try again later",
-        },
-      };
-    }
-
-    const restaurantTableInfo = convertDatesToISOString(
-      await getRestaurantTablesByRestaurantId(session.restaurantId)
-    );
-
-    if (!restaurantTableInfo) {
-      return {
-        props: {
-          initErrMsg:
-            "Not Found Restaurant Table Info. Please register your info or try again later",
-        },
-      };
-    }
-
-    return {
-      props: {
-        fallback: {
-          [RESTAURANT_TABLE_ENDPOINT.BASE]: restaurantTableInfo,
-        },
+  return await withSSRHandler(ctx, {
+    fetchers: {
+      [ME_ENDPOINT.TABLE]: async (session) => {
+        return convertDatesToISOString(
+          await getRestaurantTablesByRestaurantId(session?.restaurantId)
+        );
       },
-    };
-  } catch (err) {
-    // TODO: Send error to Sentry
-    const errMessage =
-      err instanceof ApiError ? err.message : COMMON_ERROR.UNEXPECTED;
-    console.error(err);
-    return {
-      props: {
-        initErrMsg: errMessage,
-      },
-    };
-  }
+    },
+    callback: async (session) => {
+      const restaurantInfo = convertDatesToISOString(
+        await getRestaurant(session?.id)
+      );
+      return { restaurantInfo };
+    },
+  });
 }
 
-export default function Page({ fallback, initErrMsg }: any) {
-  const fallbackData = fallback[RESTAURANT_TABLE_ENDPOINT.BASE];
+export default function Page({ fallback, restaurantInfo, initMsg }: PageProps) {
   return (
     <SWRConfig value={{ fallback }}>
-      <Dashboard fallbackData={fallbackData} initErrMsg={initErrMsg} />
+      <Dashboard restaurantInfo={restaurantInfo} initMsg={initMsg} />
     </SWRConfig>
   );
 }

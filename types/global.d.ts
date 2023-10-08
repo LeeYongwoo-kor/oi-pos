@@ -5,10 +5,15 @@ import {
   SubscriptionStatusEnumType,
   UserStatusEnumType,
 } from "@/constants/status";
-import { TableEnumType, UserRoleEnumType } from "@/constants/type";
+import {
+  LocaleEnumType,
+  TableEnumType,
+  UserRoleEnumType,
+} from "@/constants/type";
 
 declare global {
   type Currency = "USD" | "JPY";
+  type Locale = LocaleEnumType;
   type Method = RequestMethodType;
   type SubscriptionStatusType = SubscriptionStatusEnumType;
   type PaypalStatusType = PaypalStatusEnumType;
@@ -16,4 +21,8 @@ declare global {
   type PlanType = PlanEnumType;
   type TableType = TableEnumType;
   type UserRoleType = UserRoleEnumType;
+  type ActionTypes<T> = T extends { type: infer U } ? U : never;
+  type ToRawQuery<T> = {
+    [K in keyof T]?: string | number;
+  };
 }

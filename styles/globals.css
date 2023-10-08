@@ -15,6 +15,10 @@
     background: #bfd3ff;
   }
 
+  body {
+    font-family: "M PLUS Rounded 1c", sans-serif;
+  }
+
   input:focus {
     outline: none;
   }
@@ -126,7 +130,7 @@
       radial-gradient(circle at center, rgba(255, 255, 255, 0.2), rgb(0, 0, 0));
     background-blend-mode: screen;
     background-size: 125%;
-    background-repeat: no-repeat;
+    background-repeat: repeat-y;
     animation: moveZoomBackground 50s ease-in-out infinite,
       movePanBackground 60s ease-in-out infinite;
     user-select: none;

@@ -27,6 +27,7 @@ module.exports = {
       fontFamily: {
         archivo: ["Archivo", "sans-serif"],
         bebas: ["Bebas Neue", "sans-serif"],
+        mPlus: ["M PLUS Rounded 1c", "sans-serif"],
       },
     },
   },

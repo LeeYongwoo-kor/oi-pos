@@ -8,6 +8,7 @@ declare module "next-auth" {
    */
   interface Session {
     id?: string | null;
+    restaurantId?: string;
     errorName?: string;
     message?: string;
     redirectUrl?: string;
@@ -39,5 +40,6 @@ declare module "next-auth/jwt" {
     message?: string;
     redirectUrl?: string;
     isAllInfoRegistered?: boolean;
+    restaurantId?: string;
   }
 }

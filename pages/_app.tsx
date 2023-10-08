@@ -1,7 +1,5 @@
-import AuthenticationHandler from "@/components/handlers/AuthenticationHandler";
 import MessageContainer from "@/components/ui/Message";
 import ToastContainer from "@/components/ui/Toast";
-import { ME_ENDPOINT } from "@/constants/endpoint";
 import { ERROR_RETRY_COUNT, ERROR_RETRY_DELAY } from "@/constants/numeric";
 import { CustomErrorType } from "@/lib/shared/error/CustomError";
 import { ErrorProvider } from "@/providers/ErrorContext";
@@ -34,6 +32,7 @@ export default function App({
 }: AppProps) {
   return (
     <RecoilRoot>
+      {/* <WebSocketProvider> */}
       <ErrorProvider>
         <LoadingProvider>
           <SWRConfig
@@ -49,9 +48,6 @@ export default function App({
                 // Never retry on not 5xx errors
                 if (!String(err?.statusCode).startsWith("5")) return;
 
-                // Never retry on /api/v1/me/users
-                if (key === ME_ENDPOINT.USER) return;
-
                 // Only retry up to 5 times
                 if (retryCount >= ERROR_RETRY_COUNT) return;
 
@@ -61,12 +57,12 @@ export default function App({
             }}
           >
             <SessionProvider session={session}>
-              <AuthenticationHandler />
               <PageComponent Component={Component} pageProps={pageProps} />
             </SessionProvider>
           </SWRConfig>
         </LoadingProvider>
       </ErrorProvider>
+      {/* </WebSocketProvider> */}
     </RecoilRoot>
   );
 }

@@ -9,12 +9,14 @@ import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
 import withSSRHandler, { InitialMessage } from "@/lib/server/withSSRHandler";
 import { IPatchUserBody } from "@/pages/api/v1/owner/users";
+import { allInfoRegisteredState } from "@/recoil/state/infoState";
 import isEmpty from "@/utils/validation/isEmpty";
 import { UserStatus } from "@prisma/client";
 import { User } from "@sentry/nextjs";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { useSetRecoilState } from "recoil";
 
 type SetupCompleteProps = {
   initMsg: InitialMessage | undefined | null;
@@ -25,6 +27,7 @@ export default function SetupComplete({ initMsg }: SetupCompleteProps) {
     updateUserStatus,
     { error: updateUserStatusErr, loading: updateUserStatusLoading },
   ] = useMutation<User, IPatchUserBody>(OWNER_ENDPOINT.USER, Method.PATCH);
+  const setIsAllInfoRegistered = useSetRecoilState(allInfoRegisteredState);
   const router = useRouter();
   const { addToast } = useToast();
   const withLoading = useLoading();
@@ -40,6 +43,7 @@ export default function SetupComplete({ initMsg }: SetupCompleteProps) {
 
     const result = await updateUserStatus({ status: UserStatus.ACTIVE });
     if (result) {
+      setIsAllInfoRegistered(true);
       await router.push(DASHBOARD_URL.BASE);
       addToast(
         "success",

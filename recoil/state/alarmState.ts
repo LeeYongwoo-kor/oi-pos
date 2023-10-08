@@ -2,7 +2,7 @@ import { atom } from "recoil";
 
 export const showAlarmState = atom({
   key: "showAlarmState",
-  default: false,
+  default: true,
 });
 
 export const sortRequestedOrderState = atom({

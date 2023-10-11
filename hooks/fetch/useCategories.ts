@@ -1,11 +1,11 @@
-import { RESTAURANT_ENDPOINT } from "@/constants/endpoint";
+import { RESTAURANT_MENU_ENDPOINT } from "@/constants/endpoint";
 import { IMenuCategory, IRestaurant } from "@/database";
+import { ApiError } from "@/lib/shared/error/ApiError";
 import { categoriesState } from "@/recoil/state/menuState";
 import { useEffect } from "react";
 import { useSetRecoilState } from "recoil";
 import useSWR from "swr";
 import { useToast } from "../useToast";
-import { ApiError } from "@/lib/shared/error/ApiError";
 
 export default function useCategories(
   restaurantInfo: IRestaurant | undefined | null
@@ -14,7 +14,7 @@ export default function useCategories(
   const setCategories = useSetRecoilState(categoriesState);
   const { data, error, isValidating } = useSWR<IMenuCategory[]>(
     restaurantInfo
-      ? RESTAURANT_ENDPOINT.MENU_CATEGORY(restaurantInfo?.id)
+      ? RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantInfo?.id)
       : null
   );
 

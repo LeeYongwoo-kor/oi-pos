@@ -438,15 +438,24 @@ function RestaurantHours({ initMsg }: RestaurantHoursProps) {
                 }}
                 disabled={unspecified}
               />
-              <span className="ml-2">
+              <label className="inline-flex items-center justify-center ml-2 select-none">
                 <input
                   type="checkbox"
-                  className=""
+                  className="sr-only"
                   checked={unspecified}
                   onChange={handleUnspecified}
                 />
+                <span
+                  className={`w-5 h-5 border rounded cursor-pointer flex justify-center items-center ${
+                    unspecified ? "bg-indigo-500" : "bg-white"
+                  }`}
+                >
+                  {unspecified && (
+                    <span className="text-sm font-bold text-white">✓</span>
+                  )}
+                </span>
                 <span className="ml-1">Unspecified</span>
-              </span>
+              </label>
               {errors.lastOrder && (
                 <p className="text-red-600">{errors.lastOrder.message}</p>
               )}

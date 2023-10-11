@@ -9,12 +9,13 @@ import useAnnouncement from "@/hooks/fetch/useAnnouncement";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
 import { ApiError, NotFoundError } from "@/lib/shared/error/ApiError";
-import { IPatchOrderRequestRejectedFlagBody } from "@/pages/api/v1/orders/[orderId]/requests/rejected-flag";
+import { IPatchOrderRequestBody } from "@/pages/api/v1/orders/[orderId]/requests";
 import { IOrderInfo, orderInfoState } from "@/recoil/state/orderState";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
+import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
 import convertNumberToOrderNumber from "@/utils/converter/convertNumberToOrderNumber";
 import isEmpty from "@/utils/validation/isEmpty";
-import { OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma, TableStatus } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
@@ -27,17 +28,24 @@ type OrderPageProps = {
   notFound: boolean | undefined;
 };
 
+type PageProps = {
+  fallback: any;
+  orderId: string;
+  initErrMsg: string | undefined;
+  notFound: boolean | undefined;
+};
+
 function OrderPage({ order, initErrMsg, notFound }: OrderPageProps) {
   const router = useRouter();
   const { announcements } = useAnnouncement(order?.id);
   const { data: orderFreshData, error: orderFreshError } = useSWR<IOrder>(
-    order ? `${ORDER_ENDPOINT.ORDER_BY_ID(order.id)}` : null
+    order ? `${ORDER_ENDPOINT.BASE(order.id)}` : null
   );
   const [
     updateOrderRequestRejectFlag,
     { error: updateOrderRequestRejectFlagErr },
-  ] = useMutation<Prisma.BatchPayload, IPatchOrderRequestRejectedFlagBody>(
-    order ? ORDER_REQUEST_ENDPOINT.ORDER_REQUEST_REJECTED_FLAG(order.id) : null,
+  ] = useMutation<Prisma.BatchPayload, IPatchOrderRequestBody>(
+    order ? ORDER_REQUEST_ENDPOINT.BASE(order.id) : null,
     Method.PATCH
   );
   const { addToast } = useToast();
@@ -53,9 +61,11 @@ function OrderPage({ order, initErrMsg, notFound }: OrderPageProps) {
               `注文していただいたリクエスト番号：${convertNumberToOrderNumber(
                 announcement.orderRequestNumber
               )}
+              注文時間: ${convertDatesToIntlString(announcement.createdAt)}
                 ${announcement.orderItems && announcement.orderItems[0].name} ${
-                announcement.orderItems.length > 1 &&
-                `以外${announcement.orderItems.length}つ`
+                announcement.orderItems.length > 1
+                  ? `以外${announcement.orderItems.length}つ`
+                  : ""
               }の商品が以下のの理由でキャンセルされました。
               申し訳ございませんが、他の商品をご注文ください。
               理由：「${announcement.rejectedReason}」`,
@@ -114,6 +124,7 @@ function OrderPage({ order, initErrMsg, notFound }: OrderPageProps) {
 
   if (orderFreshData) {
     if (
+      orderFreshData.table.status === TableStatus.RESERVED ||
       orderFreshData.status === OrderStatus.COMPLETED ||
       orderFreshData.status === OrderStatus.CANCELLED ||
       orderFreshData.status === OrderStatus.PENDING
@@ -165,7 +176,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     return {
       props: {
         fallback: {
-          [ORDER_ENDPOINT.ORDER_BY_ID(order.id)]: order,
+          [ORDER_ENDPOINT.BASE(order.id)]: order,
         },
         orderId: order.id,
       },
@@ -183,11 +194,16 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   }
 }
 
-export default function Page({ fallback, orderId, initErrMsg, notFound }: any) {
+export default function Page({
+  fallback,
+  orderId,
+  initErrMsg,
+  notFound,
+}: PageProps) {
   return (
     <SWRConfig value={{ fallback }}>
       <OrderPage
-        order={fallback[ORDER_ENDPOINT.ORDER_BY_ID(orderId)]}
+        order={fallback[ORDER_ENDPOINT.BASE(orderId)]}
         initErrMsg={initErrMsg}
         notFound={notFound}
       />

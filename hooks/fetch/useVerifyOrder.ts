@@ -1,22 +1,26 @@
-import { PAYMENT_ENDPOINT } from "@/constants/endpoint";
+import { OWNER_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import useMutation from "@/lib/client/useMutation";
-import { IPatchPaymentBody } from "@/pages/api/v1/payments/[orderId]";
+import { IPatchPaymentBody } from "@/pages/api/v1/owner/plans/payments/[orderId]";
 import {
   IVerifyOrderResponse,
   IVerifyPaymentBody,
-} from "@/pages/api/v1/payments/verify";
+} from "@/pages/api/v1/owner/plans/payments/verify";
 import { PlanPayment } from "@prisma/client";
 
 export default function useVerifyOrder() {
   const [verifyMutation, verifyState] = useMutation<
     IVerifyOrderResponse,
     IVerifyPaymentBody
-  >(PAYMENT_ENDPOINT.VERIFY, Method.POST);
+  >(OWNER_ENDPOINT.PLAN.PAYMENT.VERIFY, Method.POST);
   const [updatePaymentMutation, updatePaymentState] = useMutation<
     PlanPayment,
-    IPatchPaymentBody
-  >(PAYMENT_ENDPOINT.BASE, Method.PATCH);
+    IPatchPaymentBody,
+    CheckoutDynamicUrl
+  >(
+    ({ orderId }) => OWNER_ENDPOINT.PLAN.PAYMENT.CHECK_OUT(orderId),
+    Method.PATCH
+  );
 
   const verifyOrder = async (orderId: string) => {
     // verify order

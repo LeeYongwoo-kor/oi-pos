@@ -4,7 +4,7 @@ import { ApiError, ApiErrorType } from "../shared/error/ApiError";
 import { withErrorRetry } from "../shared/withErrorRetry";
 import isEmpty from "@/utils/validation/isEmpty";
 
-type ApiErrorState = {
+export type ApiErrorState = {
   message: string;
   statusCode: number;
   redirectUrl?: string;

@@ -1,43 +1,34 @@
 import { Method } from "@/constants/fetch";
-import { getOrderItemsByOrderIdAndTableIdAndStauts } from "@/database";
+import { getOrderItemsByOrderIdAndTableIdAndConditions } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { ValidationError } from "@/lib/shared/error/ApiError";
-import isEmpty from "@/utils/validation/isEmpty";
+import validateAndConvertQuery from "@/utils/validation/validateAndConvertQuery";
 import { OrderRequestStatus } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 
+export type IGetOrderItemRawQuery = ToRawQuery<IGetOrderItemQuery>;
+
+export interface IGetOrderItemQuery {
+  requestStatus?: OrderRequestStatus | OrderRequestStatus[];
+}
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.GET) {
-    const { restaurantTableId, orderId, requestStatus } = req.query;
+    const { restaurantTableId, orderId, ...params } = req.query;
     if (typeof restaurantTableId !== "string" || typeof orderId !== "string") {
       throw new ValidationError(
         "Failed to get active order items info. Please try again"
       );
     }
 
-    const statuses = requestStatus
-      ? Array.isArray(requestStatus)
-        ? requestStatus
-        : [requestStatus]
-      : [];
+    const validatedQuery = validateAndConvertQuery<IGetOrderItemQuery>(params, {
+      requestStatus: { type: { enum: OrderRequestStatus } },
+    });
 
-    if (
-      !isEmpty(statuses) &&
-      !statuses.every((status) =>
-        Object.values(OrderRequestStatus).includes(
-          status.toUpperCase() as OrderRequestStatus
-        )
-      )
-    ) {
-      throw new ValidationError(
-        "Invalid request status parameter. Please try again"
-      );
-    }
-
-    const result = await getOrderItemsByOrderIdAndTableIdAndStauts(
+    const result = await getOrderItemsByOrderIdAndTableIdAndConditions(
       restaurantTableId,
       orderId,
-      statuses as OrderRequestStatus[]
+      validatedQuery
     );
 
     return res.status(200).json(result);

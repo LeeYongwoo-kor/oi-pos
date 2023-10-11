@@ -1,4 +1,5 @@
 import { ValidationError } from "@/lib/shared/error/ApiError";
+import getNextImageUrl from "./getNextImageUrl";
 import isBase64 from "./validation/isBase64";
 import isURL from "./validation/isURL";
 
@@ -11,13 +12,13 @@ export default function generateNextImageURL(
   if (isBase64(imageSrc)) {
     image.crossOrigin = "anonymous";
     image.src = imageSrc;
-  } else if (isURL(imageSrc)) {
-    image.src = `${
-      process.env.NEXT_PUBLIC_BASE_URL
-    }/_next/image?url=${encodeURIComponent(imageSrc)}&w=${
-      viewportSize || 1080
-    }&q=${quality || 75}`;
-  } else {
-    throw new ValidationError("Invalid image source");
+    return;
   }
+
+  if (isURL(imageSrc)) {
+    image.src = getNextImageUrl(imageSrc, viewportSize, quality);
+    return;
+  }
+
+  throw new ValidationError("Invalid image source");
 }

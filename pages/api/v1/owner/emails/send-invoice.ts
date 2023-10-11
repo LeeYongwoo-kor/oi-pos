@@ -1,15 +1,14 @@
-import { generateInvoiceEmail } from "@/email/generateInvoiceEmail";
+import {
+  IGenerateInvoiceEmailParams,
+  generateInvoiceEmail,
+} from "@/email/generateInvoiceEmail";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { sendEmail } from "@/lib/services/sendEmail";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 
 export interface IPostSendInvoiceBody {
-  orderData: {
-    orderId: string;
-    planName: string;
-    amount: number;
-  };
+  orderData: IGenerateInvoiceEmailParams;
 }
 export interface IPostSendInvoiceResponse {
   success: boolean;

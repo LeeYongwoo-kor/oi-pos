@@ -17,6 +17,7 @@ import {
 } from "@/pages/api/v1/owner/plans/payments/[orderId]";
 import { IPostSubscriptionBody } from "@/pages/api/v1/owner/subscriptions";
 import { useNavigation } from "@/providers/NavigationContext";
+import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
 import {
   PayPalButtons,
   PayPalScriptProvider,
@@ -25,6 +26,7 @@ import {
 import { CurrencyType, Plan, PlanPayment, Subscription } from "@prisma/client";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import Loader from "./Loader";
 
 type CheckoutProps = {
   plan: Plan | Record<string, never>;
@@ -90,7 +92,7 @@ const ButtonWrapper = ({
 
   return (
     <>
-      {showSpinner && isPending && <div className="spinner">Loading...!</div>}
+      {showSpinner && isPending && <Loader />}
       <PayPalButtons
         style={{ layout: "vertical" }}
         disabled={false}
@@ -142,9 +144,19 @@ const ButtonWrapper = ({
               throw captureVerifyResult.error;
             }
 
-            await createSubscription({ planId });
-            if (createSubscriptionErr) {
+            const subscription = await createSubscription({ planId });
+            if (!subscription || createSubscriptionErr) {
               throw createSubscriptionErr;
+            }
+
+            const createdAt = convertDatesToIntlString(subscription.createdAt);
+            const expiresAt = convertDatesToIntlString(
+              subscription.currentPeriodEnd
+            );
+
+            if (!createdAt || !expiresAt) {
+              // Send error to Sentry
+              console.error("Error occurred during date conversion in PayPal");
             }
 
             await sendInvoice({
@@ -152,6 +164,8 @@ const ButtonWrapper = ({
                 orderId,
                 planName,
                 amount,
+                createdAt: createdAt || "",
+                expiresAt: expiresAt || "",
               },
             });
 

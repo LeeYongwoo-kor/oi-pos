@@ -98,7 +98,7 @@ model Plan {
 model Subscription {
   id          String  @id @default(cuid())
   userId      String  @map("user_id") @unique
-  planId      String  @map("plan_id") @unique
+  planId      String  @map("plan_id")
   status      SubscriptionStatus
   currentPeriodStart DateTime @map("current_period_start")
   currentPeriodEnd DateTime @map("current_period_end")
@@ -109,6 +109,8 @@ model Subscription {
   plan Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
 
   @@map("subscriptions")
+  @@unique([userId, planId])
+  @@index([planId])
 }
 
 model Restaurant {

@@ -8,7 +8,7 @@ import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
 import useDeepEffect from "@/hooks/useDeepEffect";
 import { useToast } from "@/hooks/useToast";
-import useMutation from "@/lib/client/useMutation";
+import useMutation, { ApiErrorState } from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostOpenAiImageBody,
@@ -349,14 +349,18 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     }
   };
 
+  const handleErrors = (error: ApiErrorState | null | undefined) => {
+    if (error) {
+      addToast("error", error.message);
+    }
+  };
+
   useEffect(() => {
     const { imageUrl, imageVersion, name, description, status } =
       selectedEditCategory || {};
 
     if (imageUrl) {
-      const previewUrl = `${
-        process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL
-      }/${imageUrl}?v=${imageVersion || 0}`;
+      const previewUrl = getCloudImageUrl(imageUrl, imageVersion);
       dispatch({ type: "SET_PREVIEW_URL", payload: previewUrl });
     }
     if (name) {
@@ -399,28 +403,16 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
   }, [selectedEditCategory?.defaultOptions]);
 
   useEffect(() => {
-    if (createCategoryErr) {
-      addToast("error", createCategoryErr.message);
-    }
-  }, [createCategoryErr]);
-
-  useEffect(() => {
-    if (updateCategoryErr) {
-      addToast("error", updateCategoryErr.message);
-    }
-  }, [updateCategoryErr]);
-
-  useEffect(() => {
-    if (deleteCategoryErr) {
-      addToast("error", deleteCategoryErr.message);
-    }
-  }, [deleteCategoryErr]);
-
-  useEffect(() => {
-    if (createAiImageErr) {
-      addToast("error", createAiImageErr.message);
-    }
-  }, [createAiImageErr]);
+    handleErrors(createCategoryErr);
+    handleErrors(updateCategoryErr);
+    handleErrors(deleteCategoryErr);
+    handleErrors(createAiImageErr);
+  }, [
+    createCategoryErr,
+    updateCategoryErr,
+    deleteCategoryErr,
+    createAiImageErr,
+  ]);
 
   useEffect(() => {
     if (!isVisible) {

@@ -9,7 +9,7 @@ import useLoading from "@/hooks/context/useLoading";
 import { useConfirm } from "@/hooks/useConfirm";
 import useDeepEffect from "@/hooks/useDeepEffect";
 import { useToast } from "@/hooks/useToast";
-import useMutation from "@/lib/client/useMutation";
+import useMutation, { ApiErrorState } from "@/lib/client/useMutation";
 import { ApiError } from "@/lib/shared/error/ApiError";
 import {
   IPostOpenAiImageBody,
@@ -340,6 +340,12 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     }
   };
 
+  const handleErrors = (error: ApiErrorState | null | undefined) => {
+    if (error) {
+      addToast("error", error.message);
+    }
+  };
+
   useEffect(() => {
     const {
       imageUrl,
@@ -353,9 +359,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     } = selectedEditMenu || {};
 
     if (imageUrl) {
-      const previewUrl = `${
-        process.env.NEXT_PUBLIC_AWS_CLOUDFRONT_URL
-      }/${imageUrl}?v=${imageVersion || 0}`;
+      const previewUrl = getCloudImageUrl(imageUrl, imageVersion);
       dispatch({ type: "SET_PREVIEW_URL", payload: previewUrl });
     }
     if (name) {
@@ -455,28 +459,16 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
   ]);
 
   useEffect(() => {
-    if (createMenuItemErr) {
-      addToast("error", createMenuItemErr.message);
-    }
-  }, [createMenuItemErr]);
-
-  useEffect(() => {
-    if (updateMenuItemErr) {
-      addToast("error", updateMenuItemErr.message);
-    }
-  }, [updateMenuItemErr]);
-
-  useEffect(() => {
-    if (deleteMenuItemErr) {
-      addToast("error", deleteMenuItemErr.message);
-    }
-  }, [deleteMenuItemErr]);
-
-  useEffect(() => {
-    if (createAiImageErr) {
-      addToast("error", createAiImageErr.message);
-    }
-  }, [createAiImageErr]);
+    handleErrors(createMenuItemErr);
+    handleErrors(updateMenuItemErr);
+    handleErrors(deleteMenuItemErr);
+    handleErrors(createAiImageErr);
+  }, [
+    createMenuItemErr,
+    updateMenuItemErr,
+    deleteMenuItemErr,
+    createAiImageErr,
+  ]);
 
   useEffect(() => {
     if (!isVisible) {

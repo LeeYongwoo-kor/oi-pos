@@ -1,15 +1,15 @@
 import {
   ME_ENDPOINT,
   ORDER_ENDPOINT,
-  RESTAURANT_ORDER_ENDPOINT,
-  RESTAURANT_TABLE_ENDPOINT,
+  OWNER_ENDPOINT,
 } from "@/constants/endpoint";
 import { DASHBOARD_URL } from "@/constants/url";
 import { IOrder, IOrderItemForHistory } from "@/database";
 import useLoading from "@/hooks/context/useLoading";
 import { useToast } from "@/hooks/useToast";
 import useMutation from "@/lib/client/useMutation";
-import { IPostOrderPaymentBody } from "@/pages/api/v1/restaurants/tables/[restaurantTableId]/orders/[orderId]/payments";
+import { IPostOrderPaymentBody } from "@/pages/api/v1/owner/restaurants/tables/[restaurantTableId]/orders/[orderId]/payments";
+import buildEndpointWithQuery from "@/utils/converter/buildEndpointWithQuery";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import { calculateTotalPrice } from "@/utils/order/setDefaultMenuOptions";
 import isEmpty from "@/utils/validation/isEmpty";
@@ -27,6 +27,8 @@ import { useRouter } from "next/router";
 import { SetStateAction, useEffect, useState } from "react";
 import useSWR from "swr";
 import OrderItemDetail from "./OrderItemDetail";
+import { useConfirm } from "@/hooks/useConfirm";
+import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 
 type OrderPaymentProps = {
   tableType: string | undefined;
@@ -45,7 +47,11 @@ export default function OrderPayment({
     isValidating: orderInfoLoading,
   } = useSWR<IOrder>(
     tableType && tableNumber && orderNumber
-      ? `${ME_ENDPOINT.ORDER}?tableType=${tableType}&tableNumber=${tableNumber}&orderNumber=${orderNumber}`
+      ? buildEndpointWithQuery(ME_ENDPOINT.ORDER, {
+          tableType,
+          tableNumber,
+          orderNumber,
+        })
       : null
   );
   const [
@@ -53,7 +59,7 @@ export default function OrderPayment({
     { error: createOrderPaymentErr, loading: createOrderPaymentLoading },
   ] = useMutation<OrderPaymentType, IPostOrderPaymentBody>(
     orderInfoData
-      ? RESTAURANT_ORDER_ENDPOINT.ORDER_PAYMENT(
+      ? OWNER_ENDPOINT.RESTAURANT.TABLE.ORDER.PAYMENT(
           orderInfoData.tableId,
           orderInfoData.id
         )
@@ -69,6 +75,7 @@ export default function OrderPayment({
     setSelectedPaymentType(e.target.value as PaymentType);
   };
   const { addToast } = useToast();
+  const { showConfirm } = useConfirm();
   const router = useRouter();
   const withLoading = useLoading();
 
@@ -80,8 +87,6 @@ export default function OrderPayment({
     isEmpty(sharedOrderItemData) ||
     createOrderPaymentLoading;
 
-  console.log("orderInfoData", orderInfoData);
-
   const handleCloseOrderPayment = async () => {
     router.push(
       {
@@ -92,7 +97,26 @@ export default function OrderPayment({
     );
   };
 
-  const handleOrderPayment = async (
+  const handleClickOrderPayment = async (
+    orderPaymentBody: IPostOrderPaymentBody
+  ) => {
+    if (!orderInfoData || isEmpty(orderInfoData) || createOrderPaymentLoading) {
+      return;
+    }
+
+    showConfirm({
+      title: CONFIRM_DIALOG_MESSAGE.PAYMENT_ORDER.TITLE,
+      message: CONFIRM_DIALOG_MESSAGE.PAYMENT_ORDER.MESSAGE,
+      confirmText: CONFIRM_DIALOG_MESSAGE.PAYMENT_ORDER.CONFIRM_TEXT,
+      cancelText: CONFIRM_DIALOG_MESSAGE.PAYMENT_ORDER.CANCEL_TEXT,
+      buttonType: "confirm",
+      onConfirm: async () => {
+        await withLoading(() => handleConfirmOrderPayment(orderPaymentBody));
+      },
+    });
+  };
+
+  const handleConfirmOrderPayment = async (
     orderPaymentBody: IPostOrderPaymentBody
   ) => {
     if (!orderInfoData || isEmpty(orderInfoData) || createOrderPaymentLoading) {
@@ -101,8 +125,8 @@ export default function OrderPayment({
 
     const result = await createOrderPayment(orderPaymentBody, {
       additionalKeys: [
-        RESTAURANT_TABLE_ENDPOINT.BASE,
-        ORDER_ENDPOINT.ORDER_BY_ID(orderInfoData.id),
+        ME_ENDPOINT.TABLE,
+        ORDER_ENDPOINT.BASE(orderInfoData.id),
       ],
     });
 
@@ -110,7 +134,7 @@ export default function OrderPayment({
       await handleCloseOrderPayment();
       addToast(
         "success",
-        `${tableNumber}Payment for order ${orderNumber} is successful!`
+        `${tableType} ${tableNumber}: Payment for order ${orderNumber} is successful!`
       );
     }
   };
@@ -134,7 +158,7 @@ export default function OrderPayment({
   }, [createOrderPaymentErr]);
 
   return (
-    <div className="flex font-archivo flex-col w-full max-h-[100vh] h-full p-4 bg-slate-700">
+    <div className="flex select-none font-archivo flex-col w-full max-h-[100vh] h-full p-4 bg-slate-700">
       <div className="relative flex items-center justify-center w-full pb-3 mb-4 border-b border-dashed border-slate-500">
         <div className="absolute left-0">
           <button
@@ -209,16 +233,13 @@ export default function OrderPayment({
         </div>
         <button
           disabled={isDisabled}
-          onClick={async (e) => {
-            e.preventDefault();
-            await withLoading(() =>
-              handleOrderPayment({
-                totalAmount: calculateTotalPrice(sharedOrderItemData),
-                paymentType: selectedPaymentType,
-                currencyType: "JPY",
-              })
-            );
-          }}
+          onClick={() =>
+            handleClickOrderPayment({
+              totalAmount: calculateTotalPrice(sharedOrderItemData),
+              paymentType: selectedPaymentType,
+              currencyType: "JPY",
+            })
+          }
           className={`w-full px-4 py-2 text-lg font-semibold bg-blue-500 text-white rounded-full  ${
             isDisabled ? "opacity-75 cursor-not-allowed" : "hover:bg-blue-600"
           }`}

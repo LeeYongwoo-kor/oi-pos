@@ -9,7 +9,7 @@ import { Order, OrderStatus, TableStatus } from "@prisma/client";
 import { useEffect } from "react";
 import LoadingOverlay from "../LoadingOverlay";
 
-type OrderStatusNotificationProps = {
+type OrderNotificationProps = {
   orderInfo: IOrder;
 };
 
@@ -19,11 +19,13 @@ const getTitle = (status: OrderStatus, isReserved: boolean) => {
       return "Your Order is Complete!";
     case OrderStatus.CANCELLED:
       return "Your Order has been Cancelled";
-    case OrderStatus.PENDING: {
+    case OrderStatus.PENDING:
+      return "Your Order is currently Pending";
+    case OrderStatus.ORDERED: {
       if (isReserved) {
         return "Checking reservation";
       }
-      return "Your order is currently Pending";
+      return "Your Order is now being prepared! Please wait for a while😊";
     }
     default:
       return "Order Notification";
@@ -40,27 +42,27 @@ const getSubtitle = (
       return "Thank you for your purchase!😚 Your order is now complete!😊";
     case OrderStatus.CANCELLED:
       return "We're sorry to hear that you've cancelled your order😥";
-    case OrderStatus.PENDING: {
+    case OrderStatus.PENDING:
+      return "The order is pending by the restaurant. Please contact the staff around you🙏";
+    case OrderStatus.ORDERED: {
       if (isReserved) {
         return `Welcome ${customerName}! Is this the correct reservation for our restaurant?🤗`;
       }
-      return "The order is pending by the restaurant. Please contact the staff around you🙏";
+      return "We will notify you when your order is ready!😊";
     }
     default:
       return "Order Notification Information";
   }
 };
 
-export default function OrderStatusNotification({
+export default function OrderNotification({
   orderInfo,
-}: OrderStatusNotificationProps) {
+}: OrderNotificationProps) {
   const [
     updateOrderStatus,
     { error: updateOrderStatusErr, loading: updateOrderStatusLoading },
   ] = useMutation<Order, IPatchOrderBody>(
-    orderInfo && orderInfo.status === OrderStatus.PENDING
-      ? ORDER_ENDPOINT.ORDER_BY_ID(orderInfo.id)
-      : null,
+    orderInfo ? ORDER_ENDPOINT.BASE(orderInfo.id) : null,
     Method.PATCH
   );
   const { addToast } = useToast();
@@ -71,8 +73,7 @@ export default function OrderStatusNotification({
     table: { status: tableStatus },
   } = orderInfo;
 
-  const isReserved =
-    status === OrderStatus.PENDING && tableStatus === TableStatus.RESERVED;
+  const isReserved = tableStatus === TableStatus.RESERVED;
 
   const handleChangeOrderStatus = async () => {
     if (!orderInfo || isEmpty(orderInfo) || updateOrderStatusLoading) {
@@ -102,7 +103,7 @@ export default function OrderStatusNotification({
           <div className="mt-4 mb-8 text-lg font-semibold text-gray-600">
             {getSubtitle(status, isReserved, customerName)}
           </div>
-          {isReserved && (
+          {status === OrderStatus.ORDERED && isReserved && (
             <div className="flex items-center justify-center w-full">
               <button
                 onClick={handleChangeOrderStatus}

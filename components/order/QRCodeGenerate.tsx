@@ -33,14 +33,14 @@ export default function QRCodeGenerate({ qrCodeId }: QRCodeProps) {
           <div className="w-full">
             <label
               htmlFor="address"
-              className="block text-lg font-medium text-gray-700"
+              className="block mb-1 text-lg font-medium text-gray-700"
             >
               Address
             </label>
             <div className="flex items-center justify-center">
               <input
                 ref={inputRef}
-                className="flex-grow p-2 mt-1 border rounded-md"
+                className="flex-grow p-2 border rounded-md"
                 type="text"
                 value={fullAddress}
                 readOnly

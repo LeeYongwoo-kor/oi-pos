@@ -1,5 +1,5 @@
 import { ME_ENDPOINT } from "@/constants/endpoint";
-import { getActiveOrderForOrderDetail } from "@/database";
+import { getActiveOrderForOrderPayment } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { NotFoundError, ValidationError } from "@/lib/shared/error/ApiError";
 import convertOrderNumberToNumber from "@/utils/converter/convertOrderNumberToNumber";
@@ -21,20 +21,17 @@ async function handler(
 ) {
   if (!session?.restaurantId) {
     throw ValidationError.builder()
-      .setMessage("Failed to get active order request info")
+      .setMessage("Failed to get active orders info")
       .setEndpoint(ME_ENDPOINT.ORDER)
       .build();
   }
 
   const { tableType, tableNumber, orderNumber } = req.query;
-
   if (typeof orderNumber !== "string") {
     throw new ValidationError(
       "Failed to get order info. Please check parameter and try again"
     );
   }
-
-  const formattedOrderNumber = convertOrderNumberToNumber(orderNumber);
 
   const { tableType: validTableType, tableNumber: validNumber } =
     validateAndConvertQuery<IGetMyOrderQuery>(
@@ -45,7 +42,9 @@ async function handler(
       }
     );
 
-  const orderInfo = await getActiveOrderForOrderDetail(session.restaurantId, {
+  const formattedOrderNumber = convertOrderNumberToNumber(orderNumber);
+
+  const orderInfo = await getActiveOrderForOrderPayment(session.restaurantId, {
     tableType: validTableType,
     tableNumber: validNumber,
     orderNumber: formattedOrderNumber,

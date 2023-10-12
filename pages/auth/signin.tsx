@@ -4,6 +4,7 @@ import {
   AuthCallbackErrorType,
   AuthExpectedErrorType,
 } from "@/constants/errorMessage/auth";
+import { DASHBOARD_URL } from "@/constants/url";
 import useToastAuthError from "@/hooks/context/useToastAuthError";
 import { useError } from "@/providers/ErrorContext";
 import { GetServerSidePropsContext } from "next";
@@ -162,7 +163,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   if (session) {
     return {
       redirect: {
-        destination: "/dashboard",
+        destination: DASHBOARD_URL.BASE,
       },
     };
   }

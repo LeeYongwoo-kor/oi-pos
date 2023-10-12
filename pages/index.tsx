@@ -1,3 +1,4 @@
+import { AUTH_URL, DASHBOARD_URL } from "@/constants/url";
 import { GetServerSidePropsContext } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]";
@@ -12,14 +13,14 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   if (session) {
     return {
       redirect: {
-        destination: "/dashboard",
+        destination: DASHBOARD_URL.BASE,
       },
     };
   }
 
   return {
     redirect: {
-      destination: "/auth/signin",
+      destination: AUTH_URL.LOGIN,
     },
   };
 }

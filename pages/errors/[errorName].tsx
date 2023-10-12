@@ -5,6 +5,7 @@ import { GetServerSideProps } from "next";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { useSWRConfig } from "swr";
 
 type ErrorPageProps = {
   errorName: string;
@@ -13,11 +14,14 @@ type ErrorPageProps = {
 
 export default function ErrorPage({ errorName, message }: ErrorPageProps) {
   const router = useRouter();
+  const { mutate } = useSWRConfig();
   const { setError } = useError();
 
   useEffect(() => {
     if (errorName) {
       setError({ errorName, errorMessage: message });
+      // clear cache on logout
+      mutate(() => true, undefined, { revalidate: false });
       signOut({ redirect: false }).then(() => {
         router.replace(AUTH_URL.LOGIN);
       });

@@ -27,12 +27,6 @@ export default withAuth(
   {
     callbacks: {
       authorized({ req, token }: IAuthorizedOptions) {
-        console.log("this is middleware callbacks");
-        console.log("Request received:", req.url);
-        // `/admin` requires admin role
-        // if (req.nextUrl.pathname === "/admin") {
-        //   return token?.userRole === "admin";
-        // }
         return !!token;
       },
     },
@@ -44,6 +38,6 @@ export const config = {
     "/plans/:path*",
     "/dashboard",
     "/restaurants/setup/:path*",
-    "/restaurants/tables/:path*",
+    "/tests/:path*",
   ],
 };

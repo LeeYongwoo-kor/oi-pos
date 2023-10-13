@@ -1,4 +1,4 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 
 export async function deleteVerificationTokens(

@@ -1,4 +1,4 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import { Account } from "@prisma/client";
@@ -40,7 +40,11 @@ export async function createAccountByNewProvider(
   const newAccount = await prismaRequestHandler(
     prisma.account.create({
       data: {
-        userId,
+        user: {
+          connect: {
+            id: userId,
+          },
+        },
         type: account.type,
         provider: account.provider,
         providerAccountId: account.providerAccountId,

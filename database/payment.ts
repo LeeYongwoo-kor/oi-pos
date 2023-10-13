@@ -1,7 +1,7 @@
 import prisma from "@/lib/services/prismadb";
 import { PlanPayment } from "@prisma/client";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 
 export async function getPlanPaymentByOrderId(

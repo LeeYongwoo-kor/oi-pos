@@ -53,7 +53,7 @@ export async function getOneMenuCategory(
 
 export async function getAllCategoriesByRestaurantId(
   restaurantId: string | null | undefined
-): Promise<MenuCategory[] | null> {
+): Promise<IMenuCategory[] | null> {
   if (!restaurantId) {
     return null;
   }

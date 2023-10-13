@@ -1,4 +1,4 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
@@ -34,7 +34,7 @@ export async function getRestaurant(
   );
 }
 
-export async function getRestaurantAllInfo(
+export async function getRestaurantByUserId(
   userId: string | undefined | null
 ): Promise<IRestaurant | null> {
   if (!userId) {
@@ -50,7 +50,7 @@ export async function getRestaurantAllInfo(
         restaurantTables: true,
       },
     }),
-    "getRestaurantAllInfo"
+    "getRestaurantByUserId"
   );
 }
 

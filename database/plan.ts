@@ -1,9 +1,10 @@
-import prismaRequestHandler from "@/lib/server/prismaRequestHandler";
+import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import convertDatesToISOString from "@/utils/converter/convertDatesToISOString";
-import { Plan, PlanType as PlanDbType } from "@prisma/client";
+import { CurrencyType, Plan, PlanType as PlanDbType } from "@prisma/client";
 import { ValidationError } from "@/lib/shared/error/ApiError";
+import { LocaleType } from "@/constants/type";
 
 export type CreatePlanParams = {
   id: PlanType;
@@ -56,6 +57,22 @@ export async function getPlanDuration(
   );
 
   return planDuration;
+}
+
+export async function getAllPlansByLocale(
+  locale?: Locale | undefined
+): Promise<Plan[] | null> {
+  const plans = await prismaRequestHandler(
+    prisma.plan.findMany({
+      where: {
+        currency:
+          locale === LocaleType.ja ? CurrencyType.JPY : CurrencyType.USD,
+      },
+    }),
+    "getAllPlansByLocale"
+  );
+
+  return plans ? plans.map((plan) => convertDatesToISOString(plan)) : null;
 }
 
 export async function getAllPlans(): Promise<Plan[] | null> {

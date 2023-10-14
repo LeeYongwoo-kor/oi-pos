@@ -1,7 +1,7 @@
 import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
-import { CartItem } from "@/recoil/state/cartItemState";
+import { ICartItem } from "@/recoil/state/cartItemState";
 import { hasNullUndefined } from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import {
@@ -13,6 +13,7 @@ import {
 
 export interface IMenuItem extends MenuItem {
   menuItemOptions: MenuItemOption[];
+  rank?: number;
 }
 
 export interface CreateMenuItemParams {
@@ -68,7 +69,7 @@ export async function getAllMenuItemsByCategoryIdAndSub(
 }
 
 export async function getMenuItemsByCartItems(
-  cartItems: CartItem[] | null | undefined
+  cartItems: ICartItem[] | null | undefined
 ): Promise<(MenuItem | null)[] | null> {
   if (!cartItems || isEmpty(cartItems)) {
     return null;
@@ -105,7 +106,8 @@ export async function getMenuItemsByCartItems(
     "getMenuItemsByCartItems"
   );
 
-  return isEmpty(result) ? null : result;
+  const isAllNullArr = result.every((item) => item === null);
+  return isAllNullArr ? null : result;
 }
 
 export async function createMenuItem(

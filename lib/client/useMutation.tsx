@@ -154,7 +154,7 @@ export default function useMutation<T, U, D = any>(
         };
 
         const fetchDataWithRetry = retry
-          ? withErrorRetry(fetchData)
+          ? await withErrorRetry(fetchData)()
           : fetchData;
         const responseData = await fetchDataWithRetry();
 

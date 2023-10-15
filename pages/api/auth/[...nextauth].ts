@@ -18,7 +18,7 @@ import { withErrorRetry } from "@/lib/shared/withErrorRetry";
 import { assignRefreshToken } from "@/utils/nextauth/assignRefreshToken";
 import { verifyUserInformation } from "@/utils/nextauth/verifyUserInformation";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { Account, User, UserStatus } from "@prisma/client";
+import { Account, User } from "@prisma/client";
 import NextAuth, { NextAuthOptions, Session } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
 import GoogleProvider from "next-auth/providers/google";
@@ -87,7 +87,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     // strategy: "database",
-    maxAge: 60 * 60 * 24 * 28, // 28 days
+    maxAge: 60 * 60 * 24 * 7, // 7 days
   },
   jwt: {
     maxAge: 60 * 15, // 15 minutes
@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptions = {
       // new user registration
       if (isNewUser) {
         try {
-          withErrorRetry<User>(() => updateUserRole(user?.id));
+          await withErrorRetry<User>(() => updateUserRole(user?.id))();
         } catch (err) {
           const errMessage =
             err instanceof CustomError ? err.message : String(err);
@@ -116,13 +116,7 @@ export const authOptions: NextAuthOptions = {
       }
       // initial login success sign up
       if (user) {
-        if (user.status !== UserStatus.ACTIVE) {
-          return {
-            ...token,
-            errorName: AUTH_EXPECTED_ERROR.NOT_ACTIVE_USER,
-          };
-        }
-        token = { ...token, status: user.status, role: user.role };
+        token = { ...token, role: user.role };
       }
       // initial login success sign up
       if (account) {

@@ -22,7 +22,7 @@ async function main() {
     {
       id: PLAN_ID.TRIAL_PLAN,
       planType: PlanType.FREE_TRIAL,
-      name: "Try riding YOSHI",
+      name: "Try riding Oi-POS",
       description: "90-Day Free Trial",
       maxMenus: TRIAL_MENU_NUMBER_MAX,
       maxTables: TRIAL_TABLE_NUMBER_MAX + TRIAL_COUNTER_NUMBER_MAX,
@@ -33,7 +33,7 @@ async function main() {
     {
       id: PLAN_ID.MONTHLY_PLAN,
       planType: PlanType.MONTHLY,
-      name: "Have fun with YOSHI every month",
+      name: "Have fun with Oi-POS every month",
       description: "Monthly Paid",
       maxMenus: MENU_NUMBER_MAX,
       maxTables: TABLE_NUMBER_MAX + COUNTER_NUMBER_MAX,
@@ -44,7 +44,7 @@ async function main() {
     {
       id: PLAN_ID.YEARLY_PLAN,
       planType: PlanType.YEARLY,
-      name: "YOSHI is your friend every year!",
+      name: "Oi-POS is your friend every year!",
       description: "1 Year Paid",
       maxMenus: MENU_NUMBER_MAX,
       maxTables: TABLE_NUMBER_MAX + COUNTER_NUMBER_MAX,

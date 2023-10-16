@@ -57,8 +57,8 @@ export default function NavigationBar() {
               width={56}
               height={56}
               className="rounded-full"
-              src="/images/logo/yoshi.jpg"
-              alt="Yoshi Logo"
+              src="/images/logo/oi-pos.jpg"
+              alt="Oi-POS Logo"
               draggable={false}
             />
           </div>

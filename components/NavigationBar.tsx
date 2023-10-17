@@ -79,7 +79,12 @@ export default function NavigationBar() {
               </div>
               <div>
                 <button
-                  onClick={() => setIsMenuOpen(true)}
+                  onClick={() => {
+                    if (currentPage !== DASHBOARD_URL.BASE) {
+                      router.push(DASHBOARD_URL.BASE);
+                    }
+                    setIsMenuOpen(true);
+                  }}
                   className={`px-3 py-1 font-semibold border shadow-inner text-slate-600 rounded-xl hover:bg-blue-100 ${
                     isOpenMenu ? "bg-indigo-200" : "bg-white"
                   }`}

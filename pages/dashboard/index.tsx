@@ -1,6 +1,6 @@
 import Layout from "@/components/Layout";
+import Loader from "@/components/Loader";
 import LoadingOverlay from "@/components/LoadingOverlay";
-import Menu from "@/components/menu/Menu";
 import OrderPayment from "@/components/order/OrderPayment";
 import QRCodeGenerate from "@/components/order/QRCodeGenerate";
 import TableHistory from "@/components/order/TableHistory";
@@ -42,6 +42,7 @@ import {
   TableType,
 } from "@prisma/client";
 import { GetServerSidePropsContext } from "next";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useRecoilState, useRecoilValue, useSetRecoilState } from "recoil";
@@ -137,6 +138,11 @@ const getStatusToButtonColor = (
 
   return statusToButtonColor[tableStatus];
 };
+
+const Menu = dynamic(() => import("@/components/menu/Menu"), {
+  loading: () => <Loader />,
+  ssr: false,
+});
 
 function Dashboard({ restaurantInfo, initMsg }: DashboardProps) {
   const [isOpenQrCode, setOpenQrCode] = useRecoilState(qrCodeOpenState);

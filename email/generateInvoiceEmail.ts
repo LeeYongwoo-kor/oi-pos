@@ -16,7 +16,7 @@ export function generateInvoiceEmail({
   return `
     <div style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; max-width: 600px; margin-left: auto; margin-right: auto;">
       <div style="background-color: #ffffff; padding: 30px; border-radius: 5px;">
-        <h1 style="font-size: 24px; color: #333; margin-bottom: 20px;">Yoshi-POS Invoice</h1>
+        <h1 style="font-size: 24px; color: #333; margin-bottom: 20px;">Oi-POS Invoice</h1>
         <p>Thank you for your payment. Here are the order details:</p>
         <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
           <tr>

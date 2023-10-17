@@ -2,7 +2,7 @@ import {
   NextauthError,
   RefreshAccessTokenError,
   UnsupportedProviderError,
-} from "@/lib/shared/NextauthError";
+} from "@/lib/shared/error/NextauthError";
 import { TokenSet } from "next-auth";
 import { JWT } from "next-auth/jwt";
 

@@ -253,32 +253,35 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
             onChange={(e) => setTableNumber(e.target.value)}
           />
         </div>
-        <div className="flex items-center space-x-2">
-          <span>All</span>
-          <div className="relative inline-block w-10 align-middle cursor-pointer select-none">
-            <input
-              type="checkbox"
-              name="isEditing"
-              id="isEditing"
-              onChange={() => changeOrderRequestSort(!isSortedRequest)}
-              className="hidden"
-            />
-            <label
-              htmlFor="isEditing"
-              className={`block h-5 overflow-hidden transform transition-colors rounded-full cursor-pointer toggle-label ${
-                isSortedRequest ? "bg-green-300" : "bg-blue-300"
-              }`}
-            >
-              <span
-                className={`block h-5 w-5 rounded-full shadow transform transition-transform ${
-                  isSortedRequest
-                    ? "translate-x-full bg-green-500"
-                    : "translate-x-0 bg-blue-500"
-                } ease-in-out duration-200`}
-              ></span>
-            </label>
+        <div className="flex items-center justify-between">
+          {/* All / Request Toggle */}
+          <div className="space-x-2">
+            <span>All</span>
+            <div className="relative inline-block w-10 align-middle cursor-pointer select-none">
+              <input
+                type="checkbox"
+                name="isEditing"
+                id="isEditing"
+                onChange={() => changeOrderRequestSort(!isSortedRequest)}
+                className="hidden"
+              />
+              <label
+                htmlFor="isEditing"
+                className={`block h-5 overflow-hidden transform transition-colors rounded-full cursor-pointer toggle-label ${
+                  isSortedRequest ? "bg-green-300" : "bg-blue-300"
+                }`}
+              >
+                <span
+                  className={`block h-5 w-5 rounded-full shadow transform transition-transform ${
+                    isSortedRequest
+                      ? "translate-x-full bg-green-500"
+                      : "translate-x-0 bg-blue-500"
+                  } ease-in-out duration-200`}
+                ></span>
+              </label>
+            </div>
+            <span>Request</span>
           </div>
-          <span>Request</span>
         </div>
         <div className="w-full h-full p-2 bg-white">
           {(isLoading || !restaurantId) && <Loader />}

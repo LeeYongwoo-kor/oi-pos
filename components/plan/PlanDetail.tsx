@@ -19,11 +19,11 @@ type PlanDetailProps = {
 const translations: {
   [key: string]: string | number;
 } = {
-  "Try riding YOSHI": "YOSHIに乗ってみよう!",
+  "Try riding Oi-POS": "Oi-POSに乗ってみよう!",
   "90-Day Free Trial": "90日間無料トライアル",
-  "Have fun with YOSHI every month": "毎月YOSHIと遊ぼう!",
+  "Have fun with Oi-POS every month": "毎月Oi-POSと遊ぼう!",
   "Monthly Paid": "月払い",
-  "YOSHI is your friend every year!": "毎年YOSHIの親友になろう!",
+  "Oi-POS is your friend every year!": "毎年Oi-POSの親友になろう!",
   "1 Year Paid": "1年払い",
   FREE: "無料",
   [MONTHLY_PRICE]: MONTHLY_PRICE_JPY,

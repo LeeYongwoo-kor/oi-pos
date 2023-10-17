@@ -12,8 +12,9 @@ import CartItemIcon from "./CartItemIcon";
 import Category from "./Category";
 import MenuHeader from "./MenuHeader";
 import MenuItemArea from "./MenuItemArea";
-import MenuToggleButton from "./MenuToggleButton";
+import MenuControl from "./MenuControl";
 import SubCategory from "./SubCategory";
+import LoadingOverlay from "../LoadingOverlay";
 
 const CategoryEdit = dynamic(() => import("./CategoryEdit"), {
   loading: () => <Loader />,
@@ -67,9 +68,9 @@ export default function Menu({ restaurantInfo, role }: MenuProps) {
 
   return (
     <>
-      {role === "owner" && <MenuToggleButton />}
+      {role === "owner" && <MenuControl />}
       <div className="relative h-full max-h-full p-4 overflow-hidden select-none font-archivo">
-        {/* {categoryLoading && <LoadingOverlay />} */}
+        {categoryLoading && <LoadingOverlay />}
         <MenuHeader restaurantInfo={restaurantInfo} />
         <Category />
         <SubCategory

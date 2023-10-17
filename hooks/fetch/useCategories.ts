@@ -12,7 +12,7 @@ export default function useCategories(
 ) {
   const { addToast } = useToast();
   const setCategories = useSetRecoilState(categoriesState);
-  const { data, error, isValidating } = useSWR<IMenuCategory[]>(
+  const { data, error, isValidating, isLoading } = useSWR<IMenuCategory[]>(
     restaurantInfo
       ? RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantInfo?.id)
       : null
@@ -36,6 +36,7 @@ export default function useCategories(
   return {
     categoryInfo: data,
     categoryError: error,
-    categoryLoading: isValidating,
+    categoryLoading: isLoading,
+    categoryValidating: isValidating,
   };
 }

@@ -16,7 +16,7 @@ async function handler(
 ) {
   if (req.method === Method.GET) {
     const subscription = await getSubscription(session?.id);
-    if (!subscription) {
+    if (session?.isAllInfoRegistered && !subscription) {
       throw new NotFoundError("Subscription not found. Please subscribe first");
     }
 

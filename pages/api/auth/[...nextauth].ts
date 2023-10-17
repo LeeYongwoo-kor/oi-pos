@@ -52,7 +52,7 @@ export const authOptions: NextAuthOptions = {
         await sendEmail({
           to: identifier,
           from: process.env.EMAIL_FROM ?? "",
-          subject: "Hello, I'm Yoshi! Please Verify Your Account",
+          subject: "Hello, I'm Oi-POS! Please Verify Your Account",
           html: generateVerifyLoginEmail(url),
         });
       },

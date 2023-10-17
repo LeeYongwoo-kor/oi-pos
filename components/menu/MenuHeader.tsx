@@ -29,8 +29,8 @@ export default function MenuHeader({ restaurantInfo }: MenuHeaderProps) {
       <div className="absolute flex items-center space-x-3 transform -translate-x-1/2 left-1/2">
         {restaurantInfo?.logoUrl ? (
           <Image
-            src="/images/logo/yoshi.jpg"
-            alt="Yoshi Logo"
+            src="/images/logo/oi-pos.jpg"
+            alt="Oi-POS Logo"
             draggable={false}
             width={64}
             height={64}

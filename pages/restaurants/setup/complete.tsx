@@ -47,7 +47,7 @@ export default function SetupComplete({ initMsg }: SetupCompleteProps) {
       await router.push(DASHBOARD_URL.BASE);
       addToast(
         "success",
-        "Your restaurant is ready to go!🎉 Please enjoy Yoshi!"
+        "Your restaurant is ready to go!🎉 Please enjoy Oi-POS!"
       );
     }
   };

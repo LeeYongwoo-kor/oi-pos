@@ -13,7 +13,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useRecoilState, useRecoilValue, useSetRecoilState } from "recoil";
 
-export default function MenuToggleButton() {
+export default function MenuControl() {
   const showEditMenu = useRecoilValue(showMenuEditState);
   const showEditCategory = useRecoilValue(showCategoryEditState);
   const [isEditing, setIsEditing] = useRecoilState(editingState);

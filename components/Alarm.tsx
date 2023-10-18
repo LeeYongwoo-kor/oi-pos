@@ -20,7 +20,12 @@ import convertNumberToOrderNumber from "@/utils/converter/convertNumberToOrderNu
 import isEmpty from "@/utils/validation/isEmpty";
 import { faFilter } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { OrderRequest, OrderRequestStatus, TableType } from "@prisma/client";
+import {
+  OrderRequest,
+  OrderRequestStatus,
+  TableStatus,
+  TableType,
+} from "@prisma/client";
 import { useEffect, useRef, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 import { useSWRConfig } from "swr";
@@ -58,6 +63,7 @@ export default function Alarm({ restaurantId, onToggle }: AlarmProps) {
         limit: ALARM_ORDER_REQUEST_LIMIT,
         offset: index * ALARM_ORDER_REQUEST_LIMIT,
         status: isSortedRequest ? OrderRequestStatus.PLACED : undefined,
+        tableStatus: TableStatus.OCCUPIED,
         tableNumber: tableNumber || undefined,
         tableType: tableType === "all" ? undefined : tableType,
       };

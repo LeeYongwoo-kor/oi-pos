@@ -24,7 +24,7 @@ async function handler(
   await sendEmail({
     to: session?.user?.email || "",
     from: process.env.EMAIL_FROM!,
-    subject: `Hello, ${session?.user?.name}! Invoice for your payment`,
+    subject: `Hello ${session?.user?.name || ""}! Invoice for your payment`,
     html: emailContent,
   });
 

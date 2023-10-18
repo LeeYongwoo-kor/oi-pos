@@ -25,7 +25,7 @@ import Loader from "../Loader";
 const statusToBgColor = {
   [OrderStatus.ORDERED]: "bg-green-300",
   [OrderStatus.PAYMENT_REQUESTED]: "bg-indigo-400",
-  [OrderStatus.PENDING]: "bg-yellow-500",
+  [OrderStatus.PENDING]: "bg-yellow-600",
   [OrderStatus.CANCELLED]: "bg-slate-200",
   [OrderStatus.COMPLETED]: "bg-slate-200",
 };

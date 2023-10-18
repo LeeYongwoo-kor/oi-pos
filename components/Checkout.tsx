@@ -16,7 +16,6 @@ import {
   IPostPaymentBody,
 } from "@/pages/api/v1/owner/plans/payments/[orderId]";
 import { IPostSubscriptionBody } from "@/pages/api/v1/owner/subscriptions";
-import { useNavigation } from "@/providers/NavigationContext";
 import convertDatesToIntlString from "@/utils/converter/convertDatesToIntlString";
 import {
   PayPalButtons,
@@ -51,7 +50,6 @@ const ButtonWrapper = ({
   // usePayPalScriptReducer can be use only inside children of PayPalScriptProviders
   // This is the main reason to wrap the PayPalButtons in a new component
   const [{ options, isPending }, dispatch] = usePayPalScriptReducer();
-  const { showToastMessage } = useNavigation();
   const { addToast } = useToast();
   const { verifyOrder } = useVerifyOrder();
   const [createPayment, { error: createPaymentErr }] = useMutation<
@@ -149,9 +147,12 @@ const ButtonWrapper = ({
               throw createSubscriptionErr;
             }
 
-            const createdAt = convertDatesToIntlString(subscription.createdAt);
+            const createdAt = convertDatesToIntlString(subscription.createdAt, {
+              year: true,
+            });
             const expiresAt = convertDatesToIntlString(
-              subscription.currentPeriodEnd
+              subscription.currentPeriodEnd,
+              { year: true }
             );
 
             if (!createdAt || !expiresAt) {
@@ -173,9 +174,8 @@ const ButtonWrapper = ({
               throw sendInvoiceErr;
             }
 
-            router.replace(RESTAURANT_URL.SETUP.INFO).then(() => {
-              showToastMessage("success", TOAST_MESSAGE.REGISTERATION.SUCCESS);
-            });
+            await router.replace(RESTAURANT_URL.SETUP.INFO);
+            addToast("success", TOAST_MESSAGE.REGISTERATION.SUCCESS);
           });
         }}
         onCancel={async function (data) {

@@ -29,7 +29,7 @@ export function generateInvoiceEmail({
           </tr>
           <tr>
             <td style="font-weight: bold; padding: 10px 0; border-bottom: 1px solid #e9ecef;">Amount:</td>
-            <td style="padding: 10px 0; border-bottom: 1px solid #e9ecef;">${amount}</td>
+            <td style="padding: 10px 0; border-bottom: 1px solid #e9ecef;">$ ${amount}</td>
           </tr>
           <tr>
             <td style="font-weight: bold; padding: 10px 0; border-bottom: 1px solid #e9ecef;">Start:</td>

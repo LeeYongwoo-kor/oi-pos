@@ -15,7 +15,6 @@ import {
   NotFoundError,
   UnexpectedError,
 } from "@/lib/shared/error/ApiError";
-import { getTokyoUtcTime } from "@/utils/getTime";
 import { TableStatus } from "@prisma/client";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
@@ -143,9 +142,9 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
 const checkBusinessHoursAndHolidays = (
   restaurantTable: IRestaurantTableForAccess
 ): string | null => {
-  const now = getTokyoUtcTime(); // 現在時刻
+  const now = dayjs(); // 現在時刻
   const currentDay = now.format("dddd"); // 現在の曜日
-  const currentDate = getTokyoUtcTime().format("YYYY-MM-DD"); // 現在の日付
+  const currentDate = dayjs().format("YYYY-MM-DD"); // 現在の日付
   const startTime = dayjs(
     `${currentDate}T${restaurantTable.restaurant.startTime}:00`
   ); // 営業開始時間

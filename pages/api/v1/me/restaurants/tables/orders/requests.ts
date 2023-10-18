@@ -3,7 +3,7 @@ import { getOrderRequestsForAlarm } from "@/database";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import validateAndConvertQuery from "@/utils/validation/validateAndConvertQuery";
-import { OrderRequestStatus, TableType } from "@prisma/client";
+import { OrderRequestStatus, TableStatus, TableType } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 
@@ -12,6 +12,7 @@ export type IGetMyOrderRequestRawQuery = ToRawQuery<IGetMyOrderRequestQuery>;
 export interface IGetMyOrderRequestQuery {
   status?: OrderRequestStatus | OrderRequestStatus[];
   tableType?: TableType;
+  tableStatus?: TableStatus | TableStatus[];
   tableNumber?: number;
   limit?: number;
   offset?: number;
@@ -35,6 +36,7 @@ async function handler(
     {
       status: { type: { enum: OrderRequestStatus } },
       tableType: { type: { enum: TableType } },
+      tableStatus: { type: { enum: TableStatus } },
       tableNumber: { type: "number" },
       limit: { type: "number" },
       offset: { type: "number" },

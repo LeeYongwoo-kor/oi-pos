@@ -20,25 +20,23 @@ async function handler(
   if (!session?.restaurantId) {
     throw ValidationError.builder()
       .setMessage("Failed to get restaurant table info")
-      .setEndpoint(ME_ENDPOINT.ORDER)
+      .setEndpoint(ME_ENDPOINT.TABLE_NUMBER(req.query.tableNumber as string))
       .build();
   }
 
-  const { tableType, tableNumber } = req.query;
-  const { tableType: validTableType, tableNumber: validNumber } =
-    validateAndConvertQuery<IGetMyTableQuery>(
-      { tableType, tableNumber },
-      {
-        tableType: { type: { enum: TableType }, required: true },
-        tableNumber: { type: "number", required: true },
-      }
-    );
+  const { tableType, tableNumber } = validateAndConvertQuery<IGetMyTableQuery>(
+    { tableType: req.query.tableType, tableNumber: req.query.tableNumber },
+    {
+      tableType: { type: { enum: TableType }, required: true },
+      tableNumber: { type: "number", required: true },
+    }
+  );
 
   const tableInfo = await getRestuarnatTableForTableHistory(
     session.restaurantId,
     {
-      tableType: validTableType,
-      tableNumber: validNumber,
+      tableType,
+      tableNumber,
     }
   );
 
@@ -47,7 +45,7 @@ async function handler(
       .setMessage(
         "Restaurant Table info not found. Please check parameter and try again"
       )
-      .setEndpoint(ME_ENDPOINT.TABLE_NUMBER(tableNumber as string))
+      .setEndpoint(ME_ENDPOINT.TABLE_NUMBER(String(tableNumber)))
       .build();
   }
 

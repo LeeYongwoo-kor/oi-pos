@@ -105,7 +105,14 @@ export async function getOrderRequestsByOrderIdAndStatus(
 
 export async function getOrderRequestsForAlarm(
   restaurantId: string | undefined | null,
-  { status, tableType, tableNumber, limit, offset }: IGetMyOrderRequestQuery
+  {
+    status,
+    tableType,
+    tableStatus,
+    tableNumber,
+    limit,
+    offset,
+  }: IGetMyOrderRequestQuery
 ): Promise<IOrderRequestForAlarm[] | null> {
   if (!restaurantId) {
     return null;
@@ -121,7 +128,7 @@ export async function getOrderRequestsForAlarm(
 
   const tableConditions: Prisma.RestaurantTableWhereInput = {
     restaurantId,
-    status: TableStatus.OCCUPIED,
+    ...(tableStatus && { status: { in: tableStatus } }),
     ...(tableType && { tableType: { in: tableType } }),
     ...(tableNumber && { number: tableNumber }),
   };

@@ -1,6 +1,7 @@
 interface ConvertDatesToIntlStringOptions {
   hideSecond?: boolean;
   onlyTime?: boolean;
+  year?: boolean;
 }
 
 export default function convertDatesToIntlString(
@@ -25,6 +26,10 @@ export default function convertDatesToIntlString(
   if (!options?.onlyTime) {
     intlOption.month = "numeric";
     intlOption.day = "numeric";
+  }
+
+  if (options?.year) {
+    intlOption.year = "numeric";
   }
 
   const intl = new Intl.DateTimeFormat("en-US", intlOption);

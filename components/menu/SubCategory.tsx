@@ -3,7 +3,7 @@ import { Method } from "@/constants/fetch";
 import { IMenuCategory } from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useToast } from "@/hooks/useToast";
-import useMutation from "@/lib/client/useMutation";
+import useMutation, { ApiErrorState } from "@/lib/client/useMutation";
 import {
   IDeleteMenuSubCategoryBody,
   IPatchMenuSubCategoryBody,
@@ -21,6 +21,7 @@ import { MenuSubCategory } from "@prisma/client";
 import cuid from "cuid";
 import { useEffect, useRef, useState } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
+import { useSWRConfig } from "swr";
 
 type SubCategoryProps = {
   restaurantId: string | undefined;
@@ -31,6 +32,7 @@ export default function SubCategory({
   restaurantId,
   categoryInfo,
 }: SubCategoryProps) {
+  const { mutate } = useSWRConfig();
   const [createSubCategory, { error: createSubCategoryErr }] = useMutation<
     MenuSubCategory,
     IPostMenuSubCategoryBody
@@ -263,23 +265,20 @@ export default function SubCategory({
     }
   }, [isClickedAddSubCategory]);
 
-  useEffect(() => {
-    if (createSubCategoryErr) {
-      addToast("error", createSubCategoryErr.message);
+  const handleErrors = (error: ApiErrorState | null | undefined) => {
+    if (error) {
+      addToast("error", error.message);
+      if (restaurantId) {
+        mutate(RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId));
+      }
     }
-  }, [createSubCategoryErr]);
+  };
 
   useEffect(() => {
-    if (updateSubCategoryErr) {
-      addToast("error", updateSubCategoryErr.message);
-    }
-  }, [updateSubCategoryErr]);
-
-  useEffect(() => {
-    if (deleteSubCategoryErr) {
-      addToast("error", deleteSubCategoryErr.message);
-    }
-  }, [deleteSubCategoryErr]);
+    handleErrors(createSubCategoryErr);
+    handleErrors(updateSubCategoryErr);
+    handleErrors(deleteSubCategoryErr);
+  }, [createSubCategoryErr, updateSubCategoryErr, deleteSubCategoryErr]);
 
   return (
     <div className="flex overflow-x-scroll scrollbar-hide px-1 py-2 mb-1 space-x-1.5 bg-slate-200 rounded-3xl">

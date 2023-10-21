@@ -142,6 +142,11 @@ export const authOptions: NextAuthOptions = {
         token = await verifyUserInformation(restToken);
       }
 
+      // If the token has an error, do not proceed to the next step
+      if (token?.errorName) {
+        return token;
+      }
+
       if (token?.provider === "email") {
         // Email provider does not support refresh token
         return token;

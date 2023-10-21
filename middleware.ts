@@ -16,7 +16,7 @@ export default withAuth(
     if (token !== null && token.errorName) {
       return NextResponse.redirect(
         new URL(
-          `${AUTH_ERROR_URL.BASE}/${token.errorName}?${AUTH_QUERY_PARAMS.ERROR_MESSAGE}=${token.message}&${AUTH_QUERY_PARAMS.ALLOW_ACCESS}}=true`,
+          `${AUTH_ERROR_URL.BASE}/${token.errorName}?${AUTH_QUERY_PARAMS.ERROR_MESSAGE}=${token.message}&${AUTH_QUERY_PARAMS.ALLOW_ACCESS}=true`,
           req.url
         )
       );

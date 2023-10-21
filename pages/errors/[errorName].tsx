@@ -9,31 +9,31 @@ import { useSWRConfig } from "swr";
 
 type ErrorPageProps = {
   errorName: string;
-  message?: string;
+  errorMessage?: string;
 };
 
-export default function ErrorPage({ errorName, message }: ErrorPageProps) {
+export default function ErrorPage({ errorName, errorMessage }: ErrorPageProps) {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { setError } = useError();
 
   useEffect(() => {
     if (errorName) {
-      setError({ errorName, errorMessage: message });
+      setError({ errorName, errorMessage });
       // clear cache on logout
       mutate(() => true, undefined, { revalidate: false });
       signOut({ redirect: false }).then(() => {
         router.replace(AUTH_URL.LOGIN);
       });
     }
-  }, [errorName, message, setError, router]);
+  }, [errorName, errorMessage, setError, router]);
 
   return null;
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const errorName = context.params?.errorName;
-  const { message = null, allowAccess } = context.query;
+  const { errorMessage = null, allowAccess } = context.query;
 
   if (!errorName) {
     return {
@@ -60,6 +60,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   return {
-    props: { errorName, message },
+    props: { errorName, errorMessage },
   };
 };

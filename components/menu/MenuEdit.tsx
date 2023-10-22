@@ -564,12 +564,15 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
                 </div>
                 <div className="relative">
                   <input
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      if (e.target.value.startsWith("0")) {
+                        e.target.value = e.target.value.slice(1);
+                      }
                       dispatch({
                         type: "SET_PRICE",
                         payload: Number(e.target.value),
-                      })
-                    }
+                      });
+                    }}
                     className={`p-2 border-b-2 ${
                       isMobile ? "w-full" : "w-3/4"
                     }`}

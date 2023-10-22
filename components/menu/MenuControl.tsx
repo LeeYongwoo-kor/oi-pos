@@ -20,6 +20,8 @@ export default function MenuControl() {
   const [isMobile, setIsMobile] = useRecoilState(mobileState);
   const setIsMenuOpen = useSetRecoilState(menuOpenState);
 
+  const isDisabled = showEditMenu || showEditCategory;
+
   return (
     <div className="flex items-center justify-between w-full p-4 text-white bg-sky-900">
       <div className="space-x-3">
@@ -31,12 +33,12 @@ export default function MenuControl() {
             id="isEditing"
             onChange={() => setIsEditing(!isEditing)}
             className="hidden"
-            disabled={showEditMenu}
+            disabled={isDisabled}
           />
           <label
             htmlFor="isEditing"
             className={`block h-5 overflow-hidden bg-gray-300 transform transition-colors rounded-full cursor-pointer toggle-label ${
-              showEditMenu || showEditCategory
+              isDisabled
                 ? "bg-gray-300"
                 : isEditing
                 ? "bg-green-300"
@@ -45,7 +47,7 @@ export default function MenuControl() {
           >
             <span
               className={`block h-5 w-5 rounded-full shadow transform transition-transform ${
-                showEditMenu || showEditCategory
+                isDisabled
                   ? "bg-gray-400"
                   : isEditing
                   ? "translate-x-0 bg-green-500"
@@ -59,17 +61,27 @@ export default function MenuControl() {
       <div className="flex w-32">
         <div className="flex items-center space-x-2">
           <button
+            disabled={isDisabled}
             onClick={() => setIsMobile(true)}
             className={`flex items-center justify-center hover:bg-green-500 w-8 p-2 transition duration-150 ease-in-out rounded-full cursor-pointer ${
-              isMobile ? "bg-green-500 text-white" : "bg-gray-300 text-black"
+              isMobile
+                ? isDisabled
+                  ? "bg-gray-500 text-white hover:bg-gray-500"
+                  : "bg-green-500 text-white"
+                : "bg-gray-300 text-black"
             }`}
           >
             <FontAwesomeIcon icon={faMobileAlt} />
           </button>
           <button
+            disabled={isDisabled}
             onClick={() => setIsMobile(false)}
             className={`flex items-center justify-center w-8 p-2 hover:bg-green-500 transition duration-150 ease-in-out rounded-full cursor-pointer ${
-              !isMobile ? "bg-green-500 text-white" : "bg-gray-300 text-black"
+              !isMobile
+                ? isDisabled
+                  ? "bg-gray-500 text-white hover:bg-gray-500"
+                  : "bg-green-500 text-white"
+                : "bg-gray-300 text-black"
             }`}
           >
             <FontAwesomeIcon icon={faTabletAlt} />

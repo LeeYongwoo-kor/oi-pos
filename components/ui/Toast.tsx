@@ -49,14 +49,14 @@ const Toast = ({
 
   return (
     <div
-      className={`flex self-end animate-fadeInUp mt-4 p-4 shadow-lg rounded-lg ${bgColor} ${
-        size === "big" ? "w-172" : "w-96"
-      } min-h-[5rem] h-auto z-50 transform transition-all duration-300 translate-y-0`}
+      className={`flex self-end animate-fadeInUp w-full bg-opacity-90 justify-center mt-4 p-4 shadow-lg rounded-lg ${bgColor} ${
+        size === "big" ? "sm:w-172" : "sm:w-96"
+      } min-h-[4rem] sm:min-h-[5rem] h-auto z-50 transform transition-all duration-300 translate-y-0`}
     >
       <div className="flex items-center justify-between w-full">
         <span
           className={joinCls(
-            "text-base break-all whitespace-pre-line",
+            "text-sm sm:text-base break-all whitespace-pre-line",
             type === ToastKind.PRESERVE ? "text-black" : "text-white"
           )}
         >
@@ -76,7 +76,7 @@ function ToastContainer() {
   const { toasts, dismissToast } = useToast();
 
   return (
-    <div className="fixed z-50 flex flex-col-reverse bottom-8 right-8">
+    <div className="fixed z-50 flex flex-col-reverse w-full px-2 bottom-12 sm:bottom-8 sm:right-6">
       {toasts.map((toast) => (
         <Toast key={toast.id} {...toast} onDismiss={dismissToast} />
       ))}

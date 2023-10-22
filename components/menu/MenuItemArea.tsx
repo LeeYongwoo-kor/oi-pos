@@ -8,8 +8,8 @@ import {
   showMenuDetailState,
   showMenuEditState,
 } from "@/recoil/state/menuState";
-import getCurrency from "@/utils/menu/getCurrencyFormat";
 import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
+import getCurrency from "@/utils/menu/getCurrencyFormat";
 import {
   faCirclePlus,
   faMedal,
@@ -20,6 +20,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { MenuItemStatus } from "@prisma/client";
 import Image from "next/image";
 import { useRecoilCallback, useRecoilValue } from "recoil";
+import { Role } from "./Menu";
 
 const rankColor: { [key: number]: string } = {
   1: "from-yellow-400 via-yellow-300 to-yellow-500 text-red-800",
@@ -29,7 +30,11 @@ const rankColor: { [key: number]: string } = {
   5: "bg-lime-500 text-white",
 };
 
-export default function MenuItemArea() {
+type MenuItemAreaProps = {
+  role: Role;
+};
+
+export default function MenuItemArea({ role }: MenuItemAreaProps) {
   const isMobile = useRecoilValue(mobileState);
   const isEditing = useRecoilValue(editingState);
   const dishes = useRecoilValue(menuItemsSelector);
@@ -37,10 +42,8 @@ export default function MenuItemArea() {
     !isEditing && dishes.length === 0
       ? "flex items-center justify-center"
       : "grid gap-3";
-  const responsiveStyle = isEditing
-    ? isMobile
-      ? "grid-cols-2"
-      : "grid-cols-3"
+  const responsiveStyle = isMobile
+    ? "grid-cols-2"
     : "sm:grid-cols-2 md:grid-cols-3";
 
   const handleEditMenu = useRecoilCallback(
@@ -134,7 +137,7 @@ export default function MenuItemArea() {
                 {getCurrency(dish.price, "JPY")}
               </p>
             </div>
-            {dish.status !== MenuItemStatus.SOLD_OUT && (
+            {dish.status !== MenuItemStatus.SOLD_OUT && role === "user" && (
               <div className="py-3 mr-2 w-14">
                 <button
                   onClick={() => handleShowCart(dish)}

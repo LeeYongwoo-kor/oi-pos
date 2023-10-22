@@ -9,12 +9,14 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
 import { useRecoilValue, useSetRecoilState } from "recoil";
+import { Role } from "./Menu";
 
 type MenuHeaderProps = {
   restaurantInfo: IRestaurant | undefined;
+  role: Role;
 };
 
-export default function MenuHeader({ restaurantInfo }: MenuHeaderProps) {
+export default function MenuHeader({ restaurantInfo, role }: MenuHeaderProps) {
   const isEditing = useRecoilValue(editingState);
   const openOrderHistory = useSetRecoilState(showOrderHistoryState);
   return (
@@ -50,20 +52,24 @@ export default function MenuHeader({ restaurantInfo }: MenuHeaderProps) {
           </>
         )}
         <div>
-          <h1 className="text-2xl font-bold">{restaurantInfo?.name}</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">
+            {restaurantInfo?.name}
+          </h1>
           <h2 className="text-base font-medium">{restaurantInfo?.branch}</h2>
         </div>
       </div>
-      <button
-        onClick={() => openOrderHistory(true)}
-        className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]"
-      >
-        <FontAwesomeIcon
-          className="text-white group-hover:animate-spin"
-          size="lg"
-          icon={faClockRotateLeft}
-        />
-      </button>
+      {role === "user" && (
+        <button
+          onClick={() => openOrderHistory(true)}
+          className="p-2 transition-transform duration-150 transform bg-red-600 rounded-xl group hover:scale-[1.15]"
+        >
+          <FontAwesomeIcon
+            className="text-white group-hover:animate-spin"
+            size="lg"
+            icon={faClockRotateLeft}
+          />
+        </button>
+      )}
     </header>
   );
 }

@@ -99,7 +99,7 @@ export default function OrderHistory() {
         <button
           disabled={isDisabled}
           onClick={handleOrderPaymentRequest}
-          className={`w-full px-4 py-2 text-lg bg-blue-500 font-semibold text-white rounded-full  ${
+          className={`w-full px-4 py-2 text-base sm:text-lg bg-blue-500 font-semibold text-white rounded-full  ${
             isDisabled
               ? "opacity-75 cursor-not-allowed"
               : orderInfo?.orderStatus === OrderStatus.PAYMENT_REQUESTED

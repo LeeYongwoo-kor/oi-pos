@@ -61,19 +61,22 @@ export default function OrderItemDetail({
   }, [orderItemErr]);
 
   return (
-    <div className="flex flex-col items-center justify-between flex-1 overflow-y-auto select-none sm:px-2">
+    <div className="flex flex-col items-center justify-between flex-1 overflow-x-hidden overflow-y-auto select-none scrollbar-hide sm:scrollbar-show sm:px-2">
       {orderItemLoading ? (
         <Loader color="white" />
       ) : (
         <div className="flex flex-col">
-          <div className="grid grid-cols-8 gap-2 mb-2 text-center text-white">
+          <div className="grid grid-cols-6 gap-2 mb-2 text-sm text-white place-items-center sm:text-base sm:grid-cols-8">
             <div className="col-span-1">Image</div>
             <div className="col-span-1">Name</div>
-            <div className="col-span-1">Unit Price</div>
+            <div className="col-span-1 sm:hidden">Price</div>
+            <div className="hidden sm:col-span-1 sm:block">Unit Price</div>
             <div className="col-span-1">Quantity</div>
             <div className="col-span-2">Options</div>
-            <div className="col-span-1">Order Time</div>
-            <div className="col-span-1">Total Item Price</div>
+            <div className="hidden sm:col-span-1 sm:block">Order Time</div>
+            <div className="hidden sm:col-span-1 sm:block">
+              Total Item Price
+            </div>
           </div>
           <hr className="mb-2" />
           {orderItemData &&
@@ -82,7 +85,7 @@ export default function OrderItemDetail({
               return (
                 <div
                   key={index}
-                  className="grid grid-cols-8 gap-2 p-2 mb-2 text-center rounded-lg bg-slate-200"
+                  className="grid grid-cols-6 gap-2 p-2 mb-2 text-sm text-center rounded-lg sm:grid-cols-8 sm:text-base bg-slate-200"
                 >
                   <div className="flex justify-center col-span-1">
                     <div className="relative w-14 h-14">
@@ -108,19 +111,19 @@ export default function OrderItemDetail({
                   <div className="flex items-center justify-center col-span-1">
                     {item.quantity}
                   </div>
-                  <div className="flex flex-col items-center justify-center col-span-2 text-sm">
+                  <div className="flex flex-col items-center justify-center col-span-2 text-xs sm:text-sm">
                     {item.selectedOptions.map((option, optionIndex) => (
                       <div key={optionIndex}>
                         {option.name} ({getCurrency(option.price, "JPY")})
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center justify-center col-span-1 text-sm">
+                  <div className="items-center justify-center hidden text-sm sm:flex sm:col-span-1">
                     {convertDatesToIntlString(item.createdAt, {
                       onlyTime: true,
                     })}
                   </div>
-                  <div className="flex items-center justify-center col-span-1">
+                  <div className="items-center justify-center hidden sm:flex sm:col-span-1">
                     {getCurrency(totalItemPrice, "JPY")}
                   </div>
                 </div>

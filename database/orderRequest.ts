@@ -2,6 +2,7 @@ import prismaRequestHandler from "@/lib/server/prisma/prismaRequestHandler";
 import prisma from "@/lib/services/prismadb";
 import { ValidationError } from "@/lib/shared/error/ApiError";
 import { IGetMyOrderRequestQuery } from "@/pages/api/v1/me/restaurants/tables/orders/requests";
+import { IGetOrderRequestQuery } from "@/pages/api/v1/orders/[orderId]/requests";
 import checkNullUndefined from "@/utils/validation/checkNullUndefined";
 import isEmpty from "@/utils/validation/isEmpty";
 import {
@@ -10,11 +11,9 @@ import {
   OrderRequestStatus,
   OrderStatus,
   Prisma,
-  TableStatus,
 } from "@prisma/client";
 import { IOrder } from "./order";
 import { CreateOrderItemParams, IOrderItem } from "./orderItem";
-import { IGetOrderRequestQuery } from "@/pages/api/v1/orders/[orderId]/requests";
 
 export interface IOrderRequest extends OrderRequest {
   order: IOrder[];

@@ -168,6 +168,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     if (!order) {
       return {
         props: {
+          fallback: {},
           notFound: true,
         },
       };
@@ -188,6 +189,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
     console.error(err);
     return {
       props: {
+        fallback: {},
         initErrMsg: errMessage,
       },
     };

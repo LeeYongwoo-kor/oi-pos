@@ -46,11 +46,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     const result = await getOrderRequestByConditions(orderId, validatedQuery);
-
-    if (result === null) {
-      return res.status(204).end();
-    }
-
     return res.status(200).json(result);
   }
 

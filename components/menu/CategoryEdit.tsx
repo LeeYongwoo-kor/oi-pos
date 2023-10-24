@@ -3,8 +3,11 @@ import { OWNER_ENDPOINT, RESTAURANT_MENU_ENDPOINT } from "@/constants/endpoint";
 import { Method } from "@/constants/fetch";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { AWS_S3_YOSHI_BUCKET } from "@/constants/service";
-import { CreateMenuCategoryParams, UpdateMenuCategoryParams } from "@/database";
-import useLoading from "@/hooks/context/useLoading";
+import {
+  CreateMenuCategoryParams,
+  IMenuCategory,
+  UpdateMenuCategoryParams,
+} from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
 import useDeepEffect from "@/hooks/useDeepEffect";
 import { useToast } from "@/hooks/useToast";
@@ -18,7 +21,7 @@ import {
   IDeleteMenuCategoryBody,
   IPatchMenuCategoryBody,
   IPostMenuCategoryBody,
-} from "@/pages/api/v1/restaurants/[restaurantId]/menus/categories";
+} from "@/pages/api/v1/owner/restaurants/[restaurantId]/menus/categories";
 import {
   selectedEditCategoryState,
   showCategoryEditState,
@@ -33,8 +36,10 @@ import validateMenuOptions, {
   MenuOptionForm,
 } from "@/utils/menu/validateMenuOptions";
 import isArrayOfObjectsChanged from "@/utils/validation/isArrayOfObjectsChanged";
+import isCropped from "@/utils/validation/isCropped";
 import isEmpty from "@/utils/validation/isEmpty";
 import isFormChanged from "@/utils/validation/isFormChanged";
+import isImageChanged from "@/utils/validation/isImageChanged";
 import {
   DeleteObjectCommandInput,
   PutObjectCommandInput,
@@ -44,6 +49,8 @@ import { useEffect, useReducer, useRef } from "react";
 import "react-image-crop/dist/ReactCrop.css";
 import { useRecoilState } from "recoil";
 import LoadingOverlay from "../LoadingOverlay";
+import EditBottomSheet from "./EditBottomSheet";
+import EditBottomSheetFooter from "./EditBottomSheetFooter";
 import ImageEdit from "./ImageEdit";
 import OptionsEdit from "./OptionsEdit";
 
@@ -52,6 +59,9 @@ type MenuCategoryEditProps = {
 };
 
 export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
+  // ==========================
+  // useMutation
+  // ==========================
   const [
     createCategory,
     { error: createCategoryErr, loading: createCategoryLoading },
@@ -86,13 +96,20 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     OWNER_ENDPOINT.OPEN_AI_IMAGE,
     Method.POST
   );
+
+  // ==========================
+  // Recoil State
+  // ==========================
   const [isVisible, openEditCategory] = useRecoilState(showCategoryEditState);
   const [selectedEditCategory, setSelectedEditCategory] = useRecoilState(
     selectedEditCategoryState
   );
+
+  // ==========================
+  // Custom hooks
+  // ==========================
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
-  const withLoading = useLoading();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cropCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -116,34 +133,23 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     dispatch,
   ] = useReducer(menuCategoryEditReducer, initialEditCategoryState);
 
-  const isDisabled =
+  // 「Save」 ボタンの活性条件
+  const isSaveBtnDisabled =
     categoryName.length <= 0 ||
     isAiImageLoading ||
     options.some((option) => option.error);
 
-  const onCategoryNameChange = (
-    event: React.SyntheticEvent<HTMLInputElement>
-  ): void => {
-    const {
-      currentTarget: { value },
-    } = event;
-    dispatch({ type: "SET_CATEGORY_NAME", payload: value });
-  };
-
-  const onDescriptionChange = (
-    event: React.SyntheticEvent<HTMLTextAreaElement>
-  ): void => {
-    const {
-      currentTarget: { value },
-    } = event;
-    dispatch({ type: "SET_DESCRIPTION", payload: value });
-  };
-
-  const handleDeleteCategory = () => {
-    if (!selectedEditCategory || isEmpty(selectedEditCategory)) {
+  // メニューカテゴリを削除する
+  const handleDeleteCategory = (selectedCategory: IMenuCategory | null) => {
+    if (!selectedCategory || isEmpty(selectedCategory)) {
+      addToast(
+        "error",
+        "Error occurred while deleting menu category. Please try again later"
+      );
       return;
     }
 
+    // 確認ダイアログの表示
     showConfirm({
       title: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.TITLE,
       message: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.MESSAGE,
@@ -152,27 +158,27 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
       buttonType: "fatal",
       onConfirm: async () => {
         let deleteParams: DeleteObjectCommandInput | null = null;
-        if (selectedEditCategory.imageUrl) {
+        // 画像が存在する場合、S3の削除パラメータを設定
+        if (selectedCategory.imageUrl) {
           deleteParams = {
             Bucket: AWS_S3_YOSHI_BUCKET,
-            Key: selectedEditCategory.imageUrl,
+            Key: selectedCategory.imageUrl,
           };
         }
 
-        const deletedMenuCategory = await deleteCategory(
-          {
-            menuCategoryId: selectedEditCategory.id,
-            deleteParams,
-          },
-          {
-            additionalKeys: [
-              RESTAURANT_MENU_ENDPOINT.CATEGORY(
-                selectedEditCategory.restaurantId
-              ),
-            ],
-          }
-        );
+        const params = {
+          menuCategoryId: selectedCategory.id,
+          deleteParams,
+        };
 
+        // メニューカテゴリの削除
+        const deletedMenuCategory = await deleteCategory(params, {
+          additionalKeys: [
+            RESTAURANT_MENU_ENDPOINT.CATEGORY(selectedCategory.restaurantId),
+          ],
+        });
+
+        // 削除に成功した場合、コンテナを閉じ、成功メッセージを表示する
         if (deletedMenuCategory) {
           openEditCategory(false);
           addToast("success", "Menu category deleted successfully!");
@@ -181,34 +187,40 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     });
   };
 
-  const handleCloseCategory = () => {
+  // メニューカテゴリ編集コンテナを閉じる
+  const handleCloseCategory = (selectedCategory: IMenuCategory | null) => {
+    // 編集前のメニュー情報
+    const beforeChange = {
+      categoryName: selectedCategory?.name ?? "",
+      description: selectedCategory?.description ?? "",
+      previewUrl:
+        selectedCategory?.imageUrl &&
+        getCloudImageUrl(
+          selectedCategory.imageUrl,
+          selectedCategory.imageVersion
+        ),
+      menuCategoryStatus:
+        selectedCategory?.status ?? MenuCategoryStatus.AVAILABLE,
+    };
+
+    // 画面のメニューカテゴリの情報
+    const menuCategoryState = {
+      categoryName,
+      description,
+      previewUrl,
+      menuCategoryStatus,
+    };
+
+    // 画面情報が変更されていない場合、メニュー編集コンテナを閉じる
     if (
-      !isFormChanged(
-        {
-          categoryName: selectedEditCategory?.name ?? "",
-          description: selectedEditCategory?.description ?? "",
-          previewUrl:
-            selectedEditCategory?.imageUrl &&
-            getCloudImageUrl(
-              selectedEditCategory.imageUrl,
-              selectedEditCategory.imageVersion
-            ),
-          menuCategoryStatus:
-            selectedEditCategory?.status ?? MenuCategoryStatus.AVAILABLE,
-        },
-        {
-          categoryName,
-          description,
-          previewUrl,
-          menuCategoryStatus,
-        }
-      ) &&
+      !isFormChanged(beforeChange, menuCategoryState) &&
       !isArrayOfObjectsChanged(previousOptions, options)
     ) {
       openEditCategory(false);
       return;
     }
 
+    // 情報破棄の確認ダイアログの表示
     showConfirm({
       title: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.TITLE,
       message: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.MESSAGE,
@@ -221,8 +233,9 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     });
   };
 
+  // 新たにメニューカテゴリを作成する
   const handleCreate = async (
-    menuCategoryInfo: CreateMenuCategoryParams,
+    menuCategoryParams: CreateMenuCategoryParams,
     menuCategoryOptions: Omit<MenuOptionForm, "id">[],
     uploadParams: PutObjectCommandInput | null
   ) => {
@@ -234,25 +247,27 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
       return;
     }
 
-    const newMenuCategory = await createCategory(
-      {
-        menuCategoryInfo,
-        menuCategoryOptions,
-        uploadParams,
-      },
-      {
-        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
-      }
-    );
+    const params = {
+      menuCategoryParams,
+      menuCategoryOptions,
+      uploadParams,
+    };
 
+    // メニューカテゴリの作成
+    const newMenuCategory = await createCategory(params, {
+      additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
+    });
+
+    // メニューカテゴリの作成に成功した場合
     if (newMenuCategory) {
       openEditCategory(false);
       addToast("success", "Menu category created successfully!");
     }
   };
 
+  // メニューカテゴリを更新する
   const handleUpdate = async (
-    menuCategoryInfo: UpdateMenuCategoryParams,
+    menuCategoryParams: UpdateMenuCategoryParams,
     menuCategoryOptions: MenuOptionForm[],
     uploadParams: PutObjectCommandInput | null
   ) => {
@@ -264,37 +279,42 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
       return;
     }
 
-    const updatedMenuCategory = await updateCategory(
-      {
-        menuCategoryInfo,
-        menuCategoryOptions,
-        uploadParams,
-      },
-      {
-        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
-      }
-    );
+    const params = {
+      menuCategoryParams,
+      menuCategoryOptions,
+      uploadParams,
+    };
 
+    // メニューカテゴリの更新
+    const updatedMenuCategory = await updateCategory(params, {
+      additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
+    });
+
+    // メニューカテゴリの更新に成功した場合、コンテナを閉じ、成功メッセージを表示する
     if (updatedMenuCategory) {
       openEditCategory(false);
       addToast("success", "Menu Category updated successfully!");
     }
   };
 
-  const shouldUploadImage = (): boolean => {
-    if (selectedEditCategory?.imageUrl) {
-      const isImageChanged =
-        previewUrl && !previewUrl.includes(selectedEditCategory.imageUrl);
-      const isCropped =
-        renderedDimension.width !== crop?.width ||
-        renderedDimension.height !== crop?.height;
-      return !!isImageChanged || isCropped;
+  // 画像修正の判定
+  const shouldUploadImage = (
+    selectedCategory: IMenuCategory | null | undefined
+  ): boolean => {
+    if (!selectedCategory?.imageUrl) {
+      return true;
     }
 
-    return true;
+    return (
+      isImageChanged(previewUrl, selectedCategory.imageUrl) ||
+      isCropped(renderedDimension, crop)
+    );
   };
 
-  const handleSave = async (): Promise<void> => {
+  // メニューカテゴリ情報を保存する
+  const handleSave = async (
+    selectedCategory: IMenuCategory | null
+  ): Promise<void> => {
     if (!restaurantId) {
       addToast(
         "error",
@@ -303,49 +323,59 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
       return;
     }
 
+    // メニューカテゴリのオプションが存在する場合、有効チェックを行う
     if (!isEmpty(options)) {
       const validatedOptions = validateMenuOptions(options);
+      // エラーが存在する場合、エラーを表示し、処理を終了する
       if (validatedOptions.some((option) => option.error)) {
         dispatch({ type: "SET_OPTIONS", payload: validatedOptions });
         return;
       }
     }
 
-    // If the imageUrl exists, use the existing imageKey
+    // S3のimageKeyを設定する
     const imageKey =
-      selectedEditCategory?.imageUrl ||
+      selectedCategory?.imageUrl ||
       `menus/${restaurantId}/_category_${categoryName}.jpg`;
 
-    const uploadParams = await getS3UploadParams(
-      croppedImage,
-      imageKey,
-      shouldUploadImage
+    // S3に画像をアップロードする
+    // 画像が修正されていない場合 又は 画像がない場合、アップロードを行わない
+    const uploadParams = await getS3UploadParams(croppedImage, imageKey, () =>
+      shouldUploadImage(selectedCategory)
     );
 
+    // S3のアップロードに失敗した場合、エラーを表示し、処理を終了する
     if (uploadParams instanceof ApiError) {
       addToast("error", uploadParams.message);
       return;
     }
 
-    const menuCategoryInfo:
+    const { id, imageUrl, imageVersion } = selectedCategory || {};
+
+    // 画像のURLを設定。画像のURLが存在する場合、S3のimageKeyを設定
+    const imageUrlValue = uploadParams ? imageKey : imageUrl || "";
+    // 画像のバージョンを設定。画像のバージョンが存在する場合、バージョンを+1する
+    const imageVersionValue =
+      imageUrl && uploadParams ? (imageVersion ?? 0) + 1 : imageVersion;
+
+    const menuCategoryParams:
       | CreateMenuCategoryParams
       | UpdateMenuCategoryParams = {
-      id: selectedEditCategory?.id,
+      id: selectedCategory?.id,
       restaurantId,
       name: categoryName,
       description,
       status: menuCategoryStatus,
-      imageUrl: uploadParams ? imageKey : selectedEditCategory?.imageUrl || "",
-      imageVersion:
-        selectedEditCategory?.imageUrl && uploadParams
-          ? selectedEditCategory.imageVersion + 1
-          : selectedEditCategory?.imageVersion,
+      imageUrl: imageUrlValue,
+      imageVersion: imageVersionValue,
     };
 
-    if (selectedEditCategory) {
-      await handleUpdate(menuCategoryInfo, options, uploadParams);
+    if (selectedCategory) {
+      // メニュー情報が存在する場合、メニューカテゴリを更新する
+      await handleUpdate(menuCategoryParams, options, uploadParams);
     } else {
-      await handleCreate(menuCategoryInfo, options, uploadParams);
+      // メニュー情報が存在する場合、メニューカテゴリを更新する
+      await handleCreate(menuCategoryParams, options, uploadParams);
     }
   };
 
@@ -381,14 +411,9 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
         payload: status,
       });
     }
-  }, [
-    selectedEditCategory?.imageUrl,
-    selectedEditCategory?.imageVersion,
-    selectedEditCategory?.name,
-    selectedEditCategory?.description,
-    selectedEditCategory?.status,
-  ]);
+  }, [selectedEditCategory]);
 
+  // オプションの最大数を10に制限
   useEffect(() => {
     if (optionCount > 10) {
       addToast("error", "The maximum number of options is 10");
@@ -396,12 +421,18 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     }
   }, [optionCount]);
 
+  // オプションの初期化
   useDeepEffect(() => {
     if (selectedEditCategory && !isEmpty(selectedEditCategory.defaultOptions)) {
-      setDefaultMenuOptions(selectedEditCategory.defaultOptions, dispatch);
+      setDefaultMenuOptions(
+        selectedEditCategory.defaultOptions,
+        dispatch,
+        ({ id, name, price }) => ({ id, name, price })
+      );
     }
   }, [selectedEditCategory?.defaultOptions]);
 
+  // 各useMutationでエラーが発生した場合、エラーを表示する
   useEffect(() => {
     handleErrors(createCategoryErr);
     handleErrors(updateCategoryErr);
@@ -414,6 +445,7 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
     createAiImageErr,
   ]);
 
+  // メニューカテゴリ編集コンテナを閉じる場合、メニュー情報を初期化する
   useEffect(() => {
     if (!isVisible) {
       dispatch({ type: "RESET" });
@@ -427,6 +459,7 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
         updateCategoryLoading ||
         deleteCategoryLoading ||
         createAiImageLoading) && <LoadingOverlay />}
+      {/* Canvas (Tempotary painting) */}
       <canvas
         ref={canvasRef}
         className="hidden"
@@ -437,144 +470,86 @@ export default function CategoryEdit({ restaurantId }: MenuCategoryEditProps) {
         className="hidden"
         aria-label="Gets the image of crop container"
       ></canvas>
-      <div
-        className={`absolute inset-0 top-4 transform transition-transform duration-300 ease-in-out ${
-          isVisible ? "z-30" : "z-0"
-        }`}
-        style={{
-          transform: `translateY(${isVisible ? "0%" : "100%"})`,
-        }}
+      {/* CategoryEdit Container */}
+      <EditBottomSheet
+        isVisible={isVisible}
+        handleCloseEdit={() => handleCloseCategory(selectedEditCategory)}
+        activeTab={activeTab}
+        dispatch={dispatch}
+        essentialCondition={categoryName.length <= 0}
+        optionalCondition={options.some((option) => option.error)}
       >
-        {isVisible && (
-          <div className="flex flex-col overflow-y-scroll h-full max-h-[47rem] p-4 bg-white rounded-t-[2rem] scrollbar-hide">
-            <div className="flex justify-between mb-12">
-              <button
-                onClick={handleCloseCategory}
-                className="absolute z-10 p-2 text-sm text-black bg-gray-200 border-4 border-white rounded-full hover:bg-gray-300"
-              >
-                Back
-              </button>
-              <div className="absolute z-10 right-0 flex space-x-0.5 bg-white -top-0">
-                <button
-                  onClick={() => dispatch({ type: "ACTIVE_TAP_ESSENTIAL" })}
-                  className={`px-4 py-2 ${
-                    activeTab === "essential"
-                      ? "font-semibold"
-                      : `${
-                          categoryName.length <= 0
-                            ? "bg-red-200 hover:bg-red-300"
-                            : "bg-gray-200 hover:bg-gray-300"
-                        } shadow-[inset_1px_-1px_2px_rgba(0,0,0,0.2)]`
-                  } rounded-l`}
-                >
-                  Essential
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "ACTIVE_TAP_OPTIONAL" })}
-                  className={`px-4 py-2 ${
-                    activeTab === "optional"
-                      ? "font-semibold"
-                      : `${
-                          options.some((option) => option.error)
-                            ? "bg-red-200 hover:bg-red-300"
-                            : "bg-gray-200 hover:bg-gray-300"
-                        } shadow-[inset_1px_-1px_2px_rgba(0,0,0,0.2)]`
-                  } rounded-r`}
-                >
-                  Optional
-                </button>
-              </div>
-            </div>
-            {activeTab === "essential" && (
-              <div className="relative flex flex-col space-y-4">
-                <input
-                  onChange={onCategoryNameChange}
-                  className={`p-2 border-b-2 w-full`}
-                  type="text"
-                  value={categoryName}
-                  placeholder="Enter category name (example: Lunch)"
-                />
-                <span className="absolute text-sm text-red-500 right-5 -top-2">
-                  {categoryName.length <= 0 && "※ Category name is required"}
-                </span>
-                <ImageEdit
-                  createAiImage={createAiImage}
-                  imageInfo={{
-                    triggerName: categoryName,
-                    crop,
-                    renderedDimension,
-                    isAiImageLoading,
-                    previewUrl,
-                    shouldProcessCrop,
-                  }}
-                  canvasInfo={{ canvasRef, cropCanvasRef }}
-                  dispatch={dispatch}
-                />
-                <textarea
-                  onChange={onDescriptionChange}
-                  className="w-full h-24 p-2 border-2 resize-none"
-                  value={description}
-                  placeholder="Enter description"
-                />
-              </div>
-            )}
-            {activeTab === "optional" && (
-              <OptionsEdit
-                optionsInfo={{
-                  options,
-                  menuStatus: {
-                    type: "category",
-                    status: menuCategoryStatus,
-                  },
-                }}
-                dispatch={dispatch}
-              />
-            )}
-            <hr className="mt-6" />
-            <div
-              className={`flex mt-3 ${
-                selectedEditCategory ? "justify-between" : "self-end"
-              }`}
-            >
-              {selectedEditCategory && (
-                <button
-                  onClick={handleDeleteCategory}
-                  disabled={categoryName.length <= 0 || isAiImageLoading}
-                  className={`px-6 py-2 text-white transition duration-200 ${
-                    categoryName.length <= 0 || isAiImageLoading
-                      ? "cursor-not-allowed bg-red-400"
-                      : "bg-red-500 hover:bg-red-600"
-                  }`}
-                >
-                  Delete
-                </button>
-              )}
-              <div className="space-x-2">
-                <button
-                  onClick={handleCloseCategory}
-                  className="px-6 py-2 text-black transition duration-200 bg-gray-200 rounded hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    await withLoading(handleSave);
-                  }}
-                  disabled={isDisabled}
-                  className={`px-6 py-2 text-white transition duration-200  rounded ${
-                    isDisabled
-                      ? "cursor-not-allowed bg-green-400"
-                      : "bg-green-500 hover:bg-green-600"
-                  }`}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
+        {/* Essential */}
+        {activeTab === "essential" && (
+          <div className="relative flex flex-col space-y-4">
+            {/* Menu Category Name */}
+            <input
+              onChange={(e) =>
+                dispatch({
+                  type: "SET_CATEGORY_NAME",
+                  payload: e.target.value,
+                })
+              }
+              className={`p-2 border-b-2 w-full`}
+              type="text"
+              value={categoryName}
+              placeholder="Enter category name (example: Lunch)"
+            />
+            {/* Menu Category Name Error */}
+            <span className="absolute text-sm text-red-500 right-5 -top-2">
+              {categoryName.length <= 0 && "※ Category name is required"}
+            </span>
+            {/* Menu Category Image */}
+            <ImageEdit
+              createAiImage={createAiImage}
+              imageInfo={{
+                triggerName: categoryName,
+                crop,
+                renderedDimension,
+                isAiImageLoading,
+                previewUrl,
+                shouldProcessCrop,
+              }}
+              canvasInfo={{ canvasRef, cropCanvasRef }}
+              dispatch={dispatch}
+            />
+            <textarea
+              onChange={(e) =>
+                dispatch({
+                  type: "SET_DESCRIPTION",
+                  payload: e.target.value,
+                })
+              }
+              className="w-full h-24 p-2 border-2 resize-none"
+              value={description}
+              placeholder="Enter description"
+            />
           </div>
         )}
-      </div>
+        {/* Optional */}
+        {activeTab === "optional" && (
+          <OptionsEdit
+            optionsInfo={{
+              options,
+              menuStatus: {
+                type: "category",
+                status: menuCategoryStatus,
+              },
+            }}
+            dispatch={dispatch}
+          />
+        )}
+        <hr className="mt-6" />
+        {/* Footer */}
+        <EditBottomSheetFooter
+          previousData={selectedEditCategory}
+          handleSave={() => handleSave(selectedEditCategory)}
+          handleDelete={() => handleDeleteCategory(selectedEditCategory)}
+          handleCloseEdit={() => handleCloseCategory(selectedEditCategory)}
+          deleteCondition={isAiImageLoading}
+          saveCondition={isSaveBtnDisabled}
+        />
+      </EditBottomSheet>
     </form>
   );
 }

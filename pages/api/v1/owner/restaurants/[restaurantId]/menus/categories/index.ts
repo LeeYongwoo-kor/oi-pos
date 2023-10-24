@@ -21,12 +21,12 @@ import {
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IPostMenuCategoryBody {
-  menuCategoryInfo: CreateMenuCategoryParams;
+  menuCategoryParams: CreateMenuCategoryParams;
   menuCategoryOptions?: MenuOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
 export interface IPatchMenuCategoryBody {
-  menuCategoryInfo: UpdateMenuCategoryParams;
+  menuCategoryParams: UpdateMenuCategoryParams;
   menuCategoryOptions?: MenuOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
@@ -38,11 +38,11 @@ export interface IDeleteMenuCategoryBody {
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.POST) {
     const {
-      menuCategoryInfo,
+      menuCategoryParams,
       menuCategoryOptions,
       uploadParams,
     }: IPostMenuCategoryBody = req.body;
-    if (!menuCategoryInfo.name) {
+    if (!menuCategoryParams.name) {
       throw new ValidationError("Menu category name is required");
     }
 
@@ -54,14 +54,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (menuCategoryOptions && !isEmpty(menuCategoryOptions)) {
         const newMenuCategoryWithOptions =
           await createMenuCategoryAndCategoryOptions(
-            menuCategoryInfo,
+            menuCategoryParams,
             menuCategoryOptions
           );
 
         return res.status(201).json(newMenuCategoryWithOptions);
       }
 
-      const newMenuCategory = await createMenuCategory(menuCategoryInfo);
+      const newMenuCategory = await createMenuCategory(menuCategoryParams);
       return res.status(201).json(newMenuCategory);
     } catch (err: unknown) {
       if (uploadParams) {
@@ -75,11 +75,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (req.method === Method.PATCH) {
     const {
-      menuCategoryInfo,
+      menuCategoryParams,
       menuCategoryOptions,
       uploadParams,
     }: IPatchMenuCategoryBody = req.body;
-    if (!menuCategoryInfo.name) {
+    if (!menuCategoryParams.name) {
       throw new ValidationError("Menu category name is required");
     }
 
@@ -91,7 +91,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (menuCategoryOptions && !isEmpty(menuCategoryOptions)) {
         const newMenuCategoryWithOptions =
           await updateMenuCategoryAndUpsertCategoryOptions(
-            menuCategoryInfo,
+            menuCategoryParams,
             menuCategoryOptions
           );
 
@@ -99,8 +99,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       const menuCategories = await updateMenuCategory(
-        menuCategoryInfo.id,
-        menuCategoryInfo
+        menuCategoryParams.id,
+        menuCategoryParams
       );
       return res.status(200).json(menuCategories);
     } catch (err) {

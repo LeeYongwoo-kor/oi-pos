@@ -1,34 +1,9 @@
-import {
-  CreateMenuCategoryParams,
-  UpdateMenuCategoryParams,
-  getAllCategoriesByRestaurantId,
-  getTopSellingItems,
-} from "@/database";
+import { getAllCategoriesByRestaurantId, getTopSellingItems } from "@/database";
 import awsS3CheckIfFolderExists from "@/lib/server/aws/awsS3CheckIfFolderExists";
 import withApiHandler from "@/lib/server/withApiHandler";
 import { NotFoundError, ValidationError } from "@/lib/shared/error/ApiError";
-import { MenuOptionForm } from "@/utils/menu/validateMenuOptions";
 import isEmpty from "@/utils/validation/isEmpty";
-import {
-  DeleteObjectCommandInput,
-  PutObjectCommandInput,
-} from "@aws-sdk/client-s3";
 import { NextApiRequest, NextApiResponse } from "next";
-
-export interface IPostMenuCategoryBody {
-  menuCategoryInfo: CreateMenuCategoryParams;
-  menuCategoryOptions?: MenuOptionForm[];
-  uploadParams?: PutObjectCommandInput | null;
-}
-export interface IPatchMenuCategoryBody {
-  menuCategoryInfo: UpdateMenuCategoryParams;
-  menuCategoryOptions?: MenuOptionForm[];
-  uploadParams?: PutObjectCommandInput | null;
-}
-export interface IDeleteMenuCategoryBody {
-  menuCategoryId: string;
-  deleteParams?: DeleteObjectCommandInput | null;
-}
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { restaurantId } = req.query;

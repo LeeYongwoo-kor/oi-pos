@@ -21,12 +21,12 @@ import {
 import { NextApiRequest, NextApiResponse } from "next";
 
 export interface IPostMenuItemBody {
-  menuItemInfo: CreateMenuItemParams;
+  menuItemParams: CreateMenuItemParams;
   menuItemOptions?: MenuOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
 export interface IPatchMenuItemBody {
-  menuItemInfo: UpdateMenuItemParams;
+  menuItemParams: UpdateMenuItemParams;
   menuItemOptions?: MenuOptionForm[];
   uploadParams?: PutObjectCommandInput | null;
 }
@@ -37,12 +37,12 @@ export interface IDeleteMenuItemBody {
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === Method.POST) {
-    const { menuItemInfo, menuItemOptions, uploadParams }: IPostMenuItemBody =
+    const { menuItemParams, menuItemOptions, uploadParams }: IPostMenuItemBody =
       req.body;
-    if (!menuItemInfo.name) {
+    if (!menuItemParams.name) {
       throw new ValidationError("Menu name is required");
     }
-    if (!menuItemInfo.price) {
+    if (!menuItemParams.price) {
       throw new ValidationError("Menu price is required");
     }
 
@@ -53,14 +53,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     try {
       if (menuItemOptions && !isEmpty(menuItemOptions)) {
         const newMenuItemWithOptions = await createMenuItemAndMenuOptions(
-          menuItemInfo,
+          menuItemParams,
           menuItemOptions
         );
 
         return res.status(201).json(newMenuItemWithOptions);
       }
 
-      const newMenuItem = await createMenuItem(menuItemInfo);
+      const newMenuItem = await createMenuItem(menuItemParams);
       return res.status(201).json(newMenuItem);
     } catch (err: unknown) {
       if (uploadParams) {
@@ -73,12 +73,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === Method.PATCH) {
-    const { menuItemInfo, menuItemOptions, uploadParams }: IPatchMenuItemBody =
-      req.body;
-    if (!menuItemInfo.name) {
+    const {
+      menuItemParams,
+      menuItemOptions,
+      uploadParams,
+    }: IPatchMenuItemBody = req.body;
+    if (!menuItemParams.name) {
       throw new ValidationError("Menu name is required");
     }
-    if (!menuItemInfo.price) {
+    if (!menuItemParams.price) {
       throw new ValidationError("Menu price is required");
     }
 
@@ -89,7 +92,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     try {
       if (menuItemOptions && !isEmpty(menuItemOptions)) {
         const newMenuItemWithOptions = await updateMenuItemAndUpsertItemOptions(
-          menuItemInfo,
+          menuItemParams,
           menuItemOptions
         );
 
@@ -104,7 +107,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       throw err;
     }
 
-    const menuItems = await updateMenuItem(menuItemInfo.id, menuItemInfo);
+    const menuItems = await updateMenuItem(menuItemParams.id, menuItemParams);
     return res.status(200).json(menuItems);
   }
 

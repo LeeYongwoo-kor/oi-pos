@@ -4,8 +4,12 @@ import { Method } from "@/constants/fetch";
 import { SUB_CATEGORY_VALUE_NONE } from "@/constants/menu";
 import { CONFIRM_DIALOG_MESSAGE } from "@/constants/message/confirm";
 import { AWS_S3_YOSHI_BUCKET } from "@/constants/service";
-import { CreateMenuItemParams, UpdateMenuItemParams } from "@/database";
-import useLoading from "@/hooks/context/useLoading";
+import {
+  CreateMenuItemParams,
+  IMenuCategory,
+  IMenuItem,
+  UpdateMenuItemParams,
+} from "@/database";
 import { useConfirm } from "@/hooks/useConfirm";
 import useDeepEffect from "@/hooks/useDeepEffect";
 import { useToast } from "@/hooks/useToast";
@@ -37,8 +41,10 @@ import validateMenuOptions, {
   MenuItemOptionForm,
 } from "@/utils/menu/validateMenuOptions";
 import isArrayOfObjectsChanged from "@/utils/validation/isArrayOfObjectsChanged";
+import isCropped from "@/utils/validation/isCropped";
 import isEmpty from "@/utils/validation/isEmpty";
 import isFormChanged from "@/utils/validation/isFormChanged";
+import isImageChanged from "@/utils/validation/isImageChanged";
 import {
   DeleteObjectCommandInput,
   PutObjectCommandInput,
@@ -48,6 +54,8 @@ import { useEffect, useReducer, useRef } from "react";
 import "react-image-crop/dist/ReactCrop.css";
 import { useRecoilState, useRecoilValue } from "recoil";
 import LoadingOverlay from "../LoadingOverlay";
+import EditBottomSheet from "./EditBottomSheet";
+import EditBottomSheetFooter from "./EditBottomSheetFooter";
 import ImageEdit from "./ImageEdit";
 import OptionsEdit from "./OptionsEdit";
 
@@ -56,6 +64,9 @@ type MenuCategoryEditProps = {
 };
 
 export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
+  // ==========================
+  // useMutation
+  // ==========================
   const [
     createMenuItem,
     { error: createMenuItemErr, loading: createMenuItemLoading },
@@ -84,6 +95,10 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     OWNER_ENDPOINT.OPEN_AI_IMAGE,
     Method.POST
   );
+
+  // ==========================
+  // Recoil State
+  // ==========================
   const [isVisible, openEditMenu] = useRecoilState(showMenuEditState);
   const isMobile = useRecoilValue(mobileState);
   const selectedCategory = useRecoilValue(selectedCategoryState);
@@ -91,9 +106,12 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     selectedEditMenuState
   );
   const selectedSubCategories = useRecoilValue(selectedSubCategoryState);
+
+  // ==========================
+  // Custom hooks
+  // ==========================
   const { addToast } = useToast();
   const { showConfirm } = useConfirm();
-  const withLoading = useLoading();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cropCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -120,83 +138,96 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     dispatch,
   ] = useReducer(menuItemEditReducer, initialEditMenuState);
 
+  // サブカテゴリの取得
   const selectedSubCategory = selectedCategory
     ? selectedSubCategories[selectedCategory.id]
     : null;
 
-  const isDisabled =
+  // 「Save」 ボタンの活性条件
+  const isSaveBtnDisabled =
     menuName.length <= 0 ||
     price <= 0 ||
     isAiImageLoading ||
     options.some((option) => option.error);
 
-  const handleDeleteCategory = () => {
-    if (!selectedEditMenu || isEmpty(selectedEditMenu) || !restaurantId) {
+  // メニューを削除する
+  const handleDeleteMenuItem = (selectedMenu: IMenuItem | null) => {
+    if (!selectedMenu || isEmpty(selectedMenu) || !restaurantId) {
+      addToast(
+        "error",
+        "Error occurred while deleting menu item. Please try again later"
+      );
       return;
     }
 
+    // 確認ダイアログの表示
     showConfirm({
-      title: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.TITLE,
-      message: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.MESSAGE,
-      confirmText: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.CONFIRM_TEXT,
-      cancelText: CONFIRM_DIALOG_MESSAGE.DELETE_CATEGORY.CANCEL_TEXT,
+      title: CONFIRM_DIALOG_MESSAGE.DELETE_MENU.TITLE,
+      message: CONFIRM_DIALOG_MESSAGE.DELETE_MENU.MESSAGE,
+      confirmText: CONFIRM_DIALOG_MESSAGE.DELETE_MENU.CONFIRM_TEXT,
+      cancelText: CONFIRM_DIALOG_MESSAGE.DELETE_MENU.CANCEL_TEXT,
       buttonType: "fatal",
       onConfirm: async () => {
         let deleteParams: DeleteObjectCommandInput | null = null;
-        if (selectedEditMenu.imageUrl) {
+        // 画像が存在する場合、S3の削除パラメータを設定
+        if (selectedMenu.imageUrl) {
           deleteParams = {
             Bucket: AWS_S3_YOSHI_BUCKET,
-            Key: selectedEditMenu.imageUrl,
+            Key: selectedMenu.imageUrl,
           };
         }
 
-        const deletedMenuCategory = await deleteMenuItem(
-          {
-            menuItemId: selectedEditMenu.id,
-            deleteParams,
-          },
-          {
-            additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
-          }
-        );
+        const params = {
+          menuItemId: selectedMenu.id,
+          deleteParams,
+        };
 
+        // メニューの削除
+        const deletedMenuCategory = await deleteMenuItem(params, {
+          additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
+        });
+
+        // 削除に成功した場合、コンテナを閉じ、成功メッセージを表示する
         if (deletedMenuCategory) {
           openEditMenu(false);
-          addToast("success", "Menu category deleted successfully!");
+          addToast("success", "Menu item deleted successfully!");
         }
       },
     });
   };
 
-  const handleCloseCategory = () => {
+  // メニュー編集コンテナを閉じる
+  const handleCloseMenuEdit = (selectedMenu: MenuItem | null) => {
+    // 編集前のメニュー情報
+    const beforeChange = {
+      menuName: selectedMenu?.name ?? "",
+      price: selectedMenu?.price ?? 0,
+      description: selectedMenu?.description ?? "",
+      previewUrl: selectedMenu?.imageUrl
+        ? getCloudImageUrl(selectedMenu.imageUrl, selectedMenu.imageVersion)
+        : null,
+      menuItemStatus: selectedMenu?.status ?? MenuItemStatus.AVAILABLE,
+    };
+
+    // 画面のメニュー情報
+    const menuState = {
+      menuName,
+      price,
+      description,
+      previewUrl,
+      menuItemStatus,
+    };
+
+    // 画面情報が変更されていない場合、メニュー編集コンテナを閉じる
     if (
-      !isFormChanged(
-        {
-          menuName: selectedEditMenu?.name ?? "",
-          price: selectedEditMenu?.price ?? 0,
-          description: selectedEditMenu?.description ?? "",
-          previewUrl:
-            selectedEditMenu?.imageUrl &&
-            getCloudImageUrl(
-              selectedEditMenu.imageUrl,
-              selectedEditMenu.imageVersion
-            ),
-          menuItemStatus: selectedEditMenu?.status ?? MenuItemStatus.AVAILABLE,
-        },
-        {
-          menuName,
-          price,
-          description,
-          previewUrl,
-          menuItemStatus,
-        }
-      ) &&
+      !isFormChanged(beforeChange, menuState) &&
       !isArrayOfObjectsChanged(previousOptions, options)
     ) {
       openEditMenu(false);
       return;
     }
 
+    // 情報破棄の確認ダイアログの表示
     showConfirm({
       title: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.TITLE,
       message: CONFIRM_DIALOG_MESSAGE.DISCARD_INPUT.MESSAGE,
@@ -209,8 +240,9 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     });
   };
 
+  // 新たにメニューを作成する
   const handleCreate = async (
-    menuItemInfo: CreateMenuItemParams,
+    menuItemParams: CreateMenuItemParams,
     menuItemOptions: Omit<MenuItemOptionForm, "id">[],
     uploadParams: PutObjectCommandInput | null
   ) => {
@@ -222,25 +254,27 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
       return;
     }
 
-    const newMenuItem = await createMenuItem(
-      {
-        menuItemInfo,
-        menuItemOptions,
-        uploadParams,
-      },
-      {
-        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
-      }
-    );
+    const params = {
+      menuItemParams,
+      menuItemOptions,
+      uploadParams,
+    };
 
+    // メニューの作成
+    const newMenuItem = await createMenuItem(params, {
+      additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
+    });
+
+    // メニューの作成に成功した場合
     if (newMenuItem) {
       openEditMenu(false);
       addToast("success", "Menu Item created successfully!");
     }
   };
 
+  // メニューを更新する
   const handleUpdate = async (
-    menuItemInfo: UpdateMenuItemParams,
+    menuItemParams: UpdateMenuItemParams,
     menuItemOptions: MenuItemOptionForm[],
     uploadParams: PutObjectCommandInput | null
   ) => {
@@ -252,37 +286,43 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
       return;
     }
 
-    const updatedMenuItem = await updateMenuItem(
-      {
-        menuItemInfo,
-        menuItemOptions,
-        uploadParams,
-      },
-      {
-        additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
-      }
-    );
+    const params = {
+      menuItemParams,
+      menuItemOptions,
+      uploadParams,
+    };
 
+    // メニューの更新
+    const updatedMenuItem = await updateMenuItem(params, {
+      additionalKeys: [RESTAURANT_MENU_ENDPOINT.CATEGORY(restaurantId)],
+    });
+
+    // メニューの更新に成功した場合、コンテナを閉じ、成功メッセージを表示する
     if (updatedMenuItem) {
       openEditMenu(false);
       addToast("success", "Menu Item updated successfully!");
     }
   };
 
-  const shouldUploadImage = (): boolean => {
-    if (selectedEditMenu?.imageUrl) {
-      const isImageChanged =
-        previewUrl && !previewUrl.includes(selectedEditMenu.imageUrl);
-      const isCropped =
-        renderedDimension.width !== crop?.width ||
-        renderedDimension.height !== crop?.height;
-      return !!isImageChanged || isCropped;
+  // 画像修正の判定
+  const shouldUploadImage = (
+    selectedMenu: IMenuItem | null | undefined
+  ): boolean => {
+    if (!selectedMenu?.imageUrl) {
+      return true;
     }
 
-    return true;
+    return (
+      isImageChanged(previewUrl, selectedMenu.imageUrl) ||
+      isCropped(renderedDimension, crop)
+    );
   };
 
-  const handleSave = async (): Promise<void> => {
+  // メニュー情報を保存する
+  const handleSave = async (
+    selectedMenu: IMenuItem | null,
+    selectedCategory: IMenuCategory | null
+  ): Promise<void> => {
     if (!restaurantId || !selectedCategory) {
       addToast(
         "error",
@@ -291,52 +331,67 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
       return;
     }
 
+    // メニューのオプションが存在する場合、有効チェックを行う
     if (!isEmpty(options)) {
       const validatedOptions = validateMenuOptions(options);
+      // エラーが存在する場合、エラーを表示し、処理を終了する
       if (validatedOptions.some((option) => option.error)) {
         dispatch({ type: "SET_OPTIONS", payload: validatedOptions });
         return;
       }
     }
 
-    // If the imageUrl exists, use the existing imageKey
+    // S3のimageKeyを設定する
     const imageKey =
-      selectedEditMenu?.imageUrl ||
+      selectedMenu?.imageUrl ||
       `menus/${restaurantId}/${selectedCategory.name}/${menuName}.jpg`;
 
-    const uploadParams = await getS3UploadParams(
-      croppedImage,
-      imageKey,
-      shouldUploadImage
+    // S3に画像をアップロードする
+    // 画像が修正されていない場合 又は 画像がない場合、アップロードを行わない
+    const uploadParams = await getS3UploadParams(croppedImage, imageKey, () =>
+      shouldUploadImage(selectedMenu)
     );
 
+    // S3のアップロードに失敗した場合、エラーを表示し、処理を終了する
     if (uploadParams instanceof ApiError) {
       addToast("error", uploadParams.message);
       return;
     }
 
-    const menuItemInfo: CreateMenuItemParams | UpdateMenuItemParams = {
-      id: selectedEditMenu?.id,
-      categoryId: selectedCategory?.id,
-      subCategoryId:
-        subCategory !== SUB_CATEGORY_VALUE_NONE ? subCategory : undefined,
+    const { id, imageUrl, imageVersion } = selectedMenu || {};
+    const { id: categoryId } = selectedCategory || {};
+
+    // サブカテゴリが存在する場合、サブカテゴリのIDを設定
+    const subCategoryId =
+      subCategory !== SUB_CATEGORY_VALUE_NONE ? subCategory : undefined;
+    // メニューのステータスが「限定」の場合、最大注文数を設定
+    const maxDailyOrdersValue =
+      menuItemStatus === MenuItemStatus.LIMITED ? maxDailyOrders : undefined;
+    // 画像のURLを設定。画像のURLが存在する場合、S3のimageKeyを設定
+    const imageUrlValue = uploadParams ? imageKey : imageUrl || "";
+    // 画像のバージョンを設定。画像のバージョンが存在する場合、バージョンを+1する
+    const imageVersionValue =
+      imageUrl && uploadParams ? (imageVersion ?? 0) + 1 : imageVersion;
+
+    const menuItemParams: CreateMenuItemParams | UpdateMenuItemParams = {
+      id,
+      categoryId,
+      subCategoryId,
       name: menuName,
       price,
       description,
       status: menuItemStatus,
-      maxDailyOrders:
-        menuItemStatus === MenuItemStatus.LIMITED ? maxDailyOrders : undefined,
-      imageUrl: uploadParams ? imageKey : selectedEditMenu?.imageUrl || "",
-      imageVersion:
-        selectedEditMenu?.imageUrl && uploadParams
-          ? selectedEditMenu.imageVersion + 1
-          : selectedEditMenu?.imageVersion,
+      maxDailyOrders: maxDailyOrdersValue,
+      imageUrl: imageUrlValue,
+      imageVersion: imageVersionValue,
     };
 
-    if (selectedEditMenu) {
-      await handleUpdate(menuItemInfo, options, uploadParams);
+    if (selectedMenu) {
+      // メニュー情報が存在する場合、メニューを更新する
+      await handleUpdate(menuItemParams, options, uploadParams);
     } else {
-      await handleCreate(menuItemInfo, options, uploadParams);
+      // メニュー情報が存在しない場合、メニューを作成する
+      await handleCreate(menuItemParams, options, uploadParams);
     }
   };
 
@@ -346,6 +401,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     }
   };
 
+  // 各必須項目の初期化
   useEffect(() => {
     const {
       imageUrl,
@@ -399,6 +455,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
       });
     }
     if (selectedSubCategory?.id) {
+      // メニュー情報のサブカテゴリが存在する場合、サブカテゴリのIDを設定
       if (selectedEditMenu?.subCategoryId) {
         dispatch({
           type: "SET_SUB_CATEGORY",
@@ -406,23 +463,15 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
         });
         return;
       }
+
       dispatch({
         type: "SET_SUB_CATEGORY",
         payload: selectedSubCategory.id,
       });
     }
-  }, [
-    selectedEditMenu?.imageUrl,
-    selectedEditMenu?.imageVersion,
-    selectedEditMenu?.name,
-    selectedEditMenu?.price,
-    selectedEditMenu?.description,
-    selectedEditMenu?.status,
-    selectedEditMenu?.subCategoryId,
-    selectedEditMenu?.maxDailyOrders,
-    selectedSubCategory?.id,
-  ]);
+  }, [selectedEditMenu, selectedSubCategory?.id]);
 
+  // オプションの最大数を10に制限
   useEffect(() => {
     if (optionCount > 10) {
       addToast("error", "The maximum number of options is 10");
@@ -430,26 +479,26 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     }
   }, [optionCount]);
 
+  // オプションの初期化
   useDeepEffect(() => {
     if (isVisible) {
+      // メニューのオプションが存在する場合、メニューのオプション値を設定（優先）
       if (selectedEditMenu && !isEmpty(selectedEditMenu?.menuItemOptions)) {
-        setDefaultMenuOptions(selectedEditMenu.menuItemOptions, dispatch);
+        setDefaultMenuOptions(
+          selectedEditMenu.menuItemOptions,
+          dispatch,
+          ({ id, name, price }) => ({ id, name, price })
+        );
         return;
-      } else if (
-        selectedCategory &&
-        !isEmpty(selectedCategory.defaultOptions)
-      ) {
-        const formattedDefaultOptions = selectedCategory.defaultOptions.map(
+      }
+
+      // カテゴリのオプションが存在する場合、カテゴリのオプション値を設定
+      if (selectedCategory && !isEmpty(selectedCategory.defaultOptions)) {
+        setDefaultMenuOptions(
+          selectedCategory.defaultOptions,
+          dispatch,
           ({ id, name, price }) => ({ categoryOptionId: id, name, price })
         );
-        dispatch({
-          type: "SET_DEFAULT_OPTIONS",
-          payload: {
-            options: formattedDefaultOptions,
-            optionCount: formattedDefaultOptions.length,
-            previousOptions: formattedDefaultOptions,
-          },
-        });
       }
     }
   }, [
@@ -458,6 +507,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     isVisible,
   ]);
 
+  // 各useMutationでエラーが発生した場合、エラーを表示する
   useEffect(() => {
     handleErrors(createMenuItemErr);
     handleErrors(updateMenuItemErr);
@@ -470,6 +520,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
     createAiImageErr,
   ]);
 
+  // メニュー編集コンテナを閉じる場合、メニュー情報を初期化する
   useEffect(() => {
     if (!isVisible) {
       dispatch({ type: "RESET" });
@@ -483,6 +534,7 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
         updateMenuItemLoading ||
         deleteMenuItemLoading ||
         createAiImageLoading) && <LoadingOverlay />}
+      {/* Canvas (Tempotary painting) */}
       <canvas
         ref={canvasRef}
         className="hidden"
@@ -493,206 +545,138 @@ export default function MenuEdit({ restaurantId }: MenuCategoryEditProps) {
         className="hidden"
         aria-label="Gets the image of crop container"
       ></canvas>
-      <div
-        className={`absolute inset-0 top-4 transform transition-transform duration-300 ease-in-out ${
-          isVisible ? "z-30" : "z-0"
-        }`}
-        style={{
-          transform: `translateY(${isVisible ? "0%" : "100%"})`,
-        }}
+      {/* MenuEdit Container */}
+      <EditBottomSheet
+        isVisible={isVisible}
+        handleCloseEdit={() => handleCloseMenuEdit(selectedEditMenu)}
+        activeTab={activeTab}
+        dispatch={dispatch}
+        essentialCondition={menuName.length <= 0 || price <= 0}
+        optionalCondition={options.some((option) => option.error)}
       >
-        {isVisible && (
-          <div className="flex flex-col overflow-y-scroll h-full max-h-[47rem] p-4 bg-white rounded-t-[2rem] scrollbar-hide">
-            <div className="flex justify-between mb-12">
-              <button
-                onClick={handleCloseCategory}
-                className="absolute z-10 p-2 text-sm text-black bg-gray-200 border-4 border-white rounded-full hover:bg-gray-300"
-              >
-                Back
-              </button>
-              <div className="absolute z-10 right-0 flex space-x-0.5 bg-white -top-0">
-                <button
-                  onClick={() => dispatch({ type: "ACTIVE_TAP_ESSENTIAL" })}
-                  className={`px-4 py-2 ${
-                    activeTab === "essential"
-                      ? "font-semibold"
-                      : `${
-                          menuName.length <= 0 || price <= 0
-                            ? "bg-red-200 hover:bg-red-300"
-                            : "bg-gray-200 hover:bg-gray-300"
-                        } shadow-[inset_1px_-1px_2px_rgba(0,0,0,0.2)]`
-                  } rounded-l`}
-                >
-                  Essential
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "ACTIVE_TAP_OPTIONAL" })}
-                  className={`px-4 py-2 ${
-                    activeTab === "optional"
-                      ? "font-semibold"
-                      : `${
-                          options.some((option) => option.error)
-                            ? "bg-red-200 hover:bg-red-300"
-                            : "bg-gray-200 hover:bg-gray-300"
-                        } shadow-[inset_1px_-1px_2px_rgba(0,0,0,0.2)]`
-                  } rounded-r`}
-                >
-                  Optional
-                </button>
-              </div>
+        {/* Essential */}
+        {activeTab === "essential" && (
+          <div className="relative flex flex-col space-y-4">
+            {/* Menu Name */}
+            <div className="relative">
+              <input
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_MENU_NAME",
+                    payload: e.target.value,
+                  })
+                }
+                className={`p-2 border-b-2 ${isMobile ? "w-full" : "w-3/4"}`}
+                type="text"
+                value={menuName}
+                placeholder="Enter menu name (example: Chicken Burger)"
+              />
+              {/* Menu Name Error */}
+              <span className="absolute text-sm text-red-500 right-5">
+                {menuName.length <= 0 && "※ Category name is required"}
+              </span>
             </div>
-            {activeTab === "essential" && (
-              <div className="relative flex flex-col space-y-4">
-                <div className="relative">
-                  <input
-                    onChange={(e) =>
-                      dispatch({
-                        type: "SET_MENU_NAME",
-                        payload: e.target.value,
-                      })
-                    }
-                    className={`p-2 border-b-2 ${
-                      isMobile ? "w-full" : "w-3/4"
-                    }`}
-                    type="text"
-                    value={menuName}
-                    placeholder="Enter menu name (example: Chicken Burger)"
-                  />
-                  <span className="absolute text-sm text-red-500 right-5">
-                    {menuName.length <= 0 && "※ Category name is required"}
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    onChange={(e) => {
-                      if (e.target.value.startsWith("0")) {
-                        e.target.value = e.target.value.slice(1);
-                      }
-                      dispatch({
-                        type: "SET_PRICE",
-                        payload: Number(e.target.value),
-                      });
-                    }}
-                    className={`p-2 border-b-2 ${
-                      isMobile ? "w-full" : "w-3/4"
-                    }`}
-                    type="number"
-                    value={price}
-                    placeholder="Enter menu price (example: 990))"
-                  />
-                  <span className="absolute top-0 text-sm text-red-500 right-5">
-                    {price <= 0 && "※ Price is required"}
-                  </span>
-                </div>
-                <ImageEdit
-                  createAiImage={createAiImage}
-                  imageInfo={{
-                    triggerName: menuName,
-                    crop,
-                    renderedDimension,
-                    isAiImageLoading,
-                    previewUrl,
-                    shouldProcessCrop,
-                  }}
-                  canvasInfo={{ canvasRef, cropCanvasRef }}
-                  dispatch={dispatch}
-                />
-                <textarea
+            {/* Menu Price */}
+            <div className="relative">
+              <input
+                onChange={(e) => {
+                  if (e.target.value.startsWith("0")) {
+                    e.target.value = e.target.value.slice(1);
+                  }
+                  dispatch({
+                    type: "SET_PRICE",
+                    payload: Number(e.target.value),
+                  });
+                }}
+                className={`p-2 border-b-2 ${isMobile ? "w-full" : "w-3/4"}`}
+                type="number"
+                value={price}
+                placeholder="Enter menu price (example: 990))"
+              />
+              {/* Menu Price Error */}
+              <span className="absolute top-0 text-sm text-red-500 right-5">
+                {price <= 0 && "※ Price is required"}
+              </span>
+            </div>
+            {/* Menu Image */}
+            <ImageEdit
+              createAiImage={createAiImage}
+              imageInfo={{
+                triggerName: menuName,
+                crop,
+                renderedDimension,
+                isAiImageLoading,
+                previewUrl,
+                shouldProcessCrop,
+              }}
+              canvasInfo={{ canvasRef, cropCanvasRef }}
+              dispatch={dispatch}
+            />
+            {/* Menu Description */}
+            <textarea
+              onChange={(e) =>
+                dispatch({
+                  type: "SET_DESCRIPTION",
+                  payload: e.target.value,
+                })
+              }
+              className="w-full h-24 p-2 border-2 resize-none"
+              value={description}
+              placeholder="Enter description"
+            />
+            {/* Menu Sub Category */}
+            <div className="flex-wrap items-center">
+              <label className="whitespace-nowrap">Sub-category:</label>
+              <div className="w-full mt-2">
+                <select
+                  value={subCategory ?? SUB_CATEGORY_VALUE_NONE}
                   onChange={(e) =>
                     dispatch({
-                      type: "SET_DESCRIPTION",
+                      type: "SET_SUB_CATEGORY",
                       payload: e.target.value,
                     })
                   }
-                  className="w-full h-24 p-2 border-2 resize-none"
-                  value={description}
-                  placeholder="Enter description"
-                />
-                <div className="flex-wrap items-center">
-                  <label className="whitespace-nowrap">Sub-category:</label>
-                  <div className="w-full mt-2">
-                    <select
-                      value={subCategory ?? SUB_CATEGORY_VALUE_NONE}
-                      onChange={(e) =>
-                        dispatch({
-                          type: "SET_SUB_CATEGORY",
-                          payload: e.target.value,
-                        })
-                      }
-                      className="w-full h-10 px-3 py-2 text-base text-gray-900 placeholder-gray-500 border rounded-lg focus:shadow-outline-blue focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                      name="subCategory"
-                    >
-                      <option value={SUB_CATEGORY_VALUE_NONE}>
-                        {SUB_CATEGORY_VALUE_NONE}
-                      </option>
-                      {selectedCategory?.subCategories.map((sub) => (
-                        <option key={sub.id} value={sub.id}>
-                          {sub.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-            {activeTab === "optional" && (
-              <OptionsEdit
-                optionsInfo={{
-                  options,
-                  menuStatus: {
-                    type: "item",
-                    status: menuItemStatus,
-                  },
-                  maxDailyOrders,
-                }}
-                dispatch={dispatch}
-              />
-            )}
-            <hr className="mt-6" />
-            <div
-              className={`flex mt-3 ${
-                selectedEditMenu ? "justify-between" : "self-end"
-              }`}
-            >
-              {selectedEditMenu && (
-                <button
-                  onClick={handleDeleteCategory}
-                  disabled={menuName.length <= 0 || isAiImageLoading}
-                  className={`px-6 py-2 text-white transition duration-200 ${
-                    menuName.length <= 0 || isAiImageLoading
-                      ? "cursor-not-allowed bg-red-400"
-                      : "bg-red-500 hover:bg-red-600"
-                  }`}
+                  className="w-full h-10 px-3 py-2 text-base text-gray-900 placeholder-gray-500 border rounded-lg focus:shadow-outline-blue focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                  name="subCategory"
                 >
-                  Delete
-                </button>
-              )}
-              <div className="space-x-2">
-                <button
-                  onClick={handleCloseCategory}
-                  className="px-6 py-2 text-black transition duration-200 bg-gray-200 rounded hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    await withLoading(handleSave);
-                  }}
-                  disabled={isDisabled}
-                  className={`px-6 py-2 text-white transition duration-200  rounded ${
-                    isDisabled
-                      ? "cursor-not-allowed bg-green-400"
-                      : "bg-green-500 hover:bg-green-600"
-                  }`}
-                >
-                  Save
-                </button>
+                  <option value={SUB_CATEGORY_VALUE_NONE}>
+                    {SUB_CATEGORY_VALUE_NONE}
+                  </option>
+                  {selectedCategory?.subCategories.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
         )}
-      </div>
+        {/* Optional */}
+        {activeTab === "optional" && (
+          <OptionsEdit
+            optionsInfo={{
+              options,
+              menuStatus: {
+                type: "item",
+                status: menuItemStatus,
+              },
+              maxDailyOrders,
+            }}
+            dispatch={dispatch}
+          />
+        )}
+        <hr className="mt-6" />
+        {/* Footer */}
+        <EditBottomSheetFooter
+          previousData={selectedEditMenu}
+          handleSave={() => handleSave(selectedEditMenu, selectedCategory)}
+          handleDelete={() => handleDeleteMenuItem(selectedEditMenu)}
+          handleCloseEdit={() => handleCloseMenuEdit(selectedEditMenu)}
+          deleteCondition={isAiImageLoading}
+          saveCondition={isSaveBtnDisabled}
+        />
+      </EditBottomSheet>
     </form>
   );
 }

@@ -11,6 +11,7 @@ import {
 import getCloudImageUrl from "@/utils/menu/getCloudImageUrl";
 import getCurrency from "@/utils/menu/getCurrencyFormat";
 import {
+  faBurger,
   faCirclePlus,
   faMedal,
   faPenToSquare,
@@ -118,17 +119,23 @@ export default function MenuItemArea({ role }: MenuItemAreaProps) {
                 </div>
               </div>
             )}
-            <Image
-              src={getCloudImageUrl(dish.imageUrl, dish.imageVersion)}
-              alt={dish.name}
-              fill
-              className={`object-cover rounded-lg ${
-                dish.status === MenuItemStatus.SOLD_OUT
-                  ? "grayscale opacity-50"
-                  : ""
-              }`}
-              draggable={false}
-            />
+            {dish.imageUrl ? (
+              <Image
+                src={getCloudImageUrl(dish.imageUrl, dish.imageVersion)}
+                alt={dish.name}
+                fill
+                className={`object-cover rounded-lg ${
+                  dish.status === MenuItemStatus.SOLD_OUT
+                    ? "grayscale opacity-50"
+                    : ""
+                }`}
+                draggable={false}
+              />
+            ) : (
+              <div className="flex items-center justify-center w-full h-full bg-slate-200">
+                <FontAwesomeIcon icon={faBurger} size="4x" />
+              </div>
+            )}
           </div>
           <div className="flex justify-between">
             <div className="flex flex-col py-2 pl-2">

@@ -17,6 +17,12 @@ export const CONFIRM_DIALOG_MESSAGE = {
     CONFIRM_TEXT: "削除する",
     CANCEL_TEXT: "削除しない",
   },
+  DELETE_MENU: {
+    TITLE: "メニューの削除",
+    MESSAGE: "このメニューを削除しますか？",
+    CONFIRM_TEXT: "削除する",
+    CANCEL_TEXT: "削除しない",
+  },
   DELETE_CATEGORY_OPTION: {
     TITLE: "メニューカテゴリオプションの削除",
     MESSAGE:

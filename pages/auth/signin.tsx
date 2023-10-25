@@ -159,15 +159,6 @@ const Signin = ({ callbackError }: SigninProps) => {
 export default Signin;
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  if (session) {
-    return {
-      redirect: {
-        destination: DASHBOARD_URL.BASE,
-      },
-    };
-  }
-
   const { error } = ctx.query;
   if (error) {
     return {
@@ -175,6 +166,15 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
         callbackError:
           AUTH_CALLBACK_ERROR_MESSAGE[error as AuthCallbackErrorType] ??
           AUTH_CALLBACK_ERROR_MESSAGE.DEFAULT,
+      },
+    };
+  }
+
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  if (session) {
+    return {
+      redirect: {
+        destination: DASHBOARD_URL.BASE,
       },
     };
   }

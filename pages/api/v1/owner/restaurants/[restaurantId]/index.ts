@@ -3,6 +3,7 @@ import { Method } from "@/constants/fetch";
 import {
   UpsertRestaurantInfoParams,
   createOrDeleteRestaurantTables,
+  getActiveOrderByRestaurantId,
   getRestaurantAllInfoById,
   updateRestaurantInfo,
   upsertRestaurantInfo,
@@ -10,7 +11,7 @@ import {
 import setInCache from "@/lib/server/cache/setInCache";
 import { updateCache } from "@/lib/server/cache/updateCache";
 import withApiHandler from "@/lib/server/withApiHandler";
-import { ValidationError } from "@/lib/shared/error/ApiError";
+import { ForbiddenError, ValidationError } from "@/lib/shared/error/ApiError";
 import { Restaurant, TableType } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
@@ -44,6 +45,16 @@ async function handler(
         "Cannot put 0 or negative number in tableNumber and counterNumber at the same time"
       );
     }
+
+    if (session?.isAllInfoRegistered) {
+      const activeOrder = await getActiveOrderByRestaurantId(restaurantId);
+      if (activeOrder) {
+        throw new ForbiddenError(
+          "Cannot change table number or counter number while there is an active order. Please try again after closing the order"
+        );
+      }
+    }
+
     await createOrDeleteRestaurantTables(
       restaurantId,
       TableType.TABLE,

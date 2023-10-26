@@ -80,6 +80,38 @@ export async function getActiveOrderByTableIdAndOrderId(
   );
 }
 
+export async function getActiveOrderByRestaurantId(
+  restaurantId: string | undefined | null
+): Promise<Order | null> {
+  if (!restaurantId) {
+    return null;
+  }
+
+  return prismaRequestHandler(
+    prisma.order.findFirst({
+      where: {
+        table: {
+          restaurantId,
+        },
+        status: {
+          notIn: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
+        },
+      },
+      include: {
+        table: {
+          include: {
+            restaurant: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+    "getActiveOrderByRestaurantId"
+  );
+}
+
 export async function getOrderById(
   orderId: string | undefined | null
 ): Promise<Order | null> {

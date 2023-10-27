@@ -1,1 +1,1 @@
-Hello, world and yoshi!
+Welcome to Oi-POS!

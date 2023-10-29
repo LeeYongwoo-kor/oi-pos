@@ -76,7 +76,7 @@ function ToastContainer() {
   const { toasts, dismissToast } = useToast();
 
   return (
-    <div className="fixed z-50 flex flex-col-reverse w-full px-2 bottom-12 sm:bottom-8 sm:right-6">
+    <div className="fixed z-50 flex flex-col-reverse w-full px-2 pointer-events-none bottom-12 sm:bottom-8 sm:right-6">
       {toasts.map((toast) => (
         <Toast key={toast.id} {...toast} onDismiss={dismissToast} />
       ))}

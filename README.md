@@ -4,7 +4,7 @@ Welcome to Oi-POS!
 
 既存のQRコード注文 + POSシステムも多数ありますが、アプリではなく、Web画面ですべてを網羅できることが特徴です。
 
-🚀 **Preview (Youtube)**
+🚀 **Preview プロジェクト実演動画 (Youtube)**
 
 [![Video Label](http://img.youtube.com/vi/SJyZfwj6HrE/0.jpg)](https://youtu.be/SJyZfwj6HrE)
 

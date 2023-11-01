@@ -25,7 +25,7 @@ Welcome to Oi-POS!
 
 以下のリンクに技術・特徴・感想などの詳細を記述しました。ぜひご閲覧いただければと思います。
 
-[Oi-POS Project 技術・特徴](https://www.notion.so/Oi-POS-Project-16ac044a1dbd45828aa758207b080769?pvs=4#8e710e6900df414b9d4f62b83d897463)
+[Oi-POS Project 技術・特徴](https://heady-prince-088.notion.site/Oi-POS-Project-16ac044a1dbd45828aa758207b080769?pvs=4)
 
 
 
